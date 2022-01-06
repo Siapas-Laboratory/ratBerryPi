@@ -35,6 +35,5 @@ values that are set to output the desired amount.
 ## main.py
 main interface file which references audio and syringe files. This is where the menu interface is built, and where calls to different functions are made. By building the other files using an object oriented programming approach, the main file can call functions on a syringe object or audio object. To run this file, navigate to its location in a terminal and simply run the file 
 
-'''
+
 python main.py 
-'''
