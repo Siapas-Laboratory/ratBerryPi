@@ -14,9 +14,13 @@ generates sine wave based on certain parameter values:
 
 outputs the sine wave through the audio port on the raspberry pi 
 
-## calibration.py 
+### functions 
+def sine_tone(self, frequency, duration, volume=1, sample_rate=22050)
+* frequency = frequency of sound output in Hz 
+* duration = length of the audio 
+* volume = volume of sound output, automatically set to 100% volume. 
+* sample rate = samples per second, automatically set to 22050
 
-this is also written as a function in syringe.py - but it is included as its own file in the case the original code / user prompts used for calibration during the rotation is preferred. It goes through a for loop and outputs puleses of minimal amounts of water (5 microliters) for that amount of times. 
 
 
 ## syringe.py 
