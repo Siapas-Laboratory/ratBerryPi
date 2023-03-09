@@ -77,8 +77,20 @@ class syringe:
                         self.stepDelay, # step delay [sec]
                         False, # True = print verbose output 
                         .05) # initial delay [sec]
-
-
+        
+        # how do we know we're not on the edge/how do we avoid breaking something by pushing too hard
+        # also need to quantify how reliably the motor moves the calculated distance
+        
+    def pulseBackward(self, amount):
+        print("Pulsing the motor forward...")
+        steps = self.calculateSteps(amount)
+        print("Steps is: ", steps)
+        self.mymotor.motor_go(True, # True=Clockwise - Back, False=Counter-Clockwise - Forward
+                        self.stepType, # Step type (Full,Half,1/4,1/8,1/16,1/32)
+                        steps, # number of steps
+                        self.stepDelay, # step delay [sec]
+                        False, # True = print verbose output 
+                        .05) # initial delay [sec]
 
 
 
