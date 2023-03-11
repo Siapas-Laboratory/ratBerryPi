@@ -11,7 +11,10 @@
 import RPi.GPIO as GPIO
 from RpiMotorLib import RpiMotorLib
 import time
-from time import sleep 
+from time import sleep
+import numpy as np
+import inspect
+import pandas as pd
 
 ################################
 # RPi and Motor Pre-allocations
@@ -19,74 +22,189 @@ from time import sleep
 
 
 class syringe:
-    def __init__(self, syringeType,  stepPin ,
-                 stepType = "Half", # controls the resolution of stepping. maybe this can be set dynamically?
-                 ENPin = 25, dirPin = 23, GPIOPins = (6, 13, 19)):
-        self.syringeType = syringeType
-        self.stepDelay = .001 # what does this do?
+    
+    stepsTypeDict = {"Full":200, 
+                      "Half":400,
+                      "1/4":800,
+                      "1/8": 1600,
+                      "1/16": 3200}
+    
+    def __init__(self, stepPin, syringeType = None, stepType = None, ID = None, 
+                 ENPin = 25, dirPin = 23, GPIOPins = (6, 13, 19), tolerance = 1e-4):
+        
+        """
+        this is a class that allows for the control of a syringe
+        pump actuated by a Nema 17 Bipolar stepper motor and driven
+        by a DRV8825 via a raspberry pi.
+        
+        Args:
+        -----
+            stepPin: int
+                pin on the pi that is wired to the step pin of
+                the DRV8825 controlling this pump
+            syringeType: str, optional
+                a string denoting any of the syringes for which
+                we already have inner diameters for
+                if this field is not set you must set the ID
+            stepType: str, optional
+                any of the available step types for driving the motor.
+                either Full, Half, 1/4, 1/8, or 1/16
+            ID: float, optional
+                inner diameter of the syringe. if this is not
+                specified you must chosed a prest syringeType
+            ENPin: int, optional
+                pin for enabling the use of the pump
+            dirPin: int, optional
+                pin to set the direction of the pump
+            GPIOPins: tuple(int, int, int)
+                the pins used to set the step type (M0, M1, M2)
+            tolerance: float
+                the allowable error in the amount of fluid delivered in mL
+        """
+        
+        
+        if syringeType is not None:
+            if ID is not None:
+                print("warning: both syringeType and ID provided, using syringeType to calculate ID")
+            self.syringeType = syringeType
+        elif ID is not None:
+            self.ID = ID
+        else:
+            raise Exception("must specify either syringeType or ID")
+        
         self.stepType = stepType
+        self.stepDelay = .001 # what does this do?
         self.ENPin = ENPin # enable pin (LOW to enable)
+        self.tolerance = tolerance
         
         # Declare a instance of class pass GPIO pins numbers and the motor type
         self.mymotor = RpiMotorLib.A4988Nema(dirPin , stepPin , GPIOPins, "DRV8825")
         GPIO.setup(ENPin,GPIO.OUT) # set enable pin as output
         GPIO.output(ENPin,GPIO.LOW)
-
-    def calculateSteps(self, amount):
-        # TODO: I want this function to be a bit more flexible
-        # should take as input some calibration info or the
-        # syringe diameter and use this to calculate number of steps
-
-        if "3" in self.syringeType:
-            dist = .555625 #distance bw .1 mL in cm 
-
+        
+    @property
+    def syringeType(self):
+        return self._syringeType
+    
+    @syringeType.setter
+    def syringeType(self, a):
+        # check if we have an ID for
+        # the specified syringe type
+        if a == "BD1mL":
+            self.ID = 0.478 
+        elif a == "BD5mL":
+            self.ID = 1.207
+        elif a is not None:
+            raise ValueError("invalid syringeType")
+        self._syringeType = a        
+        
+    @property
+    def ID(self):
+        return self._ID
+    
+    @ID.setter
+    def ID(self, a):
+        self._ID = a
+        self.getConversionFactor()
+        curframe = inspect.currentframe()
+        calframe = inspect.getouterframes(curframe, 2)
+        if calframe[1][3] != 'syringeType':
+            # if this isn't being called through the setter method
+            # for syringeType set syringeType to None
+            # for clarity we want to make sure syringeType is only set
+            # if we intend to use an preset ID based on the value
+            self.syringeType = None
+        
+    @property
+    def stepType(self):
+        return self._stepType
+    
+    @stepType.setter
+    def stepType(self, a):
+        if (a in self.stepsTypeDict) or (a is None):
+            self._stepType = a
+            self._eff_stepType = a
         else:
-            dist = .174625 #distance bw .1 mL in cm
-
-        #catch for case of not thick or thin
-
-        # --------- Calculation Note -----------
-        # For threadsPerCm, there are 32 threads per inch,
-        # and so I converted the 1 inch to cm and so I
-        # multiplied the 32 x .393701 to get 12.598432
-        threadsPerCm = 12.598432 #threads in 1 cm distance
-        # Calculating the linear distance syringe should move 
-        #create code for mililiters
-        multFactor = amount / .1 #amount mL div by .1 mL 
-        linDist = dist * multFactor
-        # Calculating how many steps should take to travel linear distance
-        threadsLinDist = threadsPerCm * linDist
-
-        stepsTypeDict = {"Full":200,
-                          "Half":400,
-                          "1/4":800,
-                          "1/8": 1600,
-                          "1/16": 3200}
-        stepsPerThread = stepsTypeDict[self.stepType] #steps per revolution, which is the same as thread
-        finalSteps = round(stepsPerThread * threadsLinDist) # gets you steps to achieve the distance 
-        return finalSteps
-
+            raise ValueError("invalid step type")       
+            
+    def getConversionFactor(self):
+        """
+        calculate volume dispensed in mL
+        per revolution of the motor
+        """
+        if self.ID is not None:
+            mlPerCm = np.pi * ((self.ID/2)**2)
+            pitch = 0.08 # pitch in cm of the threads on the rod attached to the motor
+            #              assuming a single start threaded bearing this is equivalent to the lead,
+            #              the distance in cm the pump moves per turn of the motor
+            self.mlPerThread = mlPerCm * pitch
+        
+    def calculateSteps(self, amount):
+        """
+        calculate the numer of steps of the motor
+        needed to dispense a given amount of fluid
+        
+        Args:
+        -----
+        amount: float
+            desired fluid output in mL
+        """
+        if self.stepType is None:
+            # if no stepType is specified use the coarsest one
+            # that gets us within some tolerance of the desired output
+            stepsPerThread = pd.Series(self.stepsTypeDict)
+            stepsPerMl = (stepsPerThread/ self.mlPerThread)
+            n_steps = stepsPerMl * amount
+            # check the error for all possible step types
+            ok = (n_steps.round()/stepsPerMl - amount).abs() < self.tolerance
+            if ok.sum() >0:
+                self._eff_stepType = n_steps.index[(n_steps.round()/stepsPerMl - amount).abs()<self.tolerance][0]
+            else:
+                # if no step types meet the tolerance criteria use 1/16
+                self._eff_stepType = '1/16'
+                print("warning: no step types meet the desired tolerance, consider using a different syringe. setting step type to 1/16")
+            n_steps = n_steps[self._eff_stepType]
+        else:
+            stepsPerThread = self.stepsTypeDict[self.stepType]
+            n_steps = (stepsPerThread/ self.mlPerThread) * amount
+        return int(round(n_steps))
 
     def pulseForward(self, amount):
+        """
+        push out a given amount of fluid
+        from the syringe
+        
+        Args:
+        -----
+        amount: float
+            desired fluid output in mL
+        """
         print("Pulsing the motor forward...")
         steps = self.calculateSteps(amount)
-        print("Steps is: ", steps)
+        print("Steps is: ", steps, "using step type: ", self._eff_stepType)
         self.mymotor.motor_go(False, # True=Clockwise - Back, False=Counter-Clockwise - Forward
-                        self.stepType, # Step type (Full,Half,1/4,1/8,1/16,1/32)
+                        self._eff_stepType, # Step type (Full,Half,1/4,1/8,1/16,1/32)
                         steps, # number of steps
                         self.stepDelay, # step delay [sec]
                         False, # True = print verbose output 
                         .05) # initial delay [sec]
         
-        # how do we know we're not on the edge/how do we avoid breaking something by pushing too hard
-        # also need to quantify how reliably the motor moves the calculated distance
         
     def pulseBackward(self, amount):
+        """
+        pull in a given amount of fluid
+        from the syringe
+        
+        Args:
+        -----
+        amount: float
+            desired fluid output in mL
+        """
         print("Pulsing the motor forward...")
         steps = self.calculateSteps(amount)
-        print("Steps is: ", steps)
+        print("Steps is: ", steps, "using step type: ", self._eff_stepType)
         self.mymotor.motor_go(True, # True=Clockwise - Back, False=Counter-Clockwise - Forward
-                        self.stepType, # Step type (Full,Half,1/4,1/8,1/16,1/32)
+                        self._eff_stepType, # Step type (Full,Half,1/4,1/8,1/16,1/32)
                         steps, # number of steps
                         self.stepDelay, # step delay [sec]
                         False, # True = print verbose output 
