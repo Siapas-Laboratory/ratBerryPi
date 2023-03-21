@@ -15,13 +15,14 @@ from time import sleep
 import numpy as np
 import inspect
 import pandas as pd
+import threading
 
 ################################
 # RPi and Motor Pre-allocations
 ################################
 
 
-class syringe:
+class Syringe:
     
     stepsTypeDict = {"Full":200, 
                       "Half":400,
@@ -76,6 +77,7 @@ class syringe:
         self.stepDelay = .001 # what does this do?
         self.ENPin = ENPin # enable pin (LOW to enable)
         self.tolerance = tolerance
+        self.green_ligt = True
         
         # Declare a instance of class pass GPIO pins numbers and the motor type
         self.mymotor = RpiMotorLib.A4988Nema(dirPin , stepPin , GPIOPins, "DRV8825")
@@ -95,7 +97,7 @@ class syringe:
         elif a == "BD5mL":
             self.ID = 1.207
         elif a is not None:
-            raise ValueError("invalid syringeType")
+            raise ValueError(f"invalid syringeType '{a}'")
         self._syringeType = a        
         
     @property
@@ -182,13 +184,22 @@ class syringe:
         print("Pulsing the motor forward...")
         steps = self.calculateSteps(amount)
         print("Steps is: ", steps, "using step type: ", self._eff_stepType)
-        self.mymotor.motor_go(False, # True=Clockwise - Back, False=Counter-Clockwise - Forward
-                        self._eff_stepType, # Step type (Full,Half,1/4,1/8,1/16,1/32)
-                        steps, # number of steps
-                        self.stepDelay, # step delay [sec]
-                        False, # True = print verbose output 
-                        .05) # initial delay [sec]
-        
+        # this should be done asynchronously i think and we should be able to interrupt it
+        #GPIO.setup(self.mymotor.direction_pin, GPIO.OUT)
+        #GPIO.setup(self.mymotor.step_pin, GPIO.OUT)
+        #GPIO.output(self.mymotor.direction_pin, False)
+        step_count = 0
+        while step_count<steps:
+            if self.green_light:
+                self.mymotor.motor_go(False, # True=Clockwise - Back, False=Counter-Clockwise - Forward
+                                    self._eff_stepType, # Step type (Full,Half,1/4,1/8,1/16,1/32)
+                                    1, # number of steps
+                                    self.stepDelay, # step delay [sec]
+                                    False, # True = print verbose output 
+                                    0) # initial delay [sec]
+                step_count += 1
+        return 'done'
+             
         
     def pulseBackward(self, amount):
         """
@@ -203,12 +214,13 @@ class syringe:
         print("Pulsing the motor forward...")
         steps = self.calculateSteps(amount)
         print("Steps is: ", steps, "using step type: ", self._eff_stepType)
+        
         self.mymotor.motor_go(True, # True=Clockwise - Back, False=Counter-Clockwise - Forward
                         self._eff_stepType, # Step type (Full,Half,1/4,1/8,1/16,1/32)
                         steps, # number of steps
                         self.stepDelay, # step delay [sec]
                         False, # True = print verbose output 
-                        .05) # initial delay [sec]
+                        0) # initial delay [sec]
 
 
 
