@@ -29,6 +29,9 @@ class Syringe:
                       "1/4":800,
                       "1/8": 1600,
                       "1/16": 3200}
+
+    syringeTypeDict = {'BD1mL': 0.478, 
+                       'BD5mL': 1.207}
     
     def __init__(self, stepPin, syringeType = None, stepType = None, ID = None, 
                  ENPin = 25, dirPin = 23, GPIOPins = (6, 13, 19), tolerance = 1e-4):
@@ -68,14 +71,11 @@ class Syringe:
             if ID is not None:
                 print("warning: both syringeType and ID provided, using syringeType to calculate ID")
             self.syringeType = syringeType
-        elif ID is not None:
-            self.ID = ID
         else:
-            raise Exception("must specify either syringeType or ID")
+            self.ID = ID
         
         self.stepType = stepType
-        self.stepDelay = .001 # what does this do?
-        self.ENPin = ENPin # enable pin (LOW to enable)
+        self.stepDelay = .001 
         self.tolerance = tolerance
         self.green_ligt = True
         
@@ -92,13 +92,11 @@ class Syringe:
     def syringeType(self, a):
         # check if we have an ID for
         # the specified syringe type
-        if a == "BD1mL":
-            self.ID = 0.478 
-        elif a == "BD5mL":
-            self.ID = 1.207
+        if a in self.syringeTypeDict:
+            self.ID = self.syringeTypeDict[a]
+            self._syringeType = a    
         elif a is not None:
-            raise ValueError(f"invalid syringeType '{a}'")
-        self._syringeType = a        
+            raise ValueError(f"invalid syringeType '{a}'. valid syringes include {[i for i in self.syringeTypeDict]}")    
         
     @property
     def ID(self):
@@ -127,7 +125,7 @@ class Syringe:
             self._stepType = a
             self._eff_stepType = a
         else:
-            raise ValueError("invalid step type")       
+            raise ValueError(f"invalid step type. valid stepTypes include {[i for i in self.stepsTypeDict]}")       
             
     def getConversionFactor(self):
         """
@@ -164,7 +162,7 @@ class Syringe:
             else:
                 # if no step types meet the tolerance criteria use 1/16
                 self._eff_stepType = '1/16'
-                print("warning: no step types meet the desired tolerance, consider using a different syringe. setting step type to 1/16")
+                print(f"warning: no step types meet the desired tolerance ({self.tolerance} mL), consider using a different syringe or set a higher tolerance. setting step type to 1/16")
             n_steps = n_steps[self._eff_stepType]
         else:
             stepsPerThread = self.stepsTypeDict[self.stepType]
@@ -184,19 +182,12 @@ class Syringe:
         print("Pulsing the motor forward...")
         steps = self.calculateSteps(amount)
         print("Steps is: ", steps, "using step type: ", self._eff_stepType)
-        # this should be done asynchronously i think and we should be able to interrupt it
-        #GPIO.setup(self.mymotor.direction_pin, GPIO.OUT)
-        #GPIO.setup(self.mymotor.step_pin, GPIO.OUT)
-        #GPIO.output(self.mymotor.direction_pin, False)
         step_count = 0
         while step_count<steps:
             if self.green_light:
-                self.mymotor.motor_go(False, # True=Clockwise - Back, False=Counter-Clockwise - Forward
-                                    self._eff_stepType, # Step type (Full,Half,1/4,1/8,1/16,1/32)
-                                    1, # number of steps
-                                    self.stepDelay, # step delay [sec]
-                                    False, # True = print verbose output 
-                                    0) # initial delay [sec]
+                self.mymotor.motor_go(clockwise=False, steptype=self._eff_stepType, 
+                                      steps=1, stepdelay=self.stepDelay, 
+                                      verbose=False, initdelay=0) 
                 step_count += 1
         return 'done'
              
@@ -215,12 +206,9 @@ class Syringe:
         steps = self.calculateSteps(amount)
         print("Steps is: ", steps, "using step type: ", self._eff_stepType)
         
-        self.mymotor.motor_go(True, # True=Clockwise - Back, False=Counter-Clockwise - Forward
-                        self._eff_stepType, # Step type (Full,Half,1/4,1/8,1/16,1/32)
-                        steps, # number of steps
-                        self.stepDelay, # step delay [sec]
-                        False, # True = print verbose output 
-                        0) # initial delay [sec]
+        self.mymotor.motor_go(clockwise=True, teptype=self._eff_stepType, 
+                              steps=steps, stepdelay=self.stepDelay, 
+                              verbose=False, initdelay=0)
 
 
 
