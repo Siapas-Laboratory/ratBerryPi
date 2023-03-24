@@ -13,11 +13,12 @@ class RewardInterface:
             config = yaml.safe_load(f)
 
         for i in config:
-            if 'GPIOPins' in config[i]:
-                config[i]['GPIOPins'] = (config[i]['GPIOPins']['M0'], 
-                                         config[i]['GPIOPins']['M1'], 
-                                         config[i]['GPIOPins']['M2'])
-        
+            if 'syringe_kwargs' in config[i]:
+                if 'GPIOPins' in config[i]['syringe_kwargs']:
+                    config[i]['syringe_kwargs']['GPIOPins'] = (config[i]['syringe_kwargs']['GPIOPins']['M0'], 
+                                                               config[i]['syringe_kwargs']['GPIOPins']['M1'], 
+                                                               config[i]['syringe_kwargs']['GPIOPins']['M2'])
+        print(config)
         self.modules = {k: RewardModule(**c, burst_thresh=burst_thresh, 
                                         reward_thresh=reward_thresh) 
                         for k,c in config.items()}
@@ -26,7 +27,8 @@ class RewardInterface:
         return list(self.modules.keys())
     
     def set_syringe_type(self, module_name, syringeType):
-        self.modules[module_name].set_syringe_type(syringeType)
+        ret = self.modules[module_name].set_syringe_type(syringeType)
+        return ret
     
     def set_syringe_ID(self, module_name, ID):
         self.modules[module_name].set_syringe_ID(ID)
@@ -42,7 +44,7 @@ class RewardModule:
 
     def __init__(self, stepPin, lickPin, defaultSyringeType = None, stepType = None, defaultID = None,
                  syringe_kwargs = {}, burst_thresh = 0.5, reward_thresh = 3):
-
+        print(syringe_kwargs)
         self.syringe = Syringe(stepPin, syringeType = defaultSyringeType, stepType = stepType, 
                                ID = defaultID, **syringe_kwargs)
         self.lickPin = lickPin
@@ -56,8 +58,10 @@ class RewardModule:
     def set_syringe_type(self, syringeType):
         try:
             self.syringe.syringeType = syringeType
+            return True
         except ValueError as e:
             print(e)
+            return False
 
     def set_syringe_ID(self, ID):
         self.syringe.ID = ID

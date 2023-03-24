@@ -1,35 +1,38 @@
 module1:
   stepPin: 24
   lickPin: 16
-  ENPin: 25
-  dirPin: 23
-  GPIOPins:
-    M0: 6
-    M1: 13
-    M2: 19
   stepType: "Full"
   defaultSyringeType: 'BD5mL'
+  syringe_kwargs:
+    ENPin: 25
+    dirPin: 23
+    GPIOPins:
+      M0: 6
+      M1: 13
+      M2: 19
 
 module2:
-  stepPin: 22
+  stepPin: 12
   lickPin: 17
-  ENPin: 25
-  dirPin: 23
-  GPIOPins:
-    M0: 6
-    M1: 13
-    M2: 19
   stepType: "Full"
   defaultSyringeType: 'BD5mL'
+  syringe_kwargs:
+    ENPin: 25
+    dirPin: 23
+    GPIOPins:
+      M0: 6
+      M1: 13
+      M2: 19
 
 module3:
   stepPin: 21
   lickPin: 18
-  ENPin: 25
-  dirPin: 23
-  GPIOPins:
-    M0: 6
-    M1: 13
-    M2: 19
   stepType: "Full"
   defaultSyringeType: 'BD5mL'
+  syringe_kwargs:
+    ENPin: 25
+    dirPin: 23
+    GPIOPins:
+      M0: 6
+      M1: 13
+      M2: 19

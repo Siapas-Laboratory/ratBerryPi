@@ -25,37 +25,50 @@ def start_server(reward_interface):
                     command = command.split(' ')
 
                     if len(command)==1:
-                        if command == 'EXIT':
+                        if command[0] == "EXIT":
                             print("Our client has left us :(")
                             break
-                        elif command == 'KILL':
+                        elif command[0] == "KILL":
                             print("Our server is shutting down.")
                             sock.close()
                             break
                         else:
-                            reply = 'invalid command'
+                            reply = "invalid command"
                     
                     elif len(command) ==3:
-                        if command == 'LickTriggeredReward':
-                            command, mod, amount = command
-                            reward_interface.lick_triggered_reward(mod, amount)
-                            reply = f"{command} {mod} {amount} mLsuccessful"
-                        if command == 'Reward':
-                            command, mod, amount = command
-                            reward_interface.trigger_reward(mod, amount)
-                            reply = f"{command} {mod} {amount} mL successful"
-                        if command == 'SetSyringeType':
-                            command, mod, syringeType = command
-                            reward_interface.set_syringe_type(mod, syringeType)
-                            reply = f"{command} {mod} to {syringeType} successful"
-                        elif command == 'SetSyringeID':
-                            command, mod, ID = command
-                            reward_interface.set_syringe_ID(mod, ID)
-                            reply = f"{command} {mod} to {ID} successful"
+                        if "Reward" in command[0]:
+                            cmd, mod, amount = command
+                            try:
+                                amount = float(amount)
+                                if cmd == "LickTriggeredReward":
+                                    cmd, mod, amount = command
+                                    reward_interface.lick_triggered_reward(mod, amount)
+                                    reply = f"{cmd} {mod} {amount} mLsuccessful"
+                                elif cmd == "Reward":
+                                    cmd, mod, amount = command
+                                    reward_interface.trigger_reward(mod, amount)
+                                    reply = f"{cmd} {mod} {amount} mL successful"
+                            except ValueError:
+                                reply = f"invalid amount {amount} specified"
+                        elif command[0] == "SetSyringeType":
+                            cmd, mod, syringeType = command
+                            ret = reward_interface.set_syringe_type(mod, syringeType)
+                            if ret:
+                                reply = f"{cmd} {mod} to {syringeType} successful"
+                            else:
+                                reply = f"{cmd} {mod} to {syringeType} unsuccessful. invalid syringeType"
+                        elif command[0] == "SetSyringeID":
+                            cmd, mod, ID = command
+                            try:
+                                ID = float(ID)
+                                reward_interface.set_syringe_ID(mod, ID)
+                                reply = f"{cmd} {mod} to {ID} successful"
+                            except ValueError:
+                                reply = "invalid ID {ID} specified"
                         else:
-                            reply = 'invalid command'
+                            reply = "invalid command"
                     else:
-                        reply = 'invalid command'
+                        reply = "invalid command"
                     
                     # Send the reply back to the client
                     conn.sendall(str.encode(reply))
@@ -67,7 +80,7 @@ def start_server(reward_interface):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('reward_config', default = 'config.yaml', help = 'path to the config file for the reward interface')
+    parser.add_argument('--reward_config', default = 'config.yaml', help = 'path to the config file for the reward interface')
     parser.add_argument('--burst_thresh', default = 0.5,
                          help = 'time threshold in seconds on the inter lick interval for starting a new burst, consequently also the time after a lick before stopping the pump')
     parser.add_argument('--reward_thresh', default = 3, help = 'number of licks within a burst required to start the pump')
