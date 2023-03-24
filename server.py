@@ -1,13 +1,23 @@
 import socket
 from reward import RewardInterface, RewardModule
+import RPi.GPIO as GPIO
 
+#TODO: need to figure out the correct values for these
+# to communicate from a pc
 host = 'localhost'
 port = 5560
+
+# TODO: functions to add:
+# setting all syringe types at once
+# setting all ids at once
+# resetting the lick count
+# getting the module names
+# pulling back the syringe? (on this note also need to figure out end detection)
 
 def start_server(reward_interface):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         try:
-            print('binding')
+            print('binding the port')
             sock.bind((host, port))
         except socket.error as msg:
             print(msg)
@@ -15,8 +25,9 @@ def start_server(reward_interface):
         while True:
             try:
                 sock.listen()
+                print('waiting for connections...')
                 conn, _ =  sock.accept()
-                print('waiting...')
+                print('connection accepted, waiting for data')
                 while True:
                     # Receive the data
                     # should there be a timeout on this?
@@ -26,10 +37,10 @@ def start_server(reward_interface):
 
                     if len(command)==1:
                         if command[0] == "EXIT":
-                            print("Our client has left us :(")
+                            print("client disconnected")
                             break
                         elif command[0] == "KILL":
-                            print("Our server is shutting down.")
+                            print("server is shutting down")
                             sock.close()
                             break
                         else:
@@ -41,11 +52,9 @@ def start_server(reward_interface):
                             try:
                                 amount = float(amount)
                                 if cmd == "LickTriggeredReward":
-                                    cmd, mod, amount = command
                                     reward_interface.lick_triggered_reward(mod, amount)
                                     reply = f"{cmd} {mod} {amount} mLsuccessful"
                                 elif cmd == "Reward":
-                                    cmd, mod, amount = command
                                     reward_interface.trigger_reward(mod, amount)
                                     reply = f"{cmd} {mod} {amount} mL successful"
                             except ValueError:
@@ -72,9 +81,11 @@ def start_server(reward_interface):
                     
                     # Send the reply back to the client
                     conn.sendall(str.encode(reply))
-                    print("Data has been sent!")
+                    print("reply sent")
                 conn.close()
-            except:
+            except Exception as e:
+                print(e)
+                GPIO.cleanup()
                 break
 
 if __name__ == '__main__':

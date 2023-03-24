@@ -180,6 +180,7 @@ class Syringe:
             desired fluid output in mL
         """
         print("Pulsing the motor forward...")
+        print(amount)
         steps = self.calculateSteps(amount)
         print("Steps is: ", steps, "using step type: ", self._eff_stepType)
         step_count = 0
