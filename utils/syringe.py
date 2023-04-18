@@ -3,7 +3,8 @@
 # This code is influence by
 # https://makersportal.com/blog/raspberry-pi-stepper-motor-control-with-nema-17
 #
-# Desiderio Ascencio 
+# Desiderio Ascencio
+# Modified by: Nathaniel Nyema
 #######################################
 
 
@@ -33,7 +34,7 @@ class Syringe:
     syringeTypeDict = {'BD1mL': 0.478, 
                        'BD5mL': 1.207}
     
-    def __init__(self, stepPin, syringeType = None, stepType = None, ID = None, 
+    def __init__(self, stepPin, flushPin, revPin, syringeType = None, stepType = None, ID = None, 
                  ENPin = 25, dirPin = 23, GPIOPins = (6, 13, 19), tolerance = 1e-4):
         
         """
@@ -77,12 +78,19 @@ class Syringe:
         self.stepType = stepType
         self.stepDelay = .001 
         self.tolerance = tolerance
-        self.green_ligt = True
+        self.pumping = False
+        self.in_use = False
         
         # Declare a instance of class pass GPIO pins numbers and the motor type
         self.mymotor = RpiMotorLib.A4988Nema(dirPin , stepPin , GPIOPins, "DRV8825")
         GPIO.setup(ENPin,GPIO.OUT) # set enable pin as output
         GPIO.output(ENPin,GPIO.LOW)
+        
+        GPIO.setup(flushPin, GPIO.IN)
+        GPIO.add_event_detect(flushPin, GPIO.RISING, callback=self.flush)
+        
+        GPIO.setup(revPin, GPIO.IN)
+        GPIO.add_event_detect(revPin, GPIO.RISING, callback=self.reverse)
         
     @property
     def syringeType(self):
@@ -125,7 +133,35 @@ class Syringe:
             self._stepType = a
             self._eff_stepType = a
         else:
-            raise ValueError(f"invalid step type. valid stepTypes include {[i for i in self.stepsTypeDict]}")       
+            raise ValueError(f"invalid step type. valid stepTypes include {[i for i in self.stepsTypeDict]}")
+    
+    def singleStep(self, forward, steptype):
+        clockwise= not forward
+        self.mymotor.motor_go(clockwise=clockwise, steptype=steptype, 
+                              steps=1, stepdelay=self.stepDelay, 
+                              verbose=False, initdelay=0)
+        
+        # TODO:
+        # integrate location along actuator
+        # flag if we are near the end of the track
+        # we also want to save information about location
+        # so we don't need to recalibrate all the time
+        # should also raise warnings when we are close to the end
+            
+    def flush(self, channel):
+        if not self.in_use:
+            self.in_use = True
+            while GPIO.input(channel):
+                self.singleStep(True, "Full")
+            self.in_use = False
+            
+    def reverse(self, channel):
+        print("reversing")
+        if not self.in_use:
+            self.in_use = True
+            while GPIO.input(channel):
+                self.singleStep(False, "Full")
+            self.in_use = False
             
     def getConversionFactor(self):
         """
@@ -183,20 +219,21 @@ class Syringe:
         print(amount)
         steps = self.calculateSteps(amount)
         print("Steps is: ", steps, "using step type: ", self._eff_stepType)
-        step_count = 0
-        while step_count<steps:
-            if self.green_light:
-                self.mymotor.motor_go(clockwise=False, steptype=self._eff_stepType, 
-                                      steps=1, stepdelay=self.stepDelay, 
-                                      verbose=False, initdelay=0) 
-                step_count += 1
+        step_count=0
+        self.pumping = True
+        self.in_use = True
+        while (step_count<steps) and self.pumping:
+            self.singleStep(True, self._eff_stepType)
+            step_count += 1
+        self.in_use = False
+        self.pumping = False
         return 'done'
              
         
     def pulseBackward(self, amount):
         """
-        pull in a given amount of fluid
-        from the syringe
+        pull a given amount of fluid
+        into the syringe
         
         Args:
         -----
@@ -206,10 +243,14 @@ class Syringe:
         print("Pulsing the motor forward...")
         steps = self.calculateSteps(amount)
         print("Steps is: ", steps, "using step type: ", self._eff_stepType)
-        
-        self.mymotor.motor_go(clockwise=True, teptype=self._eff_stepType, 
-                              steps=steps, stepdelay=self.stepDelay, 
-                              verbose=False, initdelay=0)
+        step_count=0
+        self.pumping = True
+        self.in_use = True
+        while (step_count<steps) and self.pumping:
+            self.singleStep(True, self._eff_stepType)
+            step_count += 1
+        self.in_use = False
+        return 'done'
 
 
 

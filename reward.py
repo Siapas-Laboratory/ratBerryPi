@@ -42,10 +42,10 @@ class RewardInterface:
         self.modules[module_name].set_syringe_ID(ID)
     
     def lick_triggered_reward(self, module_name, amount):
-        self.modules[module_name].lick_triggered_reward(amount)
+        ret = self.modules[module_name].lick_triggered_reward(amount)
     
     def trigger_reward(self, module_name, amount):
-        self.modules[module_name].trigger_reward(amount)
+        ret = self.modules[module_name].trigger_reward(amount)
     
     def reset_licks(self, module_name):
         self.modules[module_name].reset_licks()
@@ -57,11 +57,12 @@ class RewardInterface:
 
 class RewardModule:
 
-    def __init__(self, stepPin, lickPin, defaultSyringeType = None, stepType = None, defaultID = None,
+    def __init__(self, stepPin, lickPin, flushPin, revPin, defaultSyringeType = None, stepType = None, defaultID = None,
                  syringe_kwargs = {}, burst_thresh = 0.5, reward_thresh = 3):
         
-        self.syringe = Syringe(stepPin, syringeType = defaultSyringeType, stepType = stepType, 
-                               ID = defaultID, **syringe_kwargs)
+        self.syringe = Syringe(stepPin, flushPin, revPin, syringeType = defaultSyringeType,
+                               stepType = stepType, ID = defaultID, **syringe_kwargs)
+        self.syringe.pumping = False
         self.lickPin = lickPin
         self.licks = 0
         self.burst_lick = 0
@@ -69,13 +70,14 @@ class RewardModule:
         self.rewarding = False
         self.burst_thresh = burst_thresh
         self.reward_thresh = reward_thresh
+        self.threads = []
         
         def increment_licks(x):    
             self.licks += 1
             lick_time = datetime.now()
             self.burst_lick +=1
             if self.burst_lick > self.reward_thresh:
-                self.syringe.green_light = True
+                self.syringe.pumping = True
             self.last_lick = lick_time
             print(self.licks, self.burst_lick, self.last_lick)
 
@@ -98,26 +100,81 @@ class RewardModule:
 
     def lick_triggered_reward(self, amount):
         
-        self.syringe.green_light = False
-        self.monitor_lick_bursts = True
+        if self.syringe.in_use and  not self.rewarding:
+            return False
+        elif len(self.threads)>0:
+            self.rewarding = False
+            self.syringe.pumping =  False
+            for thread in self.threads:
+                thread.join()
+                
+        self.syringe.in_use = True
+        self.rewarding = True
+        
         def reset_burst():
             self.burst_lick = 0
-            while self.monitor_lick_bursts:
+            while self.rewarding:
                 t = datetime.now()
                 if (t - self.last_lick).total_seconds()>self.burst_thresh:
                     self.burst_lick = 0
-                    self.syringe.green_light = False
+                    self.syringe.pumping = False
                 time.sleep(.1)
-        thread = threading.Thread(target=reset_burst)
-        thread.start()
-        self.syringe.pulseForward(amount)
-        self.monitor_lick_bursts = False
-        thread.join()
+                
+        def deliver_reward():
+            steps = self.syringe.calculateSteps(amount)
+            step_count = 0
+            while (step_count<steps) and self.rewarding:
+                if self.syringe.pumping:
+                    self.syringe.singleStep(True, self.syringe._eff_stepType)
+                    step_count += 1
+            
+            self.syringe.pumping = False
+            self.syringe.in_use = False
+            self.rewarding = False
+                    
+            
+        self.threads = []
+        t1 = threading.Thread(target=reset_burst)
+        t1.start()
+        self.threads.append(t1)
+        
+        t2 = threading.Thread(target=deliver_reward)
+        t2.start()
+        self.threads.append(t2)
+        
+        return True
+
 
 
     def trigger_reward(self, amount):
-        self.syringe.green_light = True
+        
+        if self.syringe.in_use and  not self.rewarding:
+            return False
+        elif len(self.threads)>0:
+            self.rewarding = False
+            self.syringe.pumping =  False
+            for thread in self.threads:
+                thread.join()
+        
+        self.syringe.in_use = True
         self.rewarding = True
-        self.syringe.pulseForward(amount)
-        self.syringe.green_light = False
-        self.rewarding = False
+        
+        def deliver_reward():
+            steps = self.syringe.calculateSteps(amount)
+            step_count = 0
+            self.syringe.pumping = True
+            while (step_count<steps) and self.syringe.pumping:
+                self.syringe.singleStep(True, self.syringe._eff_stepType)
+                step_count += 1
+            
+            self.syringe.pumping = False
+            self.syringe.in_use = False
+            self.rewarding = False
+            
+        self.threads = []
+        t = threading.Thread(target=deliver_reward)
+        t.start()
+        self.threads.append(t)
+        return True
+        
+        

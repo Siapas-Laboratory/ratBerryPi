@@ -52,11 +52,17 @@ def start_server(reward_interface):
                             try:
                                 amount = float(amount)
                                 if cmd == "LickTriggeredReward":
-                                    reward_interface.lick_triggered_reward(mod, amount)
-                                    reply = f"{cmd} {mod} {amount} mLsuccessful"
+                                    ret = reward_interface.lick_triggered_reward(mod, amount)
+                                    if ret:
+                                        reply = f"{cmd} {mod} {amount} mL successful"
+                                    else:
+                                        reply = f"{cmd} {mod} {amount} mL unsuccessful"
                                 elif cmd == "Reward":
-                                    reward_interface.trigger_reward(mod, amount)
-                                    reply = f"{cmd} {mod} {amount} mL successful"
+                                    ret = reward_interface.trigger_reward(mod, amount)
+                                    if ret:
+                                        reply = f"{cmd} {mod} {amount} mL successful"
+                                    else:
+                                        reply = f"{cmd} {mod} {amount} mL unsuccessful"
                             except ValueError:
                                 reply = f"invalid amount {amount} specified"
                         elif command[0] == "SetSyringeType":
