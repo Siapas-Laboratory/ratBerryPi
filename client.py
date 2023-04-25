@@ -21,7 +21,7 @@ if __name__=='__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default = 'localhost')
-    parser.add_argument("--port", defaule = '5560')
+    parser.add_argument("--port", default = '5560')
     args = parser.parse_args()
     client = connect_client(args.host, args.port)
     if client is not None:
