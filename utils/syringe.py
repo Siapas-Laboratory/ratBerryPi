@@ -86,10 +86,10 @@ class Syringe:
         GPIO.setup(ENPin,GPIO.OUT) # set enable pin as output
         GPIO.output(ENPin,GPIO.LOW)
         
-        GPIO.setup(flushPin, GPIO.IN)
+        GPIO.setup(flushPin, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
         GPIO.add_event_detect(flushPin, GPIO.RISING, callback=self.flush)
         
-        GPIO.setup(revPin, GPIO.IN)
+        GPIO.setup(revPin, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
         GPIO.add_event_detect(revPin, GPIO.RISING, callback=self.reverse)
         
     @property
@@ -149,19 +149,22 @@ class Syringe:
         # should also raise warnings when we are close to the end
             
     def flush(self, channel):
+        print("flushing")
         if not self.in_use:
             self.in_use = True
-            while GPIO.input(channel):
+            while GPIO.input(channel)==GPIO.HIGH:
                 self.singleStep(True, "Full")
             self.in_use = False
+        print("done")
             
     def reverse(self, channel):
         print("reversing")
         if not self.in_use:
             self.in_use = True
-            while GPIO.input(channel):
+            while GPIO.input(channel)==GPIO.HIGH:
                 self.singleStep(False, "Full")
             self.in_use = False
+        print("done")
             
     def getConversionFactor(self):
         """
