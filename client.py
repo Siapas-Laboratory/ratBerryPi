@@ -6,7 +6,7 @@ import socket
 def connect_client(host, port):
     try:
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.connect(host, port)
+        client.connect((host, int(port)))
     except socket.error as msg:
         print(msg)
         client = None
@@ -15,7 +15,7 @@ def connect_client(host, port):
 def cli(client):
     while True:
         cmd = input("enter a command: ")
-        client.sendall(cmd)
+        client.sendall(cmd.encode('utf-8'))
 
 if __name__=='__main__':
     import argparse
