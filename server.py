@@ -4,7 +4,7 @@ import RPi.GPIO as GPIO
 
 #TODO: need to figure out the correct values for these
 # to communicate from a pc
-host = 'localhost'
+host = '192.168.0.246'
 port = 5560
 
 # TODO: functions to add:
