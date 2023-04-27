@@ -1,7 +1,7 @@
 module1:
   stepPin: 24
   lickPin: 16
-  stepType: "Full"
+  stepType: "Half"
   defaultSyringeType: 'BD5mL'
   flushPin: 27
   revPin: 22
@@ -16,8 +16,8 @@ module1:
 module2:
   stepPin: 12
   lickPin: 17
-  stepType: "Full"
-  defaultSyringeType: 'BD5mL'
+  stepType: "Half"
+  defaultSyringeType: 'BD30mL'
   flushPin: 5
   revPin: 26
   syringe_kwargs:

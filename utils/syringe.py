@@ -32,7 +32,10 @@ class Syringe:
                       "1/16": 3200}
 
     syringeTypeDict = {'BD1mL': 0.478, 
-                       'BD5mL': 1.207}
+                       'BD5mL': 1.207,
+		       'BD10mL': 1.45,
+		       'BD30mL': 2.17,
+		       'BD50/60mL': 2.67}
     
     def __init__(self, stepPin, flushPin, revPin, syringeType = None, stepType = None, ID = None, 
                  ENPin = 25, dirPin = 23, GPIOPins = (6, 13, 19), tolerance = 1e-4):
