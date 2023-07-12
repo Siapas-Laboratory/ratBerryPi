@@ -95,6 +95,9 @@ class RewardInterface:
             else:
                 print(f"WARNING: module '{i}' does not have a lickometer")
 
+    def __del__(self):
+        GPIO.cleanup()
+
 
 class RewardModule:
 
@@ -131,5 +134,8 @@ class RewardModule:
 
         self.pump_thread = PumpThread(self.pump, amount, valvePin = self.valvePin, forward = True)
         self.pump_thread.start()
+
+    def __del__(self):
+        GPIO.cleanup()
 
     

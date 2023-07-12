@@ -11,12 +11,13 @@ class Server:
         self.host = host
         self.port = port
         self.async_port = async_port
-        self.reward_interface = RewardInterface() if not reward_interface else reward_interface
         self.conn = None
         self.async_conn = None
         self.waiting = False
         self.on = False
         self.status = {i: 0 for i in self.reward_interface.modules}
+        self.monitor_thread = None
+        self.reward_interface = None
         
     def monitor(self):
         while self.on:
@@ -29,8 +30,9 @@ class Server:
                             msg = f"{i} {status}"
                             self.async_conn.sendall(msg.encode('utf-8'))
 
-    def start(self):
+    def start(self, reward_interface = None):
         self.on = True
+        self.reward_interface = RewardInterface() if not reward_interface else reward_interface
         self.monitor_thread = threading.Thread(target = self.monitor)
         self.monitor_thread.start()
 
@@ -69,13 +71,10 @@ class Server:
                 self.conn = None
                 self.async_conn.close()
                 self.async_conn = None
-            except socket.error as msg:
-                print(msg)
-                break
+
             except Exception as e:
                 print(e)
-                GPIO.cleanup()
-                break
+                self.shutdown()
 
     def handle_request(self, data):
         """
@@ -167,6 +166,18 @@ class Server:
             self.conn.sendall(b"invalid command")
             print("reply sent")
 
+    def shutdown(self):
+        if self.conn:
+            self.conn.close()
+        if self.async_conn:
+            self.async_conn.close()
+        if self.monitor_thread:
+            self.monitor_thread.join()
+        self.on = False
+
+    def __del__(self):
+        self.shutdown()
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -179,4 +190,4 @@ if __name__ == '__main__':
     reward_interface = RewardInterface(args.reward_config, args.burst_thresh, args.reward_thresh)
 
     server = Server(reward_interface=reward_interface)
-    server.start()
+    server.start(reward_interface)

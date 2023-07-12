@@ -11,7 +11,9 @@ class Client:
         self.port = port
         self.verbose = verbose
         self.async_port = async_port
-        print(self.host, self.port, self.async_port)
+        self.connected = False
+        self.monitor_thread = None
+        self.status = {}
 
     def monitor(self):
         while self.connected:
@@ -52,13 +54,11 @@ class Client:
             self.monitor_thread.join()
     
     def connect(self):
-        if hasattr(self, 'connected'):
-            if self.connected:
-                self.exit()
+        if self.connected:
+            self.exit()
         self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if self.verbose: print('connecting to host')
         self.conn.connect((self.host, self.port))
-        self.connected = False
         if self.verbose: print('connected to first port on host, connecting to the second...')
         while not self.connected:
             try:
@@ -99,6 +99,9 @@ class Client:
             self.async_conn.close()
             self.connected = False
             return reply
+        
+    def __del__(self):
+        self.exit()
 
 
 if __name__=='__main__':
