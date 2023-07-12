@@ -72,7 +72,7 @@ class Server:
                 self.async_conn.close()
                 self.async_conn = None
 
-            except Exception as e:
+            except (Exception, KeyboardInterrupt) as e:
                 print(e)
                 print('shutting down')
                 self.shutdown()
