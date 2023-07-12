@@ -111,6 +111,7 @@ if __name__=='__main__':
     parser.add_argument("--port", default = PORT)
     args = parser.parse_args()
     client = Client(args.host, int(args.port))
+    client.connect()
 
     running = True
     while running:
