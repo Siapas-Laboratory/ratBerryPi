@@ -9,9 +9,9 @@ class Client:
     def __init__(self, host=HOST, port=PORT, async_port = ASYNC_PORT, verbose = True):
         self.host = host
         self.port = port
-        self.async_port = async_port
-        self.connect()
         self.verbose = verbose
+        self.async_port = async_port
+        print(self.host, self.port, self.async_port)
 
     def monitor(self):
         while self.connected:
@@ -58,11 +58,11 @@ class Client:
         self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if self.verbose: print('connecting to host')
         self.conn.connect((self.host, self.port))
-        self.async_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connected = False
         if self.verbose: print('connected to first port on host, connecting to the second...')
         while not self.connected:
             try:
+                self.async_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.async_conn.connect((self.host, self.async_port))
                 self.connected = True
             except ConnectionRefusedError:

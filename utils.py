@@ -1,6 +1,6 @@
 HOST = '192.168.0.246'
-PORT = 5560
-ASYNC_PORT = 5561
+PORT = 5562
+ASYNC_PORT = 5563
 
 class EndTrackError(Exception):
     """reached end of track"""
@@ -19,12 +19,19 @@ class NoFillValve(Exception):
 
 
 def remote_boot(host=HOST, path = '~/Downloads/rpi-reward-module'):
-    import subprocess
+    import paramiko
     import os
-    proc = subprocess.run(f"ssh pi@{host} 'python3 {os.path.join(path, 'server.py')} --reward_config {os.path.join(path, 'config.yaml')}'", 
-                          shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    while True:
-        line = proc.stdout.readline()
-        if not line:
-            break
-        print("test:", line.rstrip())
+    server_file = os.path.join(path, 'server.py')
+    config_file = os.path.join(path, 'config.yaml')
+    ssh = paramiko.SSHClient()
+    ssh.load_system_host_keys()
+    ssh.connect(host, username='pi')
+    _, stdout, _ = ssh.exec_command(f"cd {path}; python3 server.py")
+    running = True
+    while running:
+        try:
+            out = stdout.readline()
+            print(out)
+        except KeyboardInterrupt:
+            ssh.close()
+            running = False

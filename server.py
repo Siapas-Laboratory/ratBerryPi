@@ -54,6 +54,7 @@ class Server:
                 while async_ip != ip:
                     self.async_conn, (async_ip, _) =  sock.accept()
                     if async_ip != ip:
+                        print('wrong ip retrying...')
                         self.async_conn.close()
                 sock.close()
                 print('waiting for data...')
