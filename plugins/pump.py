@@ -243,7 +243,7 @@ class Pump:
 
 class PumpThread(threading.Thread):
     def __init__(self, pump, amount, valvePin = None, pump_trigger=None, forward = True):
-        threading.Thread.__init__(self)
+        super(PumpThread, self).__init__()
         self.pump_trigger = pump_trigger
         self.valvePin = valvePin
         self.pump = pump
@@ -296,9 +296,10 @@ class PumpThread(threading.Thread):
             else:
                 self.pump.disable()
 
-    def stop_pump(self):
+    def join(self):
         try:
             self.pump.disable()
         except PumpNotEnabled:
             pass
         self.running = False
+        super(PumpThread, self).join()

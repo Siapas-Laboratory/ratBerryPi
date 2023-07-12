@@ -111,37 +111,24 @@ class RewardModule:
         if self.valvePin is not None:
             GPIO.setup(self.valvePin,GPIO.OUT)
             GPIO.output(self.valvePin,GPIO.LOW)
-            
-
-    def cleanup(self, force = False):
-        if self.pump_thread is None:
-            return
-        elif self.pump_thread.is_alive():
-            if force:
-                self.pump_thread.stop_pump()
-            self.pump_thread.join()
 
     def lick_triggered_reward(self, amount, force = False):
 
-        if self.lickometer:
-            raise NoLickometer
-        if self.pump.in_use and not force:
-            raise PumpInUse
-        if self.pump.track_end(True) and not force:
-            raise EndTrackError
+        if self.lickometer: raise NoLickometer
+        if self.pump.in_use and not force: raise PumpInUse
+        if self.pump.track_end(True) and not force: raise EndTrackError
+        if force and self.pump_thread: self.pump_thread.join()
 
-        self.cleanup(force)
         pump_trigger = lambda: self.lickometer.in_burst and self.lickometer.burst_lick>self.parent.reward_thresh
         self.pump_thread = PumpThread(self.pump, amount, valvePin = self.valvePin,  pump_trigger = pump_trigger, forward = True)
         self.pump_thread.start()
 
     def trigger_reward(self, amount, force = False):
         
-        if self.pump.in_use and not force:
-            raise PumpInUse
-        if self.pump.track_end(True) and not force:
-            raise EndTrackError
-        self.cleanup(force)
+        if self.pump.in_use and not force: raise PumpInUse
+        if self.pump.track_end(True) and not force: raise EndTrackError
+        if force and self.pump_thread: self.pump_thread.join()
+
         self.pump_thread = PumpThread(self.pump, amount, valvePin = self.valvePin, forward = True)
         self.pump_thread.start()
 

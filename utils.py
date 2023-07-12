@@ -21,17 +21,27 @@ class NoFillValve(Exception):
 def remote_boot(host=HOST, path = '~/Downloads/rpi-reward-module'):
     import paramiko
     import os
-    server_file = os.path.join(path, 'server.py')
-    config_file = os.path.join(path, 'config.yaml')
-    ssh = paramiko.SSHClient()
-    ssh.load_system_host_keys()
-    ssh.connect(host, username='pi')
-    _, stdout, _ = ssh.exec_command(f"cd {path}; python3 server.py")
-    running = True
-    while running:
-        try:
-            out = stdout.readline()
-            print(out)
-        except KeyboardInterrupt:
-            ssh.close()
-            running = False
+    import threading
+
+    class server_thread(threading.Thread):
+        def __init__(self):
+            super(server_thread, self).__init__()
+            
+        def start(self):
+            ssh = paramiko.SSHClient()
+            ssh.load_system_host_keys()
+            ssh.connect(host, username='pi')
+            transport = client.get_transport()
+            transport.set_keepalive(1) 
+            ssh.exec_command(f"cd {path}; python3 server.py")
+            self.running = True   
+            while self.running:
+                pass
+
+        def join(self):
+            self.running = False
+            super(server_thread, self).join()
+
+    t = threading.Thread(target = boot)
+    t.start()
+    return t
