@@ -1,11 +1,11 @@
 import socket
 from reward import RewardInterface, RewardModule
 import RPi.GPIO as GPIO
+import threading
+from utils import *
 
 #TODO: need to figure out the correct values for these
 # to communicate from a pc
-host = '192.168.0.246'
-port = 5560
 
 # TODO: functions to add:
 # setting all syringe types at once
@@ -14,85 +14,165 @@ port = 5560
 # getting the module names
 # pulling back the syringe? (on this note also need to figure out end detection)
 
-def start_server(reward_interface):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        try:
-            print('binding the port')
-            sock.bind((host, port))
-        except socket.error as msg:
-            print(msg)
+class Server:
+    def __init__(self, host=HOST, port=PORT, async_port = ASYNC_PORT, reward_interface = None):
+        self.host = host
+        self.port = port
+        self.async_port = async_port
+        self.reward_interface = RewardInterface() if not reward_interface else reward_interface
+        self.conn = None
+        self.async_conn = None
+        self.waiting = False
+        self.on = False
+        self.status = {i: 0 for i in self.reward_interface.modules}
         
-        while True:
+    def monitor(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind((self.host, self.port))
+
+        while self.on:
+            for i in self.reward_interface.modules:
+                if self.reward_interface.modules[i].pump_thread:
+                    status = self.reward_interface.modules[i].pump_thread.status
+                    if status != self.status[i]:
+                        self.status[i] = status
+                        if self.async_conn:
+                            msg = f"{i} {status}"
+                            self.async_conn.sendall(msg.encode('utf-8'))
+
+    def start(self):
+        self.on = True
+        self.monitor_thread = threading.Thread(target = self.monitor)
+        self.monitor_thread.start()
+
+        while self.on:
             try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                print('binding the port')
+                sock.bind((self.host, self.port))
                 sock.listen()
                 print('waiting for connections...')
-                conn, _ =  sock.accept()
-                print('connection accepted, waiting for data')
-                while True:
-                    # Receive the data
-                    # should there be a timeout on this?
-                    data = conn.recv(1024) # receive the data
-                    command = data.decode('utf-8')
-                    command = command.split(' ')
-
-                    if len(command)==1:
-                        if command[0] == "EXIT":
-                            print("client disconnected")
-                            break
-                        elif command[0] == "KILL":
-                            print("server is shutting down")
-                            sock.close()
-                            break
-                        else:
-                            reply = "invalid command"
-                    
-                    elif len(command) ==3:
-                        if "Reward" in command[0]:
-                            cmd, mod, amount = command
-                            try:
-                                amount = float(amount)
-                                if cmd == "LickTriggeredReward":
-                                    ret = reward_interface.lick_triggered_reward(mod, amount)
-                                    if ret:
-                                        reply = f"{cmd} {mod} {amount} mL successful"
-                                    else:
-                                        reply = f"{cmd} {mod} {amount} mL unsuccessful"
-                                elif cmd == "Reward":
-                                    ret = reward_interface.trigger_reward(mod, amount)
-                                    if ret:
-                                        reply = f"{cmd} {mod} {amount} mL successful"
-                                    else:
-                                        reply = f"{cmd} {mod} {amount} mL unsuccessful"
-                            except ValueError:
-                                reply = f"invalid amount {amount} specified"
-                        elif command[0] == "SetSyringeType":
-                            cmd, mod, syringeType = command
-                            ret = reward_interface.set_syringe_type(mod, syringeType)
-                            if ret:
-                                reply = f"{cmd} {mod} to {syringeType} successful"
-                            else:
-                                reply = f"{cmd} {mod} to {syringeType} unsuccessful. invalid syringeType"
-                        elif command[0] == "SetSyringeID":
-                            cmd, mod, ID = command
-                            try:
-                                ID = float(ID)
-                                reward_interface.set_syringe_ID(mod, ID)
-                                reply = f"{cmd} {mod} to {ID} successful"
-                            except ValueError:
-                                reply = "invalid ID {ID} specified"
-                        else:
-                            reply = "invalid command"
+                self.conn, (ip, _) =  sock.accept()
+                sock.close()
+                print('connection accepted, setting up async channel')
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind((self.host, self.async_port))
+                sock.listen()
+                print(f"waiting for secondary connection from '{ip}'")
+                async_ip = ''
+                while async_ip != ip:
+                    self.async_conn, (async_ip, _) =  sock.accept()
+                    if async_ip != ip:
+                        self.async_conn.close()
+                sock.close()
+                print('waiting for data...')
+                self.waiting = True
+                while self.waiting:
+                    data = self.conn.recv(1024) # receive the data
+                    if not data:
+                        self.waiting = False
                     else:
-                        reply = "invalid command"
-                    
-                    # Send the reply back to the client
-                    conn.sendall(str.encode(reply))
-                    print("reply sent")
-                conn.close()
+                        self.handle_request(data)
+                self.conn.close()
+                self.conn = None
+                self.async_conn.close()
+                self.async_conn = None
+            except socket.error as msg:
+                print(msg)
+                break
             except Exception as e:
                 print(e)
                 GPIO.cleanup()
                 break
+
+    def handle_request(self, data):
+        """
+        function to handle requests sent to the server
+
+        Args:
+        -----
+        data: bytes
+            utf-8 encoded request sent to the server 
+        """
+
+        command = data.decode('utf-8')
+        command = command.split(' ')
+
+        args = command[1:] if len(command)>1 else []
+        command = command[0]
+
+        if command == "EXIT":
+            print("client disconnected")
+            self.waiting = False
+            return
+
+        elif command == "KILL":
+            print("server is shutting down")
+            self.on = False
+            self.waiting = False
+            return
+ 
+        elif 'Reward' in command:
+            if len(args)<2:
+                reply = "invalid command"
+            else:
+                try:
+                    mod = args[0]
+                    amount = float(args[1])
+                    force = args[2].lower()=='true' if len(args)>2 else False
+                    if command == 'LickTriggeredReward':
+                        self.reward_interface.modules[mod].lick_triggered_reward(amount, force)
+                        reply = f"{command} {mod} {amount} mL successful"
+                    elif command == 'Reward':
+                        self.reward_interface.modules[mod].trigger_reward(amount, force)
+                        reply = f"{command} {mod} {amount} mL successful"
+                    else:
+                        reply = "invalid command"
+                except NoLickometer:
+                    reply = f"{command} {mod} {amount} mL unsuccessful; module does not have a lickometer"
+                except PumpInUse:
+                    reply = f"{command} {mod} {amount} mL unsuccessful; pump is currently in use"
+                except EndTrackError:
+                    # hm right now i dont think this gets caught because this error is thrown in the thread
+                    # that runs the pump...
+                    reply = f"{command} {mod} {amount} mL unsuccessful; reached the end of the track"
+                except ValueError:
+                    reply = f"invalid amount {amount} specified"
+            self.conn.sendall(str.encode(reply))
+            print("reply sent")
+        elif command == "SetSyringeType":
+            if len(args)<2:
+                reply = "invalid command"
+            else:
+                try:
+                    mod = args[0]
+                    syringeType = args[1]
+                    self.reward_interface.set_syringe_type(mod, syringeType)
+                    reply = f"{cmd} {mod} to {syringeType} successful"
+                except:
+                    reply = f"{cmd} {mod} to {syringeType} unsuccessful. invalid syringeType"
+            self.conn.sendall(str.encode(reply))
+            print("reply sent")
+        elif command == "SetSyringeID":
+            if len(args)<2:
+                reply = "invalid command"
+            else:
+                try:
+                    mod = args[0]
+                    ID = float(args[1])
+                    self.reward_interface.set_syringe_ID(mod, ID)
+                    reply = f"{cmd} {mod} to {ID} successful"
+                except ValueError:
+                    reply = f"invalid ID {ID} specified"
+            self.conn.sendall(str.encode(reply))
+            print("reply sent")
+        else:
+            self.conn.sendall(b"invalid command")
+            print("reply sent")
+
 
 if __name__ == '__main__':
     import argparse
@@ -105,4 +185,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
     reward_interface = RewardInterface(args.reward_config, args.burst_thresh, args.reward_thresh)
 
-    start_server(reward_interface)
+    server = Server(reward_interface=reward_interface)
+    server.start()

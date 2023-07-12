@@ -1,3 +1,5 @@
+import sys
+sys.path.append('../')
 from client import connect_client
 import time
 if __name__ == "__main__":
@@ -6,8 +8,8 @@ if __name__ == "__main__":
 	parser.add_argument("--host", default = "192.168.0.246")
 	parser.add_argument("--port", default = "5560")
 	args = parser.parse_args()
-	cl = connect_client(args.host, args.port)
+	cl = Client(args.host, args.port)
 	if cl is not None:
 		for _ in range(20):
-			cl.sendall("Reward module2 0.01".encode("utf-8"))
-			time.sleep(2.5)
+			cl.trigger_reward("module1", 0.005)
+			time.sleep(5)

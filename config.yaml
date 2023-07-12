@@ -1,30 +1,19 @@
-module1:
-  stepPin: 24
-  lickPin: 16
-  stepType: "Half"
-  defaultSyringeType: 'BD5mL'
-  flushPin: 27
-  revPin: 22
-  syringe_kwargs:
-    ENPin: 25
+modules:
+  module1:
+    valvePin: 16
+    lickPin: 21
+    pump: pump1
+
+pumps:
+  pump1:
+    fillValve: 20
+    stepPin: 24 
+    stepType: Half
+    defaultSyringeType: BD5mL
+    flushPin: 27
+    revPin: 22
     dirPin: 23
     GPIOPins:
-      M0: 6
-      M1: 13
-      M2: 19
-
-module2:
-  stepPin: 12
-  lickPin: 17
-  stepType: "Half"
-  defaultSyringeType: 'BD30mL'
-  flushPin: 5
-  revPin: 26
-  syringe_kwargs:
-    ENPin: 25
-    dirPin: 23
-    GPIOPins:
-      M0: 6
-      M1: 13
-      M2: 19
-
+      - 6
+      - 13
+      - 19

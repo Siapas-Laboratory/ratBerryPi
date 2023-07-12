@@ -1,180 +1,148 @@
-from utils.syringe import Syringe
+from plugins.pump import Syringe, Pump, PumpThread
+from plugins.lickometer import Lickometer
+from plugins.LED import LED
 import RPi.GPIO as GPIO
 from datetime import datetime
 import threading
 import time
 import yaml
+import numpy as np
+from utils import *
 
 
 class RewardInterface:
-    def __init__(self, config_file, burst_thresh = 0.5, reward_thresh = 3):
+    def __init__(self, config_file='config.yaml', burst_thresh = 0.5, reward_thresh = 3):
 
+        GPIO.setmode(GPIO.BCM)
         with open(config_file, 'r') as f:
             config = yaml.safe_load(f)
 
-        for i in config:
-            if 'syringe_kwargs' in config[i]:
-                if 'GPIOPins' in config[i]['syringe_kwargs']:
-                    config[i]['syringe_kwargs']['GPIOPins'] = (config[i]['syringe_kwargs']['GPIOPins']['M0'], 
-                                                               config[i]['syringe_kwargs']['GPIOPins']['M1'], 
-                                                               config[i]['syringe_kwargs']['GPIOPins']['M2'])
-        self.modules = {k: RewardModule(**c, burst_thresh=burst_thresh, 
-                                        reward_thresh=reward_thresh) 
-                        for k,c in config.items()}
+        self.pumps = {}
+        self.fill_valves = {}
+
+        for i in config['pumps']: 
+            syringeType = config['pumps'][i].pop('defaultSyringeType') if 'defaultSyringeType' in config['pumps'][i] else None
+            ID = config['pumps'][i].pop('ID') if 'defaultID' in config['pumps'][i] else None
+            syringe = Syringe(syringeType = syringeType, ID = ID)
+            config['pumps'][i]['syringe'] = syringe
+            
+            if 'GPIOPins' not in config['pumps'][i]:
+                raise ValueError(f"Missing argument 'GPIOPins' for pump '{i}'")
+            elif len(config['pumps'][i]['GPIOPins'])!=3:
+                raise ValueError(f"Expected 3 pins to be specified for argument 'GPIOPins' for pump '{i}', {len(config['pumps'][i]['GPIOPins'])} provided")
+            
+            config['pumps'][i]['GPIOPins'] = tuple(config['pumps'][i]['GPIOPins'])
+            if 'fillValve' in config['pumps'][i]:
+                if isinstance(config['pumps'][i]['fillValve'], int):
+                    self.fill_valves[i] = config['pumps'][i].pop('fillValve')
+                    GPIO.setup(self.fill_valves[i], GPIO.OUT)
+                    GPIO.output(self.fill_valves[i], GPIO.LOW)
+                elif 'check' in config['pumps'][i]['fillValve'].lower():
+                    self.fill_valves[i] = config['pumps'][i].pop('fillValve')
+                else:
+                    raise ValueError(f"Invalid value for 'fillValve' provided for pump '{i}'")
+            self.pumps[i] = Pump(**config['pumps'][i])
+
+        self.modules = {}
+        for i in config['modules']:
+            config['modules'][i]['pump'] = self.pumps[config['modules'][i]['pump']]
+            self.modules[i] = RewardModule(**config['modules'][i], burst_thresh=burst_thresh, reward_thresh=reward_thresh)
+
+    def fill_syringe(self, amount, pump):
+        if pump in self.fill_valves:
+            p = self.pumps[pump]
+            if not p.in_use:
+                pump_thread = PumpThread(p, amount, valvePin = self.fill_valves[pump], forward = False)
+                pump_thread.start()
+                pump_thread.join()
+
+        else:
+            raise NoFillValve
 
     def get_module_names(self):
         return list(self.modules.keys())
     
     def set_all_syringe_types(self, syringeType):
         for i in self.modules:
-            ret = self.modules[i].set_syringe_type(syringeType)
-        return ret
+            self.modules[i].pump.change_syringe(syringeType=syringeType)
     
     def set_syringe_type(self, module_name, syringeType):
-        ret = self.modules[module_name].set_syringe_type(syringeType)
-        return ret
+        self.modules[module_name].pump.change_syringe(syringeType=syringeType)
     
     def set_all_syringe_IDs(self, ID):
         for i in self.modules:
-            self.modules[i].set_syringe_ID(ID)
+            self.modules[i].pump.change_syringe(ID=ID)
     
     def set_syringe_ID(self, module_name, ID):
-        self.modules[module_name].set_syringe_ID(ID)
+        self.modules[module_name].pump.change_syringe(ID=ID)
     
     def lick_triggered_reward(self, module_name, amount):
-        ret = self.modules[module_name].lick_triggered_reward(amount)
+        self.modules[module_name].lick_triggered_reward(amount)
     
     def trigger_reward(self, module_name, amount):
-        ret = self.modules[module_name].trigger_reward(amount)
+        self.modules[module_name].trigger_reward(amount)
     
     def reset_licks(self, module_name):
-        self.modules[module_name].reset_licks()
+        if self.modules[module_name].lickometer:
+            self.modules[module_name].lickometer.reset_licks()
+        else:
+            raise NoLickometer
         
     def reset_all_licks(self):
         for i in self.modules:
-            self.modules[i].reset_licks()
+            if self.modules[i].lickometer:
+                self.modules[i].lickometer.reset_licks()
+            else:
+                print(f"WARNING: module '{i}' does not have a lickometer")
 
 
 class RewardModule:
 
-    def __init__(self, stepPin, lickPin, flushPin, revPin, defaultSyringeType = None, stepType = None, defaultID = None,
-                 syringe_kwargs = {}, burst_thresh = 0.5, reward_thresh = 3):
-        
-        self.syringe = Syringe(stepPin, flushPin, revPin, syringeType = defaultSyringeType,
-                               stepType = stepType, ID = defaultID, **syringe_kwargs)
-        self.syringe.pumping = False
-        self.lickPin = lickPin
-        self.licks = 0
-        self.burst_lick = 0
-        self.last_lick = datetime.now()
-        self.rewarding = False
-        self.burst_thresh = burst_thresh
+    def __init__(self, pump = None, valvePin = None, lickPin = None, LEDPin = None, burst_thresh = 0.5, reward_thresh = 3):
+
+        self.pump = pump
+        self.valvePin = valvePin
+        self.in_use = False
         self.reward_thresh = reward_thresh
-        self.threads = []
-        
-        def increment_licks(x):    
-            self.licks += 1
-            lick_time = datetime.now()
-            self.burst_lick +=1
-            if self.burst_lick > self.reward_thresh:
-                self.syringe.pumping = True
-            self.last_lick = lick_time
-            print(self.licks, self.burst_lick, self.last_lick)
+        self.pump_thread = None
+        self.lickometer = Lickometer(lickPin, burst_thresh) if lickPin else None
+        self.LED = LED(LEDPin) if LEDPin else None
 
-        GPIO.setup(self.lickPin, GPIO.IN)
-        GPIO.add_event_detect(self.lickPin, GPIO.RISING, callback=increment_licks)
+        if self.valvePin is not None:
+            GPIO.setup(self.valvePin,GPIO.OUT)
+            GPIO.output(self.valvePin,GPIO.LOW)
+            
+
+    def cleanup(self, force = False):
+        if self.pump_thread is None:
+            return
+        elif self.pump_thread.is_alive():
+            if force:
+                self.pump_thread.stop_pump()
+            self.pump_thread.join()
+
+    def lick_triggered_reward(self, amount, force = False):
+
+        if self.lickometer:
+            raise NoLickometer
+        if self.pump.in_use and not force:
+            raise PumpInUse
+        if self.pump.track_end(True) and not force:
+            raise EndTrackError
+
+        self.cleanup(force)
+        pump_trigger = lambda: self.lickometer.in_burst and self.lickometer.burst_lick>self.parent.reward_thresh
+        self.pump_thread = PumpThread(self.pump, amount, valvePin = self.valvePin,  pump_trigger = pump_trigger, forward = True)
+        self.pump_thread.start()
+
+    def trigger_reward(self, amount, force = False):
+        
+        if self.pump.in_use and not force:
+            raise PumpInUse
+        if self.pump.track_end(True) and not force:
+            raise EndTrackError
+        self.cleanup(force)
+        self.pump_thread = PumpThread(self.pump, amount, valvePin = self.valvePin, forward = True)
+        self.pump_thread.start()
+
     
-    def reset_licks(self):
-        self.licks = 0
-    
-    def set_syringe_type(self, syringeType):
-        try:
-            self.syringe.syringeType = syringeType
-            return True
-        except ValueError as e:
-            print(e)
-            return False
-
-    def set_syringe_ID(self, ID):
-        self.syringe.ID = ID
-
-    def lick_triggered_reward(self, amount):
-        
-        if self.syringe.in_use and  not self.rewarding:
-            return False
-        elif len(self.threads)>0:
-            self.rewarding = False
-            self.syringe.pumping =  False
-            for thread in self.threads:
-                thread.join()
-                
-        self.syringe.in_use = True
-        self.rewarding = True
-        
-        def reset_burst():
-            self.burst_lick = 0
-            while self.rewarding:
-                t = datetime.now()
-                if (t - self.last_lick).total_seconds()>self.burst_thresh:
-                    self.burst_lick = 0
-                    self.syringe.pumping = False
-                time.sleep(.1)
-                
-        def deliver_reward():
-            steps = self.syringe.calculateSteps(amount)
-            step_count = 0
-            while (step_count<steps) and self.rewarding:
-                if self.syringe.pumping:
-                    self.syringe.singleStep(True, self.syringe._eff_stepType)
-                    step_count += 1
-            
-            self.syringe.pumping = False
-            self.syringe.in_use = False
-            self.rewarding = False
-                    
-            
-        self.threads = []
-        t1 = threading.Thread(target=reset_burst)
-        t1.start()
-        self.threads.append(t1)
-        
-        t2 = threading.Thread(target=deliver_reward)
-        t2.start()
-        self.threads.append(t2)
-        
-        return True
-
-
-
-    def trigger_reward(self, amount):
-        
-        if self.syringe.in_use and  not self.rewarding:
-            return False
-        elif len(self.threads)>0:
-            self.rewarding = False
-            self.syringe.pumping =  False
-            for thread in self.threads:
-                thread.join()
-        
-        self.syringe.in_use = True
-        self.rewarding = True
-        
-        def deliver_reward():
-            steps = self.syringe.calculateSteps(amount)
-            step_count = 0
-            self.syringe.pumping = True
-            while (step_count<steps) and self.syringe.pumping:
-                self.syringe.singleStep(True, self.syringe._eff_stepType)
-                step_count += 1
-            
-            self.syringe.pumping = False
-            self.syringe.in_use = False
-            self.rewarding = False
-            
-        self.threads = []
-        t = threading.Thread(target=deliver_reward)
-        t.start()
-        self.threads.append(t)
-        return True
-        
-        
