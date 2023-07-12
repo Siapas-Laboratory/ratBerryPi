@@ -15,7 +15,6 @@ class Server:
         self.async_conn = None
         self.waiting = False
         self.on = False
-        self.status = {i: 0 for i in self.reward_interface.modules}
         self.monitor_thread = None
         self.reward_interface = None
         
@@ -33,6 +32,7 @@ class Server:
     def start(self, reward_interface = None):
         self.on = True
         self.reward_interface = RewardInterface() if not reward_interface else reward_interface
+        self.status = {i: 0 for i in self.reward_interface.modules}
         self.monitor_thread = threading.Thread(target = self.monitor)
         self.monitor_thread.start()
 
@@ -169,11 +169,15 @@ class Server:
     def shutdown(self):
         if self.conn:
             self.conn.close()
+            self.conn = None
         if self.async_conn:
             self.async_conn.close()
+            self.async_conn = None
         if self.monitor_thread:
             self.monitor_thread.join()
+            self.monitor_thread = None
         self.on = False
+        self.reward_interface = None
 
     def __del__(self):
         self.shutdown()
