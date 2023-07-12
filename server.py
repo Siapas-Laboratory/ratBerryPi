@@ -3,16 +3,9 @@ from reward import RewardInterface, RewardModule
 import RPi.GPIO as GPIO
 import threading
 from utils import *
+import subprocess
+import os
 
-#TODO: need to figure out the correct values for these
-# to communicate from a pc
-
-# TODO: functions to add:
-# setting all syringe types at once
-# setting all ids at once
-# resetting the lick count
-# getting the module names
-# pulling back the syringe? (on this note also need to figure out end detection)
 
 class Server:
     def __init__(self, host=HOST, port=PORT, async_port = ASYNC_PORT, reward_interface = None):
@@ -98,23 +91,28 @@ class Server:
             utf-8 encoded request sent to the server 
         """
 
+        # TODO: functions to add:
+        # setting all syringe types at once
+        # setting all ids at once
+        # resetting the lick count
+        # getting the module names
+        # pulling back the syringe? (on this note also need to figure out end detection)
+
         command = data.decode('utf-8')
         command = command.split(' ')
 
         args = command[1:] if len(command)>1 else []
         command = command[0]
 
+        if command == 'CheckServer':
+            self.conn.sendall(b'1')
         if command == "EXIT":
             print("client disconnected")
             self.waiting = False
-            return
-
         elif command == "KILL":
             print("server is shutting down")
             self.on = False
             self.waiting = False
-            return
- 
         elif 'Reward' in command:
             if len(args)<2:
                 reply = "invalid command"
@@ -151,9 +149,9 @@ class Server:
                     mod = args[0]
                     syringeType = args[1]
                     self.reward_interface.set_syringe_type(mod, syringeType)
-                    reply = f"{cmd} {mod} to {syringeType} successful"
+                    reply = f"{command} {mod} to {syringeType} successful"
                 except:
-                    reply = f"{cmd} {mod} to {syringeType} unsuccessful. invalid syringeType"
+                    reply = f"{command} {mod} to {syringeType} unsuccessful. invalid syringeType"
             self.conn.sendall(str.encode(reply))
             print("reply sent")
         elif command == "SetSyringeID":
@@ -164,7 +162,7 @@ class Server:
                     mod = args[0]
                     ID = float(args[1])
                     self.reward_interface.set_syringe_ID(mod, ID)
-                    reply = f"{cmd} {mod} to {ID} successful"
+                    reply = f"{command} {mod} to {ID} successful"
                 except ValueError:
                     reply = f"invalid ID {ID} specified"
             self.conn.sendall(str.encode(reply))
@@ -172,6 +170,15 @@ class Server:
         else:
             self.conn.sendall(b"invalid command")
             print("reply sent")
+
+def remote_boot(host=HOST, path = '~/Downloads'):
+    proc = subprocess.call([f"ssh pi@{host}", f"python3 {os.path.join(path, 'server.py')}"], stdout=subprocess.PIPE)
+    while True:
+        line = proc.stdout.readline()
+        if not line:
+            break
+        print("test:", line.rstrip())
+
 
 
 if __name__ == '__main__':

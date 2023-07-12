@@ -6,11 +6,12 @@ import threading
 # need to 
 
 class Client:
-    def __init__(self, host=HOST, port=PORT, async_port = ASYNC_PORT):
+    def __init__(self, host=HOST, port=PORT, async_port = ASYNC_PORT, verbose = True):
         self.host = host
         self.port = port
         self.async_port = async_port
         self.connect()
+        self.verbose = verbose
 
     def monitor(self):
         while self.connected:
@@ -25,6 +26,11 @@ class Client:
                                 self.status[mod] = int(status)
                             except ValueError:
                                 pass
+                    else:
+                        if self.verbose: print('server does not appear to be running. closing connection')
+                        self.conn.close()
+                        self.async_conn.close()
+                        self.connected = False
                 except OSError as e:
                     print(e)
                     pass
@@ -48,11 +54,13 @@ class Client:
     def connect(self):
         if hasattr(self, 'connected'):
             if self.connected:
-                self.exit()  
+                self.exit()
         self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if self.verbose: print('connecting to host')
         self.conn.connect((self.host, self.port))
         self.async_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connected = False
+        if self.verbose: print('connected to first port on host, connecting to the second...')
         while not self.connected:
             try:
                 self.async_conn.connect((self.host, self.async_port))
@@ -62,6 +70,7 @@ class Client:
         self.status = {}
         self.monitor_thread = threading.Thread(target = self.monitor)
         self.monitor_thread.start()
+        if self.verbose: print('fully connected!')
 
     def lick_triggered_reward(self, module, amount, force = False):
         assert self.connected, "not connected to the server"
@@ -71,6 +80,7 @@ class Client:
         if reply:
             return reply.decode('utf-8')
         else:
+            if self.verbose: print('server does not appear to be running. closing connection')
             self.conn.close()
             self.async_conn.close()
             self.connected = False
@@ -84,6 +94,7 @@ class Client:
         if reply:
             return reply.decode('utf-8')
         else:
+            if self.verbose: print('server does not appear to be running. closing connection')
             self.conn.close()
             self.async_conn.close()
             self.connected = False
