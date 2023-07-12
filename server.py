@@ -1,8 +1,7 @@
 import socket
-from reward import RewardInterface, RewardModule
-import RPi.GPIO as GPIO
 import threading
 from utils import *
+from reward import RewardInterface, RewardModule
 import subprocess
 import os
 
@@ -20,10 +19,6 @@ class Server:
         self.status = {i: 0 for i in self.reward_interface.modules}
         
     def monitor(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind((self.host, self.port))
-
         while self.on:
             for i in self.reward_interface.modules:
                 if self.reward_interface.modules[i].pump_thread:
@@ -170,16 +165,6 @@ class Server:
         else:
             self.conn.sendall(b"invalid command")
             print("reply sent")
-
-def remote_boot(host=HOST, path = '~/Downloads'):
-    proc = subprocess.call([f"ssh pi@{host}", f"python3 {os.path.join(path, 'server.py')}"], stdout=subprocess.PIPE)
-    while True:
-        line = proc.stdout.readline()
-        if not line:
-            break
-        print("test:", line.rstrip())
-
-
 
 if __name__ == '__main__':
     import argparse
