@@ -11,7 +11,6 @@ class Server:
         self.host = host
         self.port = port
         self.async_port = async_port
-        self.tmp_sock = None
         self.conn = None
         self.async_conn = None
         self.waiting = False
@@ -39,28 +38,27 @@ class Server:
 
         while self.on:
             try:
-                self.tmp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.tmp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 print('binding the port')
-                self.tmp_sock.bind((self.host, self.port))
-                self.tmp_sock.listen()
+                sock.bind((self.host, self.port))
+                sock.listen()
                 print('waiting for connections...')
-                self.conn, (ip, _) =  self.tmp_sock.accept()
-                self.tmp_sock.close()
+                self.conn, (ip, _) =  sock.accept()
+                sock.close()
                 print('connection accepted, setting up async channel')
-                self.tmp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.tmp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                self.tmp_sock.bind((self.host, self.async_port))
-                self.tmp_sock.listen()
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind((self.host, self.async_port))
+                sock.listen()
                 print(f"waiting for secondary connection from '{ip}'")
                 async_ip = ''
                 while async_ip != ip:
-                    self.async_conn, (async_ip, _) =  self.tmp_sock.accept()
+                    self.async_conn, (async_ip, _) =  sock.accept()
                     if async_ip != ip:
                         print('wrong ip retrying...')
                         self.async_conn.close()
-                self.tmp_sock.close()
-                self.tmp_sock = None
+                sock.close()
                 print('waiting for data...')
                 self.waiting = True
                 while self.waiting:
@@ -179,9 +177,6 @@ class Server:
         if self.monitor_thread:
             self.monitor_thread.join()
             self.monitor_thread = None
-        if self.tmp_sock:
-            self.tmp_sock.close()
-            self.tmp_sock = None
         self.on = False
         self.reward_interface = None
 
