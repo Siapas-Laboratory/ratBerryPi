@@ -74,6 +74,7 @@ class Server:
 
             except Exception as e:
                 print(e)
+                print('shutting down')
                 self.shutdown()
 
     def handle_request(self, data):
