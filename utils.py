@@ -1,6 +1,7 @@
 HOST = '192.168.0.246'
 PORT = 5562
-ASYNC_PORT = 5563
+BROADCAST_PORT = 5563
+
 
 class EndTrackError(Exception):
     """reached end of track"""

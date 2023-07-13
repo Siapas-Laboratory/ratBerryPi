@@ -17,6 +17,10 @@ import numpy as np
 import inspect
 import pandas as pd
 import threading
+import sys
+sys.path.append("../")
+from utils import *
+import os
 
 ################################
 # RPi and Motor Pre-allocations
@@ -242,31 +246,38 @@ class Pump:
 
 
 class PumpThread(threading.Thread):
-    def __init__(self, pump, amount, valvePin = None, pump_trigger=None, forward = True):
+    def __init__(self, pump, amount, triggered, valvePin = None, forward = True, parent = None):
         super(PumpThread, self).__init__()
-        self.pump_trigger = pump_trigger
+        self.parent = parent
         self.valvePin = valvePin
         self.pump = pump
         self.amount = amount
         self.running = False
         self.forward = forward
         self.status = 0
+        self.triggered = triggered
+        if self.triggered:
+            assert self.parent, 'must specify parent triggered mode'
+            try:
+                _ = self.parent.pump_trigger
+            except AttributeError:
+                raise AttributeError('must specify property pump_trigger in parent for triggered mode')
 
     def run(self):
         if self.valvePin: GPIO.output(self.valvePin, GPIO.HIGH)
         self.running = True
         self.status = 1
-        if self.pump_trigger:
+        if self.triggered:
             self.triggered_pump()
         else:
             try:
                 self.pump.enable()
                 self.pump.move(self.amount, self.forward)
+                self.running = False
             except EndTrackError:
                 self.status = -1
                 pass
         self.pump.disable()
-        self.running = False
         if self.valvePin is not None: GPIO.output(self.valvePin, GPIO.LOW)
         self.status = 2
 
@@ -277,6 +288,7 @@ class PumpThread(threading.Thread):
         step_count = 0
         self.pump.in_use = True # reserve the pump
         self.pump.disable() # disable the pump until we get a trigger
+        os.nice(19) # give priority to this thread
         while (step_count<steps) and self.running:
             try:
                 self.pump.single_step(self.forward, self.pump.stepType)
@@ -287,19 +299,28 @@ class PumpThread(threading.Thread):
             except PumpNotEnabled:
                 pass
         self.pump.in_use = False
+        self.running = False
         self.pump_trigger_thread.join()
 
     def trigger_pump(self):
+        prev_trigger_value = False
+        print('off')
         while self.running:
-            if self.pump_trigger():
-                self.pump.enable()
-            else:
-                self.pump.disable()
+            current_trigger_value = self.parent.pump_trigger
+            if prev_trigger_value != current_trigger_value:
+                if current_trigger_value:
+                    print('on')
+                    self.pump.enable()
+                else:
+                    print('off')
+                    self.pump.disable()
+                prev_trigger_value = current_trigger_value
+            time.sleep(.001)
 
-    def join(self):
+    def stop(self):
         try:
             self.pump.disable()
         except PumpNotEnabled:
             pass
         self.running = False
-        super(PumpThread, self).join()
+        self.join()

@@ -11,7 +11,7 @@ from utils import *
 
 
 class RewardInterface:
-    def __init__(self, config_file='config.yaml', burst_thresh = 0.5, reward_thresh = 3):
+    def __init__(self, config_file='config.yaml', burst_thresh = .5, reward_thresh = 1):
 
         GPIO.setmode(GPIO.BCM)
         with open(config_file, 'r') as f:
@@ -48,39 +48,23 @@ class RewardInterface:
             config['modules'][i]['pump'] = self.pumps[config['modules'][i]['pump']]
             self.modules[i] = RewardModule(**config['modules'][i], burst_thresh=burst_thresh, reward_thresh=reward_thresh)
 
-    def fill_syringe(self, amount, pump):
+    def fill_syringe(self, pump, amount):
         if pump in self.fill_valves:
             p = self.pumps[pump]
             if not p.in_use:
-                pump_thread = PumpThread(p, amount, valvePin = self.fill_valves[pump], forward = False)
+                pump_thread = PumpThread(p, amount, False, valvePin = self.fill_valves[pump], forward = False)
                 pump_thread.start()
                 pump_thread.join()
-
         else:
-            raise NoFillValve
+            raise ValueError('Either the specified pump has no fill valve or it does not exist')
 
-    def get_module_names(self):
-        return list(self.modules.keys())
     
-    def set_all_syringe_types(self, syringeType):
-        for i in self.modules:
-            self.modules[i].pump.change_syringe(syringeType=syringeType)
-    
-    def set_syringe_type(self, module_name, syringeType):
-        self.modules[module_name].pump.change_syringe(syringeType=syringeType)
-    
-    def set_all_syringe_IDs(self, ID):
-        for i in self.modules:
-            self.modules[i].pump.change_syringe(ID=ID)
-    
-    def set_syringe_ID(self, module_name, ID):
-        self.modules[module_name].pump.change_syringe(ID=ID)
-    
-    def lick_triggered_reward(self, module_name, amount):
-        self.modules[module_name].lick_triggered_reward(amount)
-    
-    def trigger_reward(self, module_name, amount):
-        self.modules[module_name].trigger_reward(amount)
+    def change_syringe(self, pump, syringeType=None, ID=None):
+        if pump:
+            self.pumps[pump].change_syringe(syringeType=syringeType, ID=ID)
+        else:
+            for i in self.pumps:
+                self.pumps[i].change_syringe(syringeType=syringeType, ID=ID)
     
     def reset_licks(self, module_name):
         if self.modules[module_name].lickometer:
@@ -93,7 +77,7 @@ class RewardInterface:
             if self.modules[i].lickometer:
                 self.modules[i].lickometer.reset_licks()
             else:
-                print(f"WARNING: module '{i}' does not have a lickometer")
+                raise NoLickometer
 
     def __del__(self):
         GPIO.cleanup()
@@ -114,26 +98,33 @@ class RewardModule:
         if self.valvePin is not None:
             GPIO.setup(self.valvePin,GPIO.OUT)
             GPIO.output(self.valvePin,GPIO.LOW)
-
+    
+    @property
+    def pump_trigger(self):
+        if self.lickometer:
+            return self.lickometer.in_burst and (self.lickometer.burst_lick>self.reward_thresh)
+        else:
+            return None
+    
     def lick_triggered_reward(self, amount, force = False):
 
-        if self.lickometer: raise NoLickometer
+        if self.lickometer is None: raise NoLickometer
         if self.pump.in_use and not force: raise PumpInUse
         if self.pump.track_end(True) and not force: raise EndTrackError
-        if force and self.pump_thread: self.pump_thread.join()
+        if force and self.pump_thread: self.pump_thread.stop()
 
-        pump_trigger = lambda: self.lickometer.in_burst and self.lickometer.burst_lick>self.parent.reward_thresh
-        self.pump_thread = PumpThread(self.pump, amount, valvePin = self.valvePin,  pump_trigger = pump_trigger, forward = True)
+        self.pump_thread = PumpThread(self.pump, amount, True, valvePin = self.valvePin, forward = True, parent = self)
         self.pump_thread.start()
 
     def trigger_reward(self, amount, force = False):
         
         if self.pump.in_use and not force: raise PumpInUse
         if self.pump.track_end(True) and not force: raise EndTrackError
-        if force and self.pump_thread: self.pump_thread.join()
+        if force and self.pump_thread: self.pump_thread.stop()
 
-        self.pump_thread = PumpThread(self.pump, amount, valvePin = self.valvePin, forward = True)
+        self.pump_thread = PumpThread(self.pump, amount, False, valvePin = self.valvePin, forward = True)
         self.pump_thread.start()
+
 
     def __del__(self):
         GPIO.cleanup()

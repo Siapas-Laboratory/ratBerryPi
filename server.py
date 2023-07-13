@@ -4,37 +4,66 @@ from utils import *
 from reward import RewardInterface, RewardModule
 import subprocess
 import os
+import select
 
 
 class Server:
-    def __init__(self, host=HOST, port=PORT, async_port = ASYNC_PORT, reward_interface = None):
+    def __init__(self, host=HOST, port=PORT, broadcast_port = BROADCAST_PORT, reward_interface = None):
         self.host = host
         self.port = port
-        self.async_port = async_port
+        self.broadcast_port = broadcast_port
         self.conn = None
-        self.async_conn = None
         self.waiting = False
         self.on = False
-        self.monitor_thread = None
-        self.reward_interface = None
-        
-    def monitor(self):
-        while self.on:
-            for i in self.reward_interface.modules:
-                if self.reward_interface.modules[i].pump_thread:
-                    status = self.reward_interface.modules[i].pump_thread.status
-                    if status != self.status[i]:
-                        self.status[i] = status
-                        if self.async_conn:
-                            msg = f"{i} {status}"
-                            self.async_conn.sendall(msg.encode('utf-8'))
-
-    def start(self, reward_interface = None):
-        self.on = True
+        self.broadcast_thread = None
         self.reward_interface = RewardInterface() if not reward_interface else reward_interface
-        self.status = {i: 0 for i in self.reward_interface.modules}
-        self.monitor_thread = threading.Thread(target = self.monitor)
-        self.monitor_thread.start()
+        
+    def broadcast(self):
+        client_threads = []
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((self.host, self.broadcast_port))
+        sock.listen()
+        while self.on:
+            conn, (ip, _) =  sock.accept()
+            t = threading.Thread(target = self.respond, args = (conn,))
+            t.start()
+            client_threads.append(t)
+    
+    def respond(self, conn):
+        conn.setblocking(0)
+        ready = select.select([conn], [], [], .5)
+        if ready[0]:
+            data = conn.recv(1024)
+        else:
+            conn.close()
+            return
+        if not data:
+            return
+        else:
+            data = data.decode('utf-8').split(' ')
+            if len(data)==2:
+                mod, prop = data
+                if prop == 'status':
+                    if self.reward_interface.modules[mod].pump_thread:
+                        reply = f'{self.reward_interface.modules[mod].pump_thread.status}'
+                    else:
+                        reply = 'None'
+                elif prop == 'position':
+                    reply = f'{self.reward_interface.modules[mod].pump.position}'
+                else:
+                    try:
+                        reply = f'{getattr(self.reward_interface.modules[mod], prop)}'
+                    except AttributeError:
+                        reply = 'invalid request'
+                conn.sendall(reply.encode('utf-8'))
+            else:
+                conn.sendall(b'invalid request')
+
+    def start(self):
+        self.on = True
+        self.broadcast_thread = threading.Thread(target = self.broadcast)
+        self.broadcast_thread.start()
 
         while self.on:
             try:
@@ -46,19 +75,6 @@ class Server:
                 print('waiting for connections...')
                 self.conn, (ip, _) =  sock.accept()
                 sock.close()
-                print('connection accepted, setting up async channel')
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                sock.bind((self.host, self.async_port))
-                sock.listen()
-                print(f"waiting for secondary connection from '{ip}'")
-                async_ip = ''
-                while async_ip != ip:
-                    self.async_conn, (async_ip, _) =  sock.accept()
-                    if async_ip != ip:
-                        print('wrong ip retrying...')
-                        self.async_conn.close()
-                sock.close()
                 print('waiting for data...')
                 self.waiting = True
                 while self.waiting:
@@ -69,8 +85,6 @@ class Server:
                         self.handle_request(data)
                 self.conn.close()
                 self.conn = None
-                self.async_conn.close()
-                self.async_conn = None
 
             except (Exception, KeyboardInterrupt) as e:
                 print(e)
@@ -94,11 +108,11 @@ class Server:
         # getting the module names
         # pulling back the syringe? (on this note also need to figure out end detection)
 
-        command = data.decode('utf-8')
-        command = command.split(' ')
+        data = data.decode('utf-8')
+        data = data.split(' ')
 
-        args = command[1:] if len(command)>1 else []
-        command = command[0]
+        args = data[1:] if len(data)>1 else []
+        command = data[0]
 
         if command == 'CheckServer':
             self.conn.sendall(b'1')
@@ -130,11 +144,40 @@ class Server:
                 except PumpInUse:
                     reply = f"{command} {mod} {amount} mL unsuccessful; pump is currently in use"
                 except EndTrackError:
-                    # hm right now i dont think this gets caught because this error is thrown in the thread
-                    # that runs the pump...
                     reply = f"{command} {mod} {amount} mL unsuccessful; reached the end of the track"
                 except ValueError:
                     reply = f"invalid amount {amount} specified"
+            self.conn.sendall(str.encode(reply))
+            print("reply sent")
+        elif command == 'FillSyringe':
+            if len(args)<2:
+                reply = "invalid command"
+            else:
+                try:
+                    pump = args[0]
+                    amount = float(args[1])
+                    self.reward_interface.fill_syringe(pump, amount)
+                    reply = f"{command} {pump} {amount} mL successful"
+                except PumpInUse:
+                    reply = f"{command} {pump} {amount} mL unsuccessful; pump is currently in use"
+                except EndTrackError:
+                    reply = f"{command} {pump} {amount} mL unsuccessful; reached the end of the track"
+                except ValueError:
+                    reply = f"invalid amount {amount} specified"
+                except NoFillValve:
+                    reply = f"No fill valve specified for pump {pump}"
+            self.conn.sendall(str.encode(reply))
+            print("reply sent")
+        elif command == "SetAllSyringeTypes":
+            if len(args)<1:
+                reply = "invalid command"
+            else:
+                try:
+                    syringeType = args[0]
+                    self.reward_interface.change_syringe(syringeType = syringeType)
+                    reply = f"{command} to {syringeType} successful"
+                except:
+                    reply = f"{command} to {syringeType} unsuccessful. invalid syringeType"
             self.conn.sendall(str.encode(reply))
             print("reply sent")
         elif command == "SetSyringeType":
@@ -142,12 +185,24 @@ class Server:
                 reply = "invalid command"
             else:
                 try:
-                    mod = args[0]
+                    pump = args[0]
                     syringeType = args[1]
-                    self.reward_interface.set_syringe_type(mod, syringeType)
-                    reply = f"{command} {mod} to {syringeType} successful"
+                    self.reward_interface.change_syringe(syringeType = syringeType, pump = pump)
+                    reply = f"{command} {pump} to {syringeType} successful"
                 except:
-                    reply = f"{command} {mod} to {syringeType} unsuccessful. invalid syringeType"
+                    reply = f"{command} {pump} to {syringeType} unsuccessful. invalid syringeType"
+            self.conn.sendall(str.encode(reply))
+            print("reply sent")
+        elif command == "SetAllSyringeIDs":
+            if len(args)<1:
+                reply = "invalid command"
+            else:
+                try:
+                    ID = float(args[0])
+                    self.reward_interface.change_syringe(ID = ID)
+                    reply = f"{command} to {ID} successful"
+                except ValueError:
+                    reply = f"invalid ID {ID} specified"
             self.conn.sendall(str.encode(reply))
             print("reply sent")
         elif command == "SetSyringeID":
@@ -155,29 +210,26 @@ class Server:
                 reply = "invalid command"
             else:
                 try:
-                    mod = args[0]
+                    pump = args[0]
                     ID = float(args[1])
-                    self.reward_interface.set_syringe_ID(mod, ID)
-                    reply = f"{command} {mod} to {ID} successful"
+                    self.reward_interface.change_syringe(ID = ID, pump = pump)
+                    reply = f"{command} {pump} to {ID} successful"
                 except ValueError:
                     reply = f"invalid ID {ID} specified"
             self.conn.sendall(str.encode(reply))
-            print("reply sent")
+            print("reply sent")     
         else:
             self.conn.sendall(b"invalid command")
             print("reply sent")
 
     def shutdown(self):
+        self.on = False
         if self.conn:
             self.conn.close()
             self.conn = None
-        if self.async_conn:
-            self.async_conn.close()
-            self.async_conn = None
-        if self.monitor_thread:
-            self.monitor_thread.join()
-            self.monitor_thread = None
-        self.on = False
+        if self.broadcast_thread:
+            self.broadcast_thread.join()
+            self.broadcast_thread = None
         self.reward_interface = None
 
     def __del__(self):
@@ -195,4 +247,4 @@ if __name__ == '__main__':
     reward_interface = RewardInterface(args.reward_config, args.burst_thresh, args.reward_thresh)
 
     server = Server(reward_interface=reward_interface)
-    server.start(reward_interface)
+    server.start()
