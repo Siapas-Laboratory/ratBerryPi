@@ -176,7 +176,7 @@ class Server:
                     syringeType = args[0]
                     self.reward_interface.change_syringe(syringeType = syringeType)
                     reply = f"{command} to {syringeType} successful"
-                except:
+                except ValueError:
                     reply = f"{command} to {syringeType} unsuccessful. invalid syringeType"
             self.conn.sendall(str.encode(reply))
             print("reply sent")
@@ -189,7 +189,7 @@ class Server:
                     syringeType = args[1]
                     self.reward_interface.change_syringe(syringeType = syringeType, pump = pump)
                     reply = f"{command} {pump} to {syringeType} successful"
-                except:
+                except ValueError:
                     reply = f"{command} {pump} to {syringeType} unsuccessful. invalid syringeType"
             self.conn.sendall(str.encode(reply))
             print("reply sent")

@@ -45,7 +45,7 @@ class Syringe:
             ID = self.syringeTypeDict[syringeType]
             return ID
         except KeyError:
-            msg = f"invalid syringeType '{a}'. valid syringes include {[i for i in self.syringeTypeDict]}"
+            msg = f"invalid syringeType '{syringeType}'. valid syringes include {[i for i in self.syringeTypeDict]}"
             raise ValueError(msg)
     def __repr__(self):
         return f"Syringe(ID={self.ID})"

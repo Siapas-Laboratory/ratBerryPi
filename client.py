@@ -12,7 +12,6 @@ class Client:
         self.verbose = verbose
         self.broadcast_port = broadcast_port
         self.connected = False
-        self.monitor_thread = None
         self.status = {}
 
     def get_prop(self, module, prop):
@@ -34,14 +33,12 @@ class Client:
         self.conn.sendall(b'KILL')
         self.conn.close()
         self.connected = False
-        self.monitor_thread.join()
-
+        
     def exit(self):
         if self.connected:
             self.conn.sendall(b'EXIT')
             self.conn.close()
             self.connected = False
-            self.monitor_thread.join()
     
     def connect(self):
         if self.connected:
@@ -114,6 +111,5 @@ if __name__=='__main__':
         client.conn.sendall(cmd.encode('utf-8'))
         if cmd =='EXIT':
             client.exit()
-            client.monitor_thread.join()
             running = False
 
