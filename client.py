@@ -33,7 +33,7 @@ class Client:
         self.conn.sendall(b'KILL')
         self.conn.close()
         self.connected = False
-        
+
     def exit(self):
         if self.connected:
             self.conn.sendall(b'EXIT')
@@ -76,7 +76,7 @@ class Client:
         if set_all:
             command = f'SetAllSyringeTypes {syringeType}'.encode('utf-8')
         else:
-            command = f'SetAllSyringeType {pump} {syringeType}'.encode('utf-8')
+            command = f'SetSyringeType {pump} {syringeType}'.encode('utf-8')
         reply = self.run_command(command)
         return reply
 

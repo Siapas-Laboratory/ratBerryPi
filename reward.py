@@ -59,7 +59,7 @@ class RewardInterface:
             raise ValueError('Either the specified pump has no fill valve or it does not exist')
 
     
-    def change_syringe(self, pump, syringeType=None, ID=None):
+    def change_syringe(self, pump=None, syringeType=None, ID=None):
         if pump:
             self.pumps[pump].change_syringe(syringeType=syringeType, ID=ID)
         else:
