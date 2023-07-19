@@ -1,6 +1,7 @@
 import socket
 import threading
 import select
+import errno
 
 HOST = '192.168.0.246'
 PORT = 5562
@@ -37,11 +38,17 @@ class Server:
         conn.setblocking(0)
         ready = select.select([conn], [], [], .5)
         if ready[0]:
-            data = conn.recv(1024)
+            try:
+                data = conn.recv(1024)
+            except socket.error as e:
+                if e.errno != errno.ECONNRESET:
+                    raise e
+                return
         else:
             conn.close()
             return
         if not data:
+            conn.close()
             return
         else:
             data_str = data.decode('utf-8')
@@ -98,9 +105,10 @@ class Server:
                 self.conn = None
 
             except (Exception, KeyboardInterrupt) as e:
-                print(e)
-                print('shutting down')
-                self.shutdown()
+                if e.errno != errno.ECONNRESET:
+                    print(e)
+                    print('shutting down')
+                    self.shutdown()
 
     def handle_request(self, data):
         """

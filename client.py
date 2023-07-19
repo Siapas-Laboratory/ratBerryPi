@@ -14,18 +14,17 @@ class Client:
         self.status = {}
 
     def get_prop(self, module, prop):
-        conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        conn.connect((self.host, self.broadcast_port))
-        req = f"{module} {prop}"
-        conn.sendall(req.encode('utf-8'))
-        reply = conn.recv(1024)
-        if reply:
-            return reply.decode('utf-8')
-        else:
-            if self.verbose: print('server does not appear to be running. closing connection')
-            self.conn.close()
-            self.connected = False
-            return reply
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
+            conn.connect((self.host, self.broadcast_port))
+            req = f"{module} {prop}"
+            conn.sendall(req.encode('utf-8'))
+            reply = conn.recv(1024)
+            if reply:
+                return reply.decode('utf-8')
+            else:
+                if self.verbose: print('server does not appear to be running. closing connection')
+                self.connected = False
+                return reply
 
     def kill(self):
         assert self.connected, "not connected to the server"
