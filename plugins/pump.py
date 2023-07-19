@@ -17,9 +17,6 @@ import numpy as np
 import inspect
 import pandas as pd
 import threading
-import sys
-sys.path.append("../")
-from utils import *
 import os
 
 ################################
