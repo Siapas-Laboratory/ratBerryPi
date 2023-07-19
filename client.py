@@ -1,6 +1,5 @@
 import socket
-from utils import *
-import threading
+from server import HOST, PORT, BROADCAST_PORT, remote_boot
 
 #TODO: need something to check that the server is on
 # need to 
@@ -57,6 +56,7 @@ class Client:
     def lick_triggered_reward(self, module, amount, force = False):
         command = f'LickTriggeredReward {module} {amount} {force}'.encode('utf-8')
         reply = self.run_command(command)
+        # need to raise an error if anything is unsuccess
         return reply
 
     def trigger_reward(self, module, amount, force = False):
@@ -95,6 +95,15 @@ class Client:
     def __del__(self):
         self.exit()
 
+def remote_connect(host=HOST, port=PORT, broadcast_port = BROADCAST_PORT):
+    client = Client(host, port, broadcast_port)
+    try:
+        client.connect()
+        return client, None
+    except ConnectionRefusedError:
+        server_thread = remote_boot()
+        client.connect()
+        return client, server_thread
 
 if __name__=='__main__':
     import argparse

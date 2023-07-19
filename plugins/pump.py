@@ -26,6 +26,13 @@ import os
 # RPi and Motor Pre-allocations
 ################################
 
+class EndTrackError(Exception):
+    """reached end of track"""
+    pass
+
+class PumpNotEnabled(Exception):
+    pass
+
 class Syringe:
     syringeTypeDict = {'BD1mL': 0.478, 
                        'BD5mL': 1.207,

@@ -1,14 +1,17 @@
-from plugins.pump import Syringe, Pump, PumpThread
+from plugins.pump import Syringe, Pump, PumpThread, EndTrackError
 from plugins.lickometer import Lickometer
 from plugins.LED import LED
 import RPi.GPIO as GPIO
-from datetime import datetime
-import threading
-import time
 import yaml
-import numpy as np
-from utils import *
 
+class NoLickometer(Exception):
+    pass
+
+class PumpInUse(Exception):
+    pass
+
+class NoFillValve(Exception):
+    pass
 
 class RewardInterface:
     def __init__(self, config_file='config.yaml', burst_thresh = .5, reward_thresh = 1):

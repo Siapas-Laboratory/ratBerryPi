@@ -1,11 +1,10 @@
 import socket
 import threading
-from utils import *
-from reward import RewardInterface, RewardModule
-import subprocess
-import os
 import select
 
+HOST = '192.168.0.246'
+PORT = 5562
+BROADCAST_PORT = 5563
 
 class Server:
     def __init__(self, host=HOST, port=PORT, broadcast_port = BROADCAST_PORT, reward_interface = None):
@@ -16,7 +15,11 @@ class Server:
         self.waiting = False
         self.on = False
         self.broadcast_thread = None
-        self.reward_interface = RewardInterface() if not reward_interface else reward_interface
+        if reward_interface: 
+            self.reward_interface = reward_interface
+        else:
+            from reward import RewardInterface
+            self.reward_interface = RewardInterface()
         
     def broadcast(self):
         client_threads = []
@@ -51,6 +54,11 @@ class Server:
                         reply = 'None'
                 elif prop == 'position':
                     reply = f'{self.reward_interface.modules[mod].pump.position}'
+                elif prop == 'licks':
+                    try:
+                        reply = f'{self.reward_interface.modules[mod].lickometer.licks}'
+                    except AttributeError:
+                        reply = 'invalid request'
                 else:
                     try:
                         reply = f'{getattr(self.reward_interface.modules[mod], prop)}'
@@ -102,11 +110,11 @@ class Server:
         """
 
         # TODO: functions to add:
-        # setting all syringe types at once
-        # setting all ids at once
         # resetting the lick count
         # getting the module names
-        # pulling back the syringe? (on this note also need to figure out end detection)
+
+        from reward import PumpInUse, NoLickometer, NoFillValve
+        from plugins.pump import EndTrackError
 
         data = data.decode('utf-8')
         data = data.split(' ')
@@ -235,8 +243,38 @@ class Server:
     def __del__(self):
         self.shutdown()
 
+def remote_boot(host=HOST, path = '~/Downloads/rpi-reward-module'):
+    import paramiko
+    import threading
+
+    class server_thread(threading.Thread):
+        def __init__(self):
+            super(server_thread, self).__init__()
+            
+        def run(self):
+            ssh = paramiko.SSHClient()
+            ssh.load_system_host_keys()
+            ssh.connect(host, username='pi')
+            transport = ssh.get_transport()
+            transport.set_keepalive(1) 
+            ssh.exec_command(f"cd {path}; python3 server.py")
+            self.running = True   
+            while self.running:
+                pass
+
+        def join(self):
+            self.running = False
+            super(server_thread, self).join()
+
+    t = server_thread()
+    t.start()
+    return t
+
 if __name__ == '__main__':
+
     import argparse
+    from reward import RewardInterface
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--reward_config', default = 'config.yaml', help = 'path to the config file for the reward interface')
     parser.add_argument('--burst_thresh', default = 0.5,
@@ -244,6 +282,7 @@ if __name__ == '__main__':
     parser.add_argument('--reward_thresh', default = 3, help = 'number of licks within a burst required to start the pump')
     
     args = parser.parse_args()
+
     reward_interface = RewardInterface(args.reward_config, args.burst_thresh, args.reward_thresh)
 
     server = Server(reward_interface=reward_interface)
