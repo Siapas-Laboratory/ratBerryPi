@@ -67,7 +67,8 @@ class Server:
                         print(e)
                 conn.sendall(reply.encode('utf-8'))
             else:
-                conn.sendall(b'invalid request')
+                reply = f'invalid request "{data}"'
+                conn.sendall(reply.encode('utf-8'))
 
     def start(self):
         self.on = True
