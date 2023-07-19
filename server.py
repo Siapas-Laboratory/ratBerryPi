@@ -58,13 +58,12 @@ class Server:
                     try:
                         reply = f'{self.reward_interface.modules[mod].lickometer.licks}'
                     except AttributeError as e:
-                        reply = 'invalid request'
-                        print(e)
+                        reply = f'invalid lick request for "{mod}"'
                 else:
                     try:
                         reply = f'{getattr(self.reward_interface.modules[mod], prop)}'
                     except AttributeError as e:
-                        reply = 'invalid request'
+                        reply = f'invalid prop request for "{mod}"'
                         print(e)
                 conn.sendall(reply.encode('utf-8'))
             else:
