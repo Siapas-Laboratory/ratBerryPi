@@ -44,7 +44,8 @@ class Server:
         if not data:
             return
         else:
-            data = data.decode('utf-8').split(' ')
+            data_str = data.decode('utf-8')
+            data = data_str.split(' ')
             if len(data)==2:
                 mod, prop = data
                 if prop == 'status':
@@ -67,7 +68,7 @@ class Server:
                         print(e)
                 conn.sendall(reply.encode('utf-8'))
             else:
-                reply = f'invalid request "{data}"'
+                reply = f'invalid request "{data_str}"'
                 conn.sendall(reply.encode('utf-8'))
 
     def start(self):
