@@ -1,6 +1,5 @@
-from plugins.pump import Syringe, Pump, PumpThread, EndTrackError
-from plugins.lickometer import Lickometer
-from plugins.LED import LED
+from pump import Syringe, Pump, PumpThread, EndTrackError
+import plugins
 import RPi.GPIO as GPIO
 import yaml
 
@@ -46,10 +45,21 @@ class RewardInterface:
                     raise ValueError(f"Invalid value for 'fillValve' provided for pump '{i}'")
             self.pumps[i] = Pump(**config['pumps'][i])
 
+        self.plugins = {}
+        if 'plugins' in config:
+            for k, v in config['plugins'].items:
+                if v['type']=='lickometer':
+                    self.plugins[k] = plugins.lickometer.Lickometer(v['lickPin'], burst_thresh = burst_thresh)
+                elif v['type'] == 'LED':
+                    self.plugins[k] = plugins.LED.LED(v['LEDPin'])
+
         self.modules = {}
         for i in config['modules']:
             config['modules'][i]['pump'] = self.pumps[config['modules'][i]['pump']]
-            self.modules[i] = RewardModule(**config['modules'][i], burst_thresh=burst_thresh, reward_thresh=reward_thresh)
+            if 'plugins' in config['modules'][i]:
+                config['modules'][i]['plugins'] = {k: self.plugins[v] for k,v in config['modules'][i]['plugins'].items()}
+
+            self.modules[i] = RewardModule(**config['modules'][i], reward_thresh=reward_thresh)
 
     def fill_syringe(self, pump, amount):
         if pump in self.fill_valves:
@@ -88,15 +98,16 @@ class RewardInterface:
 
 class RewardModule:
 
-    def __init__(self, pump = None, valvePin = None, lickPin = None, LEDPin = None, burst_thresh = 0.5, reward_thresh = 3):
+    def __init__(self, pump = None, valvePin = None, plugins = {}, reward_thresh = 3):
 
         self.pump = pump
         self.valvePin = valvePin
         self.in_use = False
         self.reward_thresh = reward_thresh
         self.pump_thread = None
-        self.lickometer = Lickometer(lickPin, burst_thresh) if lickPin else None
-        self.LED = LED(LEDPin) if LEDPin else None
+
+        for i,v in plugins.items():
+            setattr(self, i, v)
 
         if self.valvePin is not None:
             GPIO.setup(self.valvePin,GPIO.OUT)
@@ -104,14 +115,14 @@ class RewardModule:
     
     @property
     def pump_trigger(self):
-        if self.lickometer:
+        if hasattr(self, 'lickometer'):
             return self.lickometer.in_burst and (self.lickometer.burst_lick>self.reward_thresh)
         else:
             return None
     
     def lick_triggered_reward(self, amount, force = False):
 
-        if self.lickometer is None: raise NoLickometer
+        if not hasattr(self, 'lickometer'): raise NoLickometer
         if self.pump.in_use and not force: raise PumpInUse
         if self.pump.track_end(True) and not force: raise EndTrackError
         if force and self.pump_thread: self.pump_thread.stop()

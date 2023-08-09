@@ -125,7 +125,7 @@ class Server:
         # getting the module names
 
         from reward import PumpInUse, NoLickometer, NoFillValve
-        from plugins.pump import EndTrackError
+        from pump import EndTrackError
 
         data = data.decode('utf-8')
         data = data.split(' ')

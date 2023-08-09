@@ -1,8 +1,9 @@
 modules:
   module1:
     valvePin: 16
-    lickPin: 21
     pump: pump1
+    plugins:
+      lickometer: lick1
 
 pumps:
   pump1:
@@ -17,3 +18,9 @@ pumps:
       - 6
       - 13
       - 19
+
+plugins:
+  lick1:
+    type: lickometer
+    lickPin: 21
+    
