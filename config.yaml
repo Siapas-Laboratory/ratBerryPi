@@ -4,6 +4,8 @@ modules:
     pump: pump1
     plugins:
       lickometer: lick1
+      LED: LED1
+      speaker: speaker1
 
 pumps:
   pump1:
@@ -22,5 +24,10 @@ pumps:
 plugins:
   lick1:
     type: lickometer
-    lickPin: 21
-    
+    lickPin: 2
+  LED1:
+    type: LED
+    LEDPin: 4
+  speaker1:
+    type: speaker
+    SDPin: 3

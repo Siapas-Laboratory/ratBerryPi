@@ -1,5 +1,5 @@
 from pump import Syringe, Pump, PumpThread, EndTrackError
-import plugins
+from plugins import lickometer, audio, LED
 import RPi.GPIO as GPIO
 import yaml
 
@@ -47,11 +47,16 @@ class RewardInterface:
 
         self.plugins = {}
         if 'plugins' in config:
-            for k, v in config['plugins'].items:
+            for k, v in config['plugins'].items():
                 if v['type']=='lickometer':
-                    self.plugins[k] = plugins.lickometer.Lickometer(v['lickPin'], burst_thresh = burst_thresh)
+                    self.plugins[k] = lickometer.Lickometer(v['lickPin'], burst_thresh = burst_thresh)
                 elif v['type'] == 'LED':
-                    self.plugins[k] = plugins.LED.LED(v['LEDPin'])
+                    self.plugins[k] = LED.LED(v['LEDPin'])
+                elif v['type'] == 'speaker':
+                    if not hasattr(self, 'audio_interface'):
+                        self.audio_interface = audio.AudioInterface()
+                    self.plugins[k] = audio.Speaker(self.audio_interface, v['SDPin'])
+
 
         self.modules = {}
         for i in config['modules']:
