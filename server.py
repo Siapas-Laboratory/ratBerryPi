@@ -11,7 +11,6 @@ import pickle
 
 class Server:
     def __init__(self, reward_interface = None):
-        self.host = socket.gethostname()
         with open('config.yaml', 'r') as f:
             config = yaml.safe_load(f)
         self.port = config['PORT']
@@ -31,8 +30,8 @@ class Server:
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                print('binding the port')
-                sock.bind((self.host, self.port))
+                print(f'binding port {self.port}')
+                sock.bind(('', self.port))
                 sock.listen()
                 print('waiting for connections...')
                 self.conn, (ip, _) =  sock.accept()
@@ -105,7 +104,7 @@ class Server:
         client_threads = []
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((self.host, self.broadcast_port))
+        sock.bind(('', self.broadcast_port))
         sock.listen()
         while self.on:
             try:

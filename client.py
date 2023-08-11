@@ -29,13 +29,13 @@ class Client:
 
     def kill(self):
         assert self.connected, "not connected to the server"
-        self.conn.sendall(b'KILL')
+        self.conn.sendall(pickle.dumps('KILL'))
         self.conn.close()
         self.connected = False
 
     def exit(self):
         if self.connected:
-            self.conn.sendall(b'EXIT')
+            self.conn.sendall(pickle.dumps('EXIT'))
             self.conn.close()
             self.connected = False
     
@@ -47,38 +47,6 @@ class Client:
         self.conn.connect((self.host, self.port))
         if self.verbose: print('connected!')
         self.connected = True
-
-    def fill_syringe(self, pump, amount):
-        command = f'FillSyringe {pump} {amount}'.encode('utf-8')
-        reply = self.run_command(command)
-        return reply
-
-    def lick_triggered_reward(self, module, amount, force = False):
-        command = f'LickTriggeredReward {module} {amount} {force}'.encode('utf-8')
-        reply = self.run_command(command)
-        # need to raise an error if anything is unsuccess
-        return reply
-
-    def trigger_reward(self, module, amount, force = False):
-        command = f'Reward {module} {amount} {force}'.encode('utf-8')
-        reply = self.run_command(command)
-        return reply
-
-    def set_syringe_ID(self, ID, pump = None, set_all = True):
-        if set_all:
-            command = f'SetAllSyringeIDs {ID}'.encode('utf-8')
-        else:
-            command = f'SetAllSyringeIDs {pump} {ID}'.encode('utf-8')
-        reply = self.run_command(command)
-        return reply
-
-    def set_syringe_type(self, syringeType, pump = None, set_all = True):
-        if set_all:
-            command = f'SetAllSyringeTypes {syringeType}'.encode('utf-8')
-        else:
-            command = f'SetSyringeType {pump} {syringeType}'.encode('utf-8')
-        reply = self.run_command(command)
-        return reply
         
     def run_command(self, command, args):
         assert self.connected, "not connected to the server"
