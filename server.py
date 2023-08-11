@@ -108,10 +108,17 @@ class Server:
         sock.bind((self.host, self.broadcast_port))
         sock.listen()
         while self.on:
-            conn, (ip, _) =  sock.accept()
-            t = threading.Thread(target = self.respond, args = (conn,))
-            t.start()
-            client_threads.append(t)
+            try:
+                conn, (ip, _) =  sock.accept()
+                t = threading.Thread(target = self.respond, args = (conn,))
+                t.start()
+                client_threads.append(t)
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                if e.errno != errno.ECONNRESET:
+                    break
+            
     
     def respond(self, conn):
         conn.setblocking(0)
