@@ -29,13 +29,13 @@ class Client:
 
     def kill(self):
         assert self.connected, "not connected to the server"
-        self.conn.sendall(pickle.dumps('KILL'))
+        self.conn.sendall(pickle.dumps({'command': 'KILL'}))
         self.conn.close()
         self.connected = False
 
     def exit(self):
         if self.connected:
-            self.conn.sendall(pickle.dumps('EXIT'))
+            self.conn.sendall(pickle.dumps({'command': 'EXIT'}))
             self.conn.close()
             self.connected = False
     
