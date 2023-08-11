@@ -3,6 +3,13 @@ from plugins import lickometer, audio, LED
 import RPi.GPIO as GPIO
 import yaml
 
+
+class NoSpeaker(Exception):
+    pass
+
+class NoLED(Exception):
+    pass
+
 class NoLickometer(Exception):
     pass
 
@@ -13,10 +20,10 @@ class NoFillValve(Exception):
     pass
 
 class RewardInterface:
-    def __init__(self, config_file='config.yaml', burst_thresh = .5, reward_thresh = 1):
+    def __init__(self, burst_thresh = .5, reward_thresh = 1):
 
         GPIO.setmode(GPIO.BCM)
-        with open(config_file, 'r') as f:
+        with open('config.yaml', 'r') as f:
             config = yaml.safe_load(f)
 
         self.pumps = {}
@@ -48,15 +55,12 @@ class RewardInterface:
         self.plugins = {}
         if 'plugins' in config:
             for k, v in config['plugins'].items():
-                if v['type']=='lickometer':
-                    self.plugins[k] = lickometer.Lickometer(v['lickPin'], burst_thresh = burst_thresh)
-                elif v['type'] == 'LED':
+                if v['type'] == 'LED':
                     self.plugins[k] = LED.LED(v['LEDPin'])
                 elif v['type'] == 'speaker':
                     if not hasattr(self, 'audio_interface'):
                         self.audio_interface = audio.AudioInterface()
                     self.plugins[k] = audio.Speaker(self.audio_interface, v['SDPin'])
-
 
         self.modules = {}
         for i in config['modules']:
@@ -76,7 +80,6 @@ class RewardInterface:
         else:
             raise ValueError('Either the specified pump has no fill valve or it does not exist')
 
-    
     def change_syringe(self, pump=None, syringeType=None, ID=None):
         if pump:
             self.pumps[pump].change_syringe(syringeType=syringeType, ID=ID)
@@ -103,13 +106,18 @@ class RewardInterface:
 
 class RewardModule:
 
-    def __init__(self, pump = None, valvePin = None, plugins = {}, reward_thresh = 3):
+    def __init__(self, pump = None, valvePin = None, lickPin = None, plugins = {}, burst_thresh = .5, reward_thresh = 3):
 
         self.pump = pump
         self.valvePin = valvePin
         self.in_use = False
         self.reward_thresh = reward_thresh
         self.pump_thread = None
+
+        if lickPin:
+            self.lickometer = lickometer.Lickometer(v['lickPin'], burst_thresh = burst_thresh)
+        else:
+            self.lickometer = None
 
         for i,v in plugins.items():
             setattr(self, i, v)
@@ -120,14 +128,14 @@ class RewardModule:
     
     @property
     def pump_trigger(self):
-        if hasattr(self, 'lickometer'):
+        if self.lickometer:
             return self.lickometer.in_burst and (self.lickometer.burst_lick>self.reward_thresh)
         else:
             return None
     
     def lick_triggered_reward(self, amount, force = False):
 
-        if not hasattr(self, 'lickometer'): raise NoLickometer
+        if not self.lickometer: raise NoLickometer
         if self.pump.in_use and not force: raise PumpInUse
         if self.pump.track_end(True) and not force: raise EndTrackError
         if force and self.pump_thread: self.pump_thread.stop()
@@ -144,6 +152,24 @@ class RewardModule:
         self.pump_thread = PumpThread(self.pump, amount, False, valvePin = self.valvePin, forward = True)
         self.pump_thread.start()
 
+    def toggle_LED(self, on):
+        if hasattr(self, 'LED'):
+            if on: self.LED.on()
+            else: self.LED.off()
+        else:
+            raise NoLED
+
+    def flash_LED(self, dur):
+        if hasattr(self, 'LED'):
+            self.LED.flash(dur)
+        else:
+            raise NoLED
+    
+    def play_tone(self, freq, dur, volume = 1):
+        if hasattr(self, 'speaker'):
+            self.speaker.play_tone(freq, dur, volume)
+        else:
+            raise NoSpeaker
 
     def __del__(self):
         GPIO.cleanup()

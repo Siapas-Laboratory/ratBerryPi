@@ -6,9 +6,10 @@ class LED:
     def __init__(self, LEDPin):
         self.LEDPin = LEDPin
         GPIO.setup(self.LEDPin, GPIO.OUT)
+        GPIO.output(self.LEDPin, GPIO.LOW)
     
-    def on(self, LEDPin):
+    def on(self):
         GPIO.output(self.LEDPin, GPIO.HIGH)
     
-    def off(self, LEDPin):
+    def off(self):
         GPIO.output(self.LEDPin, GPIO.LOW)

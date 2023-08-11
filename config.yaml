@@ -1,9 +1,12 @@
+PORT: 5562
+BROADCAST_PORT: 5563
+
 modules:
   module1:
     valvePin: 16
     pump: pump1
+    lickPin: 2
     plugins:
-      lickometer: lick1
       LED: LED1
       speaker: speaker1
 
@@ -22,9 +25,6 @@ pumps:
       - 19
 
 plugins:
-  lick1:
-    type: lickometer
-    lickPin: 2
   LED1:
     type: LED
     LEDPin: 4

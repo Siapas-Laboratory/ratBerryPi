@@ -2,25 +2,24 @@ import socket
 import threading
 import select
 import errno
+from reward import RewardInterface, PumpInUse, NoLickometer, NoFillValve, NoLED, NoSpeaker
+from pump import EndTrackError
+from plugins import lickometer, audio, LED
+import yaml
 
-HOST = '192.168.0.246'
-PORT = 5562
-BROADCAST_PORT = 5563
 
 class Server:
-    def __init__(self, host=HOST, port=PORT, broadcast_port = BROADCAST_PORT, reward_interface = None):
-        self.host = host
-        self.port = port
-        self.broadcast_port = broadcast_port
+    def __init__(self, reward_interface = None):
+        self.host = socket.gethostname()
+        with open('config.yaml', 'r') as f:
+            config = yaml.safe_load(f)
+        self.port = config['PORT']
+        self.broadcast_port = config['BROADCAST_PORT']
         self.conn = None
         self.waiting = False
         self.on = False
         self.broadcast_thread = None
-        if reward_interface: 
-            self.reward_interface = reward_interface
-        else:
-            from reward import RewardInterface
-            self.reward_interface = RewardInterface()
+        self.reward_interface = reward_interface if reward_interface else RewardInterface()
         
     def broadcast(self):
         client_threads = []
@@ -124,8 +123,6 @@ class Server:
         # resetting the lick count
         # getting the module names
 
-        from reward import PumpInUse, NoLickometer, NoFillValve
-        from pump import EndTrackError
 
         data = data.decode('utf-8')
         data = data.split(' ')
@@ -236,7 +233,56 @@ class Server:
                 except ValueError:
                     reply = f"invalid ID {ID} specified"
             self.conn.sendall(str.encode(reply))
-            print("reply sent")     
+            print("reply sent")  
+
+        elif command == "PlayTone":
+            if len(args)<3:
+                reply = "invalid command"
+            else:
+                freq = args[1]
+                dur = args[2]
+                volume = args[3] if len(args)>3 else 1
+
+                if args[0] in self.reward_interface.plugins:
+                    speaker = self.reward_interface.plugins[args[0]]
+                    if not isinstance(speaker, audio.Speaker):
+                        reply = f"{args[0]} not a speaker"
+                    else:
+                        speaker.play_tone(freq, dur, volume)
+                        reply = f"{command} {speaker} {freq} {dur} {volume} successful"
+                
+                elif args[0] in self.reward_interface.modules:
+                    mod = args[0]
+                    try:
+                        self.reward_interface.modules[mod].play_tone(freq, dur, volume)
+                        reply = f"{command} {mod} {freq} {dur} {volume} successful"
+                    except NoSpeaker:
+                        reply = f"no speaker on module {mod}"
+
+                else:
+                    reply = f"unrecognized speaker or module {args[0]}"
+
+        elif command == "ToggleLED":
+            if len(args)<2:
+                reply = "invalid command"
+            else:
+                on = args[1].lower() == 'on'
+                if args[0] in self.reward_interface.plugins:
+                    led = self.reward_interface.plugins[args[0]]
+                    if not isinstance(led, LED.LED):
+                        reply = f"{args[0]} not an LED"
+                    else:  
+                        if on: led.on()
+                        else: led.off()
+                        reply = f"{command} {args[0]} {args[1]} successful"
+                elif args[0] in self.reward_interface.modules:
+                    mod = args[0]
+                    try:
+                        self.reward_interface.modules[mod].toggle_LED(on)
+                        reply = f"{command} {args[0]} {args[1]} successful"
+                    except NoLED:
+                        reply = f"no LED on module {mod}"
+
         else:
             self.conn.sendall(b"invalid command")
             print("reply sent")
@@ -254,32 +300,6 @@ class Server:
     def __del__(self):
         self.shutdown()
 
-def remote_boot(host=HOST, path = '~/Downloads/rpi-reward-module'):
-    import paramiko
-    import threading
-
-    class server_thread(threading.Thread):
-        def __init__(self):
-            super(server_thread, self).__init__()
-            
-        def run(self):
-            ssh = paramiko.SSHClient()
-            ssh.load_system_host_keys()
-            ssh.connect(host, username='pi')
-            transport = ssh.get_transport()
-            transport.set_keepalive(1) 
-            ssh.exec_command(f"cd {path}; python3 server.py")
-            self.running = True   
-            while self.running:
-                pass
-
-        def join(self):
-            self.running = False
-            super(server_thread, self).join()
-
-    t = server_thread()
-    t.start()
-    return t
 
 if __name__ == '__main__':
 
@@ -287,14 +307,13 @@ if __name__ == '__main__':
     from reward import RewardInterface
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--reward_config', default = 'config.yaml', help = 'path to the config file for the reward interface')
     parser.add_argument('--burst_thresh', default = 0.5,
                          help = 'time threshold in seconds on the inter lick interval for starting a new burst, consequently also the time after a lick before stopping the pump')
     parser.add_argument('--reward_thresh', default = 3, help = 'number of licks within a burst required to start the pump')
     
     args = parser.parse_args()
 
-    reward_interface = RewardInterface(args.reward_config, args.burst_thresh, args.reward_thresh)
+    reward_interface = RewardInterface(args.burst_thresh, args.reward_thresh)
 
     server = Server(reward_interface=reward_interface)
     server.start()

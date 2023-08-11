@@ -1,11 +1,13 @@
 import socket
-from server import HOST, PORT, BROADCAST_PORT, remote_boot
+import paramiko
+import threading
 
 #TODO: need something to check that the server is on
 # need to 
 
+
 class Client:
-    def __init__(self, host=HOST, port=PORT, broadcast_port = BROADCAST_PORT, verbose = True):
+    def __init__(self, host, port, broadcast_port, verbose = True):
         self.host = host
         self.port = port
         self.verbose = verbose
@@ -94,7 +96,8 @@ class Client:
     def __del__(self):
         self.exit()
 
-def remote_connect(host=HOST, port=PORT, broadcast_port = BROADCAST_PORT):
+def remote_connect(host, port, broadcast_port):
+
     client = Client(host, port, broadcast_port)
     try:
         client.connect()
@@ -103,14 +106,49 @@ def remote_connect(host=HOST, port=PORT, broadcast_port = BROADCAST_PORT):
         server_thread = remote_boot()
         client.connect()
         return client, server_thread
+    
+def remote_boot(host, path = '~/Downloads/rpi-reward-module'):
+
+    class server_thread(threading.Thread):
+        def __init__(self):
+            super(server_thread, self).__init__()
+            
+        def run(self):
+            ssh = paramiko.SSHClient()
+            ssh.load_system_host_keys()
+            ssh.connect(host, username='pi')
+            transport = ssh.get_transport()
+            transport.set_keepalive(1) 
+            ssh.exec_command(f"cd {path}; python3 server.py")
+            self.running = True   
+            while self.running:
+                pass
+
+        def join(self):
+            self.running = False
+            super(server_thread, self).join()
+
+    t = server_thread()
+    t.start()
+    return t
 
 if __name__=='__main__':
     import argparse
+    import yaml
+
+    with open('config.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+    HOST = socket.gethostname()
+    PORT = config['PORT']
+    BROADCAST_PORT = config['BROADCAST_PORT']
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default = HOST)
     parser.add_argument("--port", default = PORT)
+    parser.add_argument("--broadcast_port", default = BROADCAST_PORT)
+
     args = parser.parse_args()
-    client = Client(args.host, int(args.port))
+    client = Client(args.host, int(args.port), int(args.broacast_port))
     client.connect()
 
     running = True
@@ -120,4 +158,3 @@ if __name__=='__main__':
         if cmd =='EXIT':
             client.exit()
             running = False
-
