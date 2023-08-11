@@ -1,6 +1,5 @@
 import socket
-import paramiko
-import threading
+import pickle
 
 #TODO: need something to check that the server is on
 # need to 
@@ -80,9 +79,11 @@ class Client:
             command = f'SetSyringeType {pump} {syringeType}'.encode('utf-8')
         reply = self.run_command(command)
         return reply
-
-    def run_command(self, command):
+        
+    def run_command(self, command, args):
         assert self.connected, "not connected to the server"
+        args['command'] = command
+        command = pickle.dumps(args)
         self.conn.sendall(command)
         reply = self.conn.recv(1024)
         if reply:
@@ -91,8 +92,8 @@ class Client:
             if self.verbose: print('server does not appear to be running. closing connection')
             self.conn.close()
             self.connected = False
-            return reply    
-        
+            return reply   
+
     def __del__(self):
         self.exit()
 
@@ -108,6 +109,9 @@ def remote_connect(host, port, broadcast_port):
         return client, server_thread
     
 def remote_boot(host, path = '~/Downloads/rpi-reward-module'):
+
+    import paramiko
+    import threading
 
     class server_thread(threading.Thread):
         def __init__(self):
@@ -148,7 +152,7 @@ if __name__=='__main__':
     parser.add_argument("--broadcast_port", default = BROADCAST_PORT)
 
     args = parser.parse_args()
-    client = Client(args.host, int(args.port), int(args.broacast_port))
+    client = Client(args.host, int(args.port), int(args.broadcast_port))
     client.connect()
 
     running = True

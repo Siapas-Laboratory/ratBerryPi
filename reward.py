@@ -70,6 +70,9 @@ class RewardInterface:
 
             self.modules[i] = RewardModule(**config['modules'][i], reward_thresh=reward_thresh)
 
+    def trigger_reward(self, module, amount, force = False, lick_triggered = False):
+        self.modules[module].trigger_reward(amount, force = force, lick_triggered = lick_triggered)
+
     def fill_syringe(self, pump, amount):
         if pump in self.fill_valves:
             p = self.pumps[pump]
@@ -87,7 +90,7 @@ class RewardInterface:
             for i in self.pumps:
                 self.pumps[i].change_syringe(syringeType=syringeType, ID=ID)
     
-    def reset_licks(self, module_name):
+    def reset_licks(self, module):
         if self.modules[module_name].lickometer:
             self.modules[module_name].lickometer.reset_licks()
         else:
@@ -99,14 +102,47 @@ class RewardInterface:
                 self.modules[i].lickometer.reset_licks()
             else:
                 raise NoLickometer
+    
+    def toggle_LED(self, on, module = None, LED = None):
+        if module is not None:
+            if hasattr(self.modules[module], 'LED'):
+                if isinstance(self.modules[module].LED, LED.LED):
+                    if on: self.modules[module].LED.on()
+                    else: self.modules[module].LED.off()
+                else:
+                    raise NoLED
+            else:
+                raise NoLED
+        elif LED is not None:
+            if isinstance(self.plugins[LED], LED.LED):
+                if on: self.plugins[LED].on()
+                else: self.plugins[LED].off()
+            else:
+                raise NoLED
 
+    def play_tone(self, freq, dur, volume = 1, module = None, speaker = None):
+        if module is not None:
+            if hasattr(self.modules[module], 'speaker'):
+                if isinstance(self.modules[module].speaker, audio.Speaker):
+                    self.modules[module].speaker.play_tone(freq, dur, volume)
+                else:
+                    raise NoSpeaker
+            else:
+                raise NoSpeaker
+        elif speaker is not None:
+            if isinstance(self.plugins[speaker], audio.Speaker):
+                self.plugins[speaker].play_tone(freq, dur, volume)
+            else:
+                raise NoSpeaker
+    
     def __del__(self):
         GPIO.cleanup()
 
 
 class RewardModule:
 
-    def __init__(self, pump = None, valvePin = None, lickPin = None, plugins = {}, burst_thresh = .5, reward_thresh = 3):
+    def __init__(self, pump = None, valvePin = None, lickPin = None, 
+                plugins = {}, burst_thresh = .5, reward_thresh = 3):
 
         self.pump = pump
         self.valvePin = valvePin
@@ -115,7 +151,7 @@ class RewardModule:
         self.pump_thread = None
 
         if lickPin:
-            self.lickometer = lickometer.Lickometer(v['lickPin'], burst_thresh = burst_thresh)
+            self.lickometer = lickometer.Lickometer(lickPin, burst_thresh = burst_thresh)
         else:
             self.lickometer = None
 
@@ -132,44 +168,16 @@ class RewardModule:
             return self.lickometer.in_burst and (self.lickometer.burst_lick>self.reward_thresh)
         else:
             return None
-    
-    def lick_triggered_reward(self, amount, force = False):
 
-        if not self.lickometer: raise NoLickometer
-        if self.pump.in_use and not force: raise PumpInUse
-        if self.pump.track_end(True) and not force: raise EndTrackError
-        if force and self.pump_thread: self.pump_thread.stop()
-
-        self.pump_thread = PumpThread(self.pump, amount, True, valvePin = self.valvePin, forward = True, parent = self)
-        self.pump_thread.start()
-
-    def trigger_reward(self, amount, force = False):
+    def trigger_reward(self, amount, force = False, lick_triggered = False):
         
         if self.pump.in_use and not force: raise PumpInUse
         if self.pump.track_end(True) and not force: raise EndTrackError
         if force and self.pump_thread: self.pump_thread.stop()
-
-        self.pump_thread = PumpThread(self.pump, amount, False, valvePin = self.valvePin, forward = True)
+        self.pump_thread = PumpThread(self.pump, amount, lick_triggered, 
+                                      valvePin = self.valvePin, forward = True, 
+                                      parent = self)
         self.pump_thread.start()
-
-    def toggle_LED(self, on):
-        if hasattr(self, 'LED'):
-            if on: self.LED.on()
-            else: self.LED.off()
-        else:
-            raise NoLED
-
-    def flash_LED(self, dur):
-        if hasattr(self, 'LED'):
-            self.LED.flash(dur)
-        else:
-            raise NoLED
-    
-    def play_tone(self, freq, dur, volume = 1):
-        if hasattr(self, 'speaker'):
-            self.speaker.play_tone(freq, dur, volume)
-        else:
-            raise NoSpeaker
 
     def __del__(self):
         GPIO.cleanup()
