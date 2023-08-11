@@ -48,7 +48,10 @@ class Server:
                 self.conn.close()
                 self.conn = None
 
-            except (Exception, KeyboardInterrupt) as e:
+            except  KeyboardInterrupt:
+                print('shutting down')
+                self.shutdown()
+            except Exception as e:
                 if e.errno != errno.ECONNRESET:
                     print(e)
                     print('shutting down')
