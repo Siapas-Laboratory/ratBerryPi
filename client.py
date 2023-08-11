@@ -104,7 +104,7 @@ def remote_connect(host, port, broadcast_port):
         client.connect()
         return client, None
     except ConnectionRefusedError:
-        server_thread = remote_boot()
+        server_thread = remote_boot(host)
         client.connect()
         return client, server_thread
     

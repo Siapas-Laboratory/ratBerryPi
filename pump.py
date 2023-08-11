@@ -12,10 +12,7 @@
 import RPi.GPIO as GPIO
 from RpiMotorLib import RpiMotorLib
 import time
-from time import sleep
 import numpy as np
-import inspect
-import pandas as pd
 import threading
 import os
 
