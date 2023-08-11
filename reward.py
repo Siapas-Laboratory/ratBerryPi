@@ -107,16 +107,16 @@ class RewardInterface:
         if module is not None:
             if hasattr(self.modules[module], 'LED'):
                 if isinstance(self.modules[module].LED, LED.LED):
-                    if on: self.modules[module].LED.on()
-                    else: self.modules[module].LED.off()
+                    if on: self.modules[module].LED.turn_on()
+                    else: self.modules[module].LED.turn_off()
                 else:
                     raise NoLED
             else:
                 raise NoLED
         elif LED is not None:
             if isinstance(self.plugins[LED], LED.LED):
-                if on: self.plugins[LED].on()
-                else: self.plugins[LED].off()
+                if on: self.plugins[LED].turn_on()
+                else: self.plugins[LED].turn_off()
             else:
                 raise NoLED
 
