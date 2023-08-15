@@ -7,6 +7,7 @@ class LED:
         self.LEDPin = LEDPin
         GPIO.setup(self.LEDPin, GPIO.OUT)
         GPIO.output(self.LEDPin, GPIO.LOW)
+        self.on = False
     
     def turn_on(self):
         GPIO.output(self.LEDPin, GPIO.HIGH)
