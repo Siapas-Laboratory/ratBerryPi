@@ -5,6 +5,7 @@ import yaml
 from datetime import datetime
 import pandas as pd
 import os
+import threading
 
 class NoSpeaker(Exception):
     pass
@@ -70,9 +71,17 @@ class RewardInterface:
             if 'plugins' in config['modules'][i]:
                 config['modules'][i]['plugins'] = {k: self.plugins[v] for k,v in config['modules'][i]['plugins'].items()}
 
-            self.modules[i] = RewardModule(i, **config['modules'][i], reward_thresh=reward_thresh)
+            self.modules[i] = RewardModule(i, **config['modules'][i], burst_thresh = burst_thresh, reward_thresh=reward_thresh)
+        
         self.recording = False
         self.log = []
+
+        self.auto_fill = False
+        self.auto_fill_thread = threading.Thread(target = self._fill_syringes)
+        self.auto_fill_thread.start()
+
+    def calibrate(self, pump):
+        self.pumps[pump].calibrate()
 
     def record(self, reset = True):
         self.recording = True
@@ -97,15 +106,14 @@ class RewardInterface:
     def trigger_reward(self, module, amount, force = False, lick_triggered = False):
         self.modules[module].trigger_reward(amount, force = force, lick_triggered = lick_triggered)
 
-    def fill_syringe(self, pump, amount):
-        if pump in self.fill_valves:
-            p = self.pumps[pump]
-            if not p.in_use:
-                pump_thread = PumpThread(p, amount, False, valvePin = self.fill_valves[pump], forward = False)
-                pump_thread.start()
-                pump_thread.join()
-        else:
-            raise ValueError('Either the specified pump has no fill valve or it does not exist')
+    def _fill_syringes(self):
+        while True:
+            for i in self.pumps:
+                if (not self.pumps[i].in_use) and self.auto_fill:
+                    self.pumps[i].single_step(False, self.pumps[i].stepType)
+
+    def toggle_auto_fill(self, on):
+        self.auto_fill = on
 
     def change_syringe(self, pump=None, syringeType=None, ID=None):
         if pump:
@@ -115,8 +123,8 @@ class RewardInterface:
                 self.pumps[i].change_syringe(syringeType=syringeType, ID=ID)
     
     def reset_licks(self, module):
-        if self.modules[module_name].lickometer:
-            self.modules[module_name].lickometer.reset_licks()
+        if self.modules[module].lickometer:
+            self.modules[module].lickometer.reset_licks()
         else:
             raise NoLickometer
         
@@ -171,7 +179,6 @@ class RewardModule:
         self.pump = pump
         self.name = name
         self.valvePin = valvePin
-        self.in_use = False
         self.reward_thresh = reward_thresh
         self.pump_thread = None
 
@@ -196,10 +203,6 @@ class RewardModule:
             return self.lickometer.in_burst and (self.lickometer.burst_lick>self.reward_thresh)
         else:
             return None
-    
-    def record(self):
-        self.log = []
-        self.recording = True
 
     def trigger_reward(self, amount, force = False, lick_triggered = False):
         

@@ -28,26 +28,31 @@ class PumpNotEnabled(Exception):
     pass
 
 class Syringe:
-    syringeTypeDict = {'BD1mL': 0.478, 
-                       'BD5mL': 1.207,
-                       'BD10mL': 1.45,
-                       'BD30mL': 2.17,
-                       'BD50/60mL': 2.67}
+    #TODO: determine max_pos for all possible syringes
+    syringeTypeDict = {'BD1mL':     {'ID': 0.478, 'max_pos': 10}, 
+                       'BD5mL':     {'ID': 1.207, 'max_pos': 10},
+                       'BD10mL':    {'ID': 1.45,  'max_pos': 10},
+                       'BD30mL':    {'ID': 2.17,  'max_pos': 10},
+                       'BD50/60mL': {'ID': 2.67,  'max_pos': 10}}
 
-    def __init__(self, syringeType = None, ID = None):
+    def __init__(self, syringeType = None, ID = None, max_pos = None):
+        """
+
+        """
+
         assert (int(syringeType is None) + int(ID is None))==1, "exactly one of inputs syringeType or ID should be specified "
         if syringeType is not None:
-            self.ID = self.get_syringe_ID(syringeType)
+            try:
+                self.ID = self.syringeTypeDict[syringeType]['ID']
+                self.max_pos = self.syringeTypeDict[syringeType]['max_pos']
+            except KeyError:
+                msg = f"invalid syringeType '{syringeType}'. valid syringes include {[i for i in self.syringeTypeDict]}"
+                raise ValueError(msg)
         else:
             self.ID = ID
+            self.max_pos = max_pos
+            assert max_pos is not None, "must specify max_pos if specifying ID"
 
-    def get_syringe_ID(self, syringeType):
-        try:
-            ID = self.syringeTypeDict[syringeType]
-            return ID
-        except KeyError:
-            msg = f"invalid syringeType '{syringeType}'. valid syringes include {[i for i in self.syringeTypeDict]}"
-            raise ValueError(msg)
     def __repr__(self):
         return f"Syringe(ID={self.ID})"
 
@@ -61,7 +66,7 @@ class Pump:
     
     def __init__(self, stepPin, flushPin, revPin, GPIOPins, dirPin, 
                  endPin = None, syringe = Syringe(syringeType='BD5mL'), 
-                 stepType = "Half", pitch = 0.08, track_length = 10):
+                 stepType = "Half", pitch = 0.08):
         
         """
         this is a class that allows for the control of a syringe
@@ -91,8 +96,7 @@ class Pump:
         self.pitch = pitch
         self.enabled = False
         self.in_use = False
-        self.position = None
-        self.track_length = track_length
+        self.position = 0
         
         # Declare a instance of class pass GPIO pins numbers and the motor type
         self.mymotor = RpiMotorLib.A4988Nema(dirPin , stepPin , GPIOPins, "DRV8825")
@@ -150,28 +154,27 @@ class Pump:
         self.mymotor.motor_go(clockwise=clockwise, steptype=stepType, 
                             steps=1, stepdelay=self.stepDelay, 
                             verbose=False, initdelay=0)
-        if self.position is not None:
-            if forward:
-                self.position -= (self.pitch/self.stepTypeDict[stepType])
-            else:
-                self.position += (self.pitch/self.stepTypeDict[stepType])
+        if forward:
+            self.position -= (self.pitch/self.stepTypeDict[stepType])
+        else:
+            self.position += (self.pitch/self.stepTypeDict[stepType])
             
     def __flush(self, channel):
         if not self.in_use:
             print("flushing")
-            self.in_use = True
+            self.reserve()
             while GPIO.input(channel)==GPIO.HIGH:
                 self.single_step(True, "Full", force = True)
-            self.in_use = False
+            self.unreserve()
             print("done")
             
     def __reverse(self, channel):
         if not self.in_use:
             print("reversing")
-            self.in_use = True
+            self.reserve()
             while GPIO.input(channel)==GPIO.HIGH:
                 self.single_step(False, "Full", force = True)
-            self.in_use = False
+            self.unreserve()
             print("done")
 
             
@@ -208,27 +211,24 @@ class Pump:
         """
         steps, stepsPermL = self.calculate_steps(amount, verbose)
         step_count=0
-        self.in_use = True
+        self.reserve()
         while (step_count<steps):
             try:
                 self.single_step(forward, self.stepType)
             except EndTrackError as e:
                 print(f"End reached after {step_count} steps ({step_count/stepsPermL} mL)")
-                self.in_use = False
+                self.unreserve()
                 raise e
             except PumpNotEnabled as e:
                 print(f"Pump turned off after {step_count} steps ({step_count/stepsPermL} mL)")
-                self.in_use = False
+                self.unreserve()
                 raise e
             step_count += 1
-        self.in_use = False
+        self.unreserve()
 
     def track_end(self, forward):
-        if self.position is not None:
-            if ((self.position<=0) and forward) or ((self.position>=self.track_length) and not forward):
-                return  True
-            else:
-                return False
+        if ((self.position<=0) and forward) or ((self.position>=self.syringe.max_pos) and not forward):
+            return  True
         else:
             return False
 
@@ -236,13 +236,19 @@ class Pump:
         self.enabled = True
 
     def disable(self):
-        self.enabled = False             
+        self.enabled = False
 
-    def change_syringe(self, syringeType = None, ID = None):
+    def reserve(self):
+        self.in_use = True
+
+    def unreserve(self):
+        self.in_use = False         
+
+    def change_syringe(self, syringeType = None, ID = None, max_pos = None):
         """
         convenience function to change the syringe type
         """
-        self.syringe = Syringe(syringeType, ID)
+        self.syringe = Syringe(syringeType, ID, max_pos)
 
 
 
@@ -287,7 +293,7 @@ class PumpThread(threading.Thread):
         self.pump_trigger_thread.start()
         steps, stepsPermL = self.pump.calculate_steps(self.amount)
         step_count = 0
-        self.pump.in_use = True # reserve the pump
+        self.pump.reserve()
         self.pump.disable() # disable the pump until we get a trigger
         os.nice(19) # give priority to this thread
         while (step_count<steps) and self.running:
@@ -299,7 +305,7 @@ class PumpThread(threading.Thread):
                 break
             except PumpNotEnabled:
                 pass
-        self.pump.in_use = False
+        self.pump.unreserve()
         self.running = False
         self.pump_trigger_thread.join()
 
