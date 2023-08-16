@@ -21,7 +21,7 @@ modules:
 
 pumps:
   pump1:
-    fillValve: 20
+    fillValvePin: 20
     stepPin: 24 
     stepType: Half
     defaultSyringeType: BD5mL

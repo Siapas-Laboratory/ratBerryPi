@@ -6,6 +6,7 @@ from datetime import datetime
 import pandas as pd
 import os
 import threading
+import time
 
 class NoSpeaker(Exception):
     pass
@@ -44,15 +45,9 @@ class RewardInterface:
                 raise ValueError(f"Expected 3 pins to be specified for argument 'GPIOPins' for pump '{i}', {len(config['pumps'][i]['GPIOPins'])} provided")
             
             config['pumps'][i]['GPIOPins'] = tuple(config['pumps'][i]['GPIOPins'])
-            if 'fillValve' in config['pumps'][i]:
-                if isinstance(config['pumps'][i]['fillValve'], int):
-                    self.fill_valves[i] = config['pumps'][i].pop('fillValve')
-                    GPIO.setup(self.fill_valves[i], GPIO.OUT)
-                    GPIO.output(self.fill_valves[i], GPIO.LOW)
-                elif 'check' in config['pumps'][i]['fillValve'].lower():
-                    self.fill_valves[i] = config['pumps'][i].pop('fillValve')
-                else:
-                    raise ValueError(f"Invalid value for 'fillValve' provided for pump '{i}'")
+            if 'fillValvePin' in config['pumps'][i]:
+                self.fill_valves[i] = Valve(config['pumps'][i].pop('fillValvePin'))
+
             self.pumps[i] = Pump(**config['pumps'][i])
 
         self.plugins = {}
@@ -105,12 +100,26 @@ class RewardInterface:
 
     def trigger_reward(self, module, amount, force = False, lick_triggered = False):
         self.modules[module].trigger_reward(amount, force = force, lick_triggered = lick_triggered)
+        for i in self.fill_valves:
+            self.fill_valves[i].close()
 
     def _fill_syringes(self):
         while True:
             for i in self.pumps:
                 if (not self.pumps[i].in_use) and self.auto_fill:
-                    self.pumps[i].single_step(False, self.pumps[i].stepType)
+                    if not self.pumps[i].at_max_pos:
+                        if not self.pumps[i].enabled:
+                            self.pumps[i].enable()
+                        for i in self.fill_valves:
+                            self.fill_valves[i].open()
+                            self.pumps[i].single_step(False, "Full")
+                    else:
+                        self.fill_valves[i].close() 
+                else:
+                   self.fill_valves[i].close() 
+            # this sleep is necessasry to avoid interfering
+            # with other tasks that may want to use the pump
+            time.sleep(.0005)
 
     def toggle_auto_fill(self, on):
         self.auto_fill = on
@@ -178,7 +187,6 @@ class RewardModule:
 
         self.pump = pump
         self.name = name
-        self.valvePin = valvePin
         self.reward_thresh = reward_thresh
         self.pump_thread = None
 
@@ -190,9 +198,8 @@ class RewardModule:
         for i,v in plugins.items():
             setattr(self, i, v)
 
-        if self.valvePin is not None:
-            GPIO.setup(self.valvePin,GPIO.OUT)
-            GPIO.output(self.valvePin,GPIO.LOW)
+        if valvePin is not None:
+            self.valve = Valve(valvePin)
 
         self.log = []
         self.recording = False
@@ -207,10 +214,10 @@ class RewardModule:
     def trigger_reward(self, amount, force = False, lick_triggered = False):
         
         if self.pump.in_use and not force: raise PumpInUse
-        if self.pump.track_end(True) and not force: raise EndTrackError
+        if self.pump.at_min_pos and not force: raise EndTrackError
         if force and self.pump_thread: self.pump_thread.stop()
         self.pump_thread = PumpThread(self.pump, amount, lick_triggered, 
-                                      valvePin = self.valvePin, forward = True, 
+                                      valve = self.valve, forward = True, 
                                       parent = self)
         self.pump_thread.start()
 
@@ -218,3 +225,29 @@ class RewardModule:
         GPIO.cleanup()
 
     
+class Valve:
+    def __init__(self, valvePin, NC = True):
+        self.valvePin = valvePin
+        self.NC = NC
+        GPIO.setup(self.valvePin,GPIO.OUT)
+        GPIO.output(self.valvePin,GPIO.LOW)
+        self.opened = not self.NC
+
+    def open(self):
+        if not self.opened:
+            print(f'opening {self.valvePin}')
+            if self.NC:
+                GPIO.output(self.valvePin,GPIO.HIGH)
+            else:
+                GPIO.output(self.valvePin,GPIO.LOW)
+            self.opened = True
+
+    def close(self):
+        if self.opened:
+            print(f'closing {self.valvePin}')
+            if self.NC:
+                GPIO.output(self.valvePin,GPIO.LOW)
+            else:
+                GPIO.output(self.valvePin,GPIO.HIGH)
+            self.opened = False
+

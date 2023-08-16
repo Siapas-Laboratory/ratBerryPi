@@ -97,6 +97,7 @@ class Pump:
         self.enabled = False
         self.in_use = False
         self.position = 0
+        self.track_end = True
         
         # Declare a instance of class pass GPIO pins numbers and the motor type
         self.mymotor = RpiMotorLib.A4988Nema(dirPin , stepPin , GPIOPins, "DRV8825")
@@ -127,6 +128,16 @@ class Pump:
     def stepType(self):
         return self._stepType
     
+    @property
+    def position(self):
+        return self._position
+    
+    @position.setter
+    def position(self, position):
+        self.at_min_pos = position <= 0
+        self.at_max_pos = position >= self.syringe.max_pos
+        self._position = position
+    
     @stepType.setter
     def stepType(self, stepType):
         if stepType in self.stepTypeDict:
@@ -134,8 +145,9 @@ class Pump:
         else:
             raise ValueError(f"invalid step type. valid stepTypes include {[i for i in self.stepTypeDict]}")
 
-    def calibrate(self, channel):
+    def calibrate(self, channel=None):
         self.position = 0
+        self.track_end = True
 
     def get_conversion(self, stepType = None):
         stepType = stepType if stepType is not None else self.stepType
@@ -146,7 +158,7 @@ class Pump:
 
     def single_step(self, forward, stepType, force = False):
         clockwise = forward # note this should be flipped but i accidentally soldered the connector in the reverse order
-        if self.track_end(forward) and not force:
+        if ((self.at_min_pos and forward) or (self.at_max_pos and (not forward))) and not force:
             raise EndTrackError
         if (not force) and (not self.enabled):
             raise PumpNotEnabled
@@ -166,6 +178,8 @@ class Pump:
             while GPIO.input(channel)==GPIO.HIGH:
                 self.single_step(True, "Full", force = True)
             self.unreserve()
+            if self.position<0:
+                self.calibrate()
             print("done")
             
     def __reverse(self, channel):
@@ -226,12 +240,6 @@ class Pump:
             step_count += 1
         self.unreserve()
 
-    def track_end(self, forward):
-        if ((self.position<=0) and forward) or ((self.position>=self.syringe.max_pos) and not forward):
-            return  True
-        else:
-            return False
-
     def enable(self):
         self.enabled = True
 
@@ -253,10 +261,10 @@ class Pump:
 
 
 class PumpThread(threading.Thread):
-    def __init__(self, pump, amount, triggered, valvePin = None, forward = True, parent = None):
+    def __init__(self, pump, amount, triggered, valve = None, forward = True, parent = None):
         super(PumpThread, self).__init__()
         self.parent = parent
-        self.valvePin = valvePin
+        self.valve = valve
         self.pump = pump
         self.amount = amount
         self.running = False
@@ -271,7 +279,7 @@ class PumpThread(threading.Thread):
                 raise AttributeError('must specify property pump_trigger in parent for triggered mode')
 
     def run(self):
-        if self.valvePin: GPIO.output(self.valvePin, GPIO.HIGH)
+        if self.valve: self.valve.open()
         self.running = True
         self.status = 1
         if self.triggered:
@@ -285,7 +293,7 @@ class PumpThread(threading.Thread):
                 self.status = -1
                 pass
         self.pump.disable()
-        if self.valvePin is not None: GPIO.output(self.valvePin, GPIO.LOW)
+        if self.valve: self.valve.close()
         self.status = 2
 
     def triggered_pump(self):

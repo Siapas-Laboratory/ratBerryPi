@@ -1,12 +1,16 @@
 import socket
 import pickle
+import yaml
 
-#TODO: need something to check that the server is on
-# need to 
+with open('config.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+HOST = socket.gethostname()
+PORT = config['PORT']
+BROADCAST_PORT = config['BROADCAST_PORT']
 
 
 class Client:
-    def __init__(self, host, port, broadcast_port, verbose = True):
+    def __init__(self, host = HOST, port = PORT, broadcast_port = BROADCAST_PORT, verbose = True):
         self.host = host
         self.port = port
         self.verbose = verbose
@@ -106,13 +110,6 @@ def remote_boot(host, path = '~/Downloads/rpi-reward-module'):
 
 if __name__=='__main__':
     import argparse
-    import yaml
-
-    with open('config.yaml', 'r') as f:
-        config = yaml.safe_load(f)
-    HOST = socket.gethostname()
-    PORT = config['PORT']
-    BROADCAST_PORT = config['BROADCAST_PORT']
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default = HOST)
