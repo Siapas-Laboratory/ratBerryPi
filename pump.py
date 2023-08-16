@@ -141,7 +141,7 @@ class Pump:
         return  stepsPerThread/ mlPerThread
 
     def single_step(self, forward, stepType, force = False):
-        clockwise = not forward
+        clockwise = forward # note this should be flipped but i accidentally soldered the connector in the reverse order
         if self.track_end(forward) and not force:
             raise EndTrackError
         if (not force) and (not self.enabled):

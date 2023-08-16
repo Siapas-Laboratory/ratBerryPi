@@ -46,6 +46,8 @@ class Server:
                         self.handle_request(data)
                 self.conn.close()
                 self.conn = None
+                if self.reward_interface.recording: 
+                    self.reward_interface.save()
 
             except  KeyboardInterrupt:
                 print('shutting down')
@@ -84,7 +86,8 @@ class Server:
                 f = getattr(self.reward_interface, command)
                 f(**args)
                 reply = '1'
-            except (ValueError, TypeError, AttributeError, KeyError):
+            except (ValueError, TypeError, AttributeError, KeyError) as e:
+                print(e)
                 reply = '2'
             except NoLickometer:
                 reply = '3'
@@ -152,6 +155,11 @@ class Server:
                         reply = f'{self.reward_interface.modules[mod].lickometer.licks}'
                     except AttributeError as e:
                         reply = f'invalid lick request for "{mod}"'
+                elif prop == 'led_state':
+                    try:
+                        reply = f'{self.reward_interface.modules[mod].LED.on}'
+                    except AttributeError as e:
+                        reply = f'invalid led state request for "{mod}"'
                 else:
                     try:
                         reply = f'{getattr(self.reward_interface.modules[mod], prop)}'
@@ -165,6 +173,7 @@ class Server:
 
     def shutdown(self):
         self.on = False
+        self.waiting = False
         if self.conn:
             self.conn.close()
             self.conn = None

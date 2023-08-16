@@ -6,7 +6,7 @@ import os
 
 
 class Lickometer:
-    def __init__(self, lickPin, burst_thresh = 0.5, update_interval = .01):
+    def __init__(self, lickPin, burst_thresh = 0.5, update_interval = .01, parent = None):
         self.lickPin = lickPin
         self.licks = 0
         self.in_burst = False
@@ -15,6 +15,7 @@ class Lickometer:
         self.burst_thresh = burst_thresh
         self.on = True
         self.update_interval = update_interval
+        self.parent = parent
 
         GPIO.setup(self.lickPin, GPIO.IN)
         GPIO.add_event_detect(self.lickPin, GPIO.RISING, callback=self.increment_licks)
@@ -26,6 +27,11 @@ class Lickometer:
         self.licks += 1
         self.burst_lick +=1
         self.last_lick = datetime.now()
+        if self.parent:
+            if self.parent.recording:
+                self.parent.log.append({'time': self.last_lick, 
+                                        'event': 'lick',
+                                        'module': self.parent.name})
         print(self.licks, self.burst_lick, self.last_lick)
 
     def reset_licks(self):

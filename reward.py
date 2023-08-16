@@ -2,7 +2,9 @@ from pump import Syringe, Pump, PumpThread, EndTrackError
 from plugins import lickometer, audio, LED
 import RPi.GPIO as GPIO
 import yaml
-
+from datetime import datetime
+import pandas as pd
+import os
 
 class NoSpeaker(Exception):
     pass
@@ -68,7 +70,29 @@ class RewardInterface:
             if 'plugins' in config['modules'][i]:
                 config['modules'][i]['plugins'] = {k: self.plugins[v] for k,v in config['modules'][i]['plugins'].items()}
 
-            self.modules[i] = RewardModule(**config['modules'][i], reward_thresh=reward_thresh)
+            self.modules[i] = RewardModule(i, **config['modules'][i], reward_thresh=reward_thresh)
+        self.recording = False
+        self.log = []
+
+    def record(self, reset = True):
+        self.recording = True
+        if reset:
+            self.reset_all_licks()
+        for i in self.modules:
+            self.modules[i].log = []
+            self.modules[i].recording = True
+        self.log = [{'time': datetime.now(), 'event': 'start', 'module': None}]
+        print('recording')
+
+    def save(self):
+        for i in self.modules:
+            self.modules[i].recording = False
+            self.log.extend(self.modules[i].log)
+        df = pd.DataFrame(self.log)
+        df = df.sort_values('time')
+        fname = datetime.strftime(datetime.now(), "%Y_%m_%d_%H_%M_%S.csv")
+        df.to_csv(os.path.join('data',fname)) 
+        print('saved!')
 
     def trigger_reward(self, module, amount, force = False, lick_triggered = False):
         self.modules[module].trigger_reward(amount, force = force, lick_triggered = lick_triggered)
@@ -103,7 +127,7 @@ class RewardInterface:
             else:
                 raise NoLickometer
     
-    def toggle_LED(self, on, module = None, LED = None):
+    def toggle_LED(self, on, module = None, led = None):
         if module is not None:
             if hasattr(self.modules[module], 'LED'):
                 if isinstance(self.modules[module].LED, LED.LED):
@@ -113,10 +137,10 @@ class RewardInterface:
                     raise NoLED
             else:
                 raise NoLED
-        elif LED is not None:
-            if isinstance(self.plugins[LED], LED.LED):
-                if on: self.plugins[LED].turn_on()
-                else: self.plugins[LED].turn_off()
+        elif led is not None:
+            if isinstance(self.plugins[led], LED.LED):
+                if on: self.plugins[led].turn_on()
+                else: self.plugins[led].turn_off()
             else:
                 raise NoLED
 
@@ -141,17 +165,18 @@ class RewardInterface:
 
 class RewardModule:
 
-    def __init__(self, pump = None, valvePin = None, lickPin = None, 
+    def __init__(self, name, pump, valvePin = None, lickPin = None, 
                 plugins = {}, burst_thresh = .5, reward_thresh = 3):
 
         self.pump = pump
+        self.name = name
         self.valvePin = valvePin
         self.in_use = False
         self.reward_thresh = reward_thresh
         self.pump_thread = None
 
         if lickPin:
-            self.lickometer = lickometer.Lickometer(lickPin, burst_thresh = burst_thresh)
+            self.lickometer = lickometer.Lickometer(lickPin, burst_thresh = burst_thresh, parent = self)
         else:
             self.lickometer = None
 
@@ -161,6 +186,9 @@ class RewardModule:
         if self.valvePin is not None:
             GPIO.setup(self.valvePin,GPIO.OUT)
             GPIO.output(self.valvePin,GPIO.LOW)
+
+        self.log = []
+        self.recording = False
     
     @property
     def pump_trigger(self):
@@ -168,6 +196,10 @@ class RewardModule:
             return self.lickometer.in_burst and (self.lickometer.burst_lick>self.reward_thresh)
         else:
             return None
+    
+    def record(self):
+        self.log = []
+        self.recording = True
 
     def trigger_reward(self, amount, force = False, lick_triggered = False):
         
