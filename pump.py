@@ -15,6 +15,7 @@ import time
 import numpy as np
 import threading
 import os
+from plugins.valve import Valve
 
 ################################
 # RPi and Motor Pre-allocations
@@ -29,11 +30,11 @@ class PumpNotEnabled(Exception):
 
 class Syringe:
     #TODO: determine max_pos for all possible syringes
-    syringeTypeDict = {'BD1mL':     {'ID': 0.478, 'max_pos': 10}, 
-                       'BD5mL':     {'ID': 1.207, 'max_pos': 10},
-                       'BD10mL':    {'ID': 1.45,  'max_pos': 10},
-                       'BD30mL':    {'ID': 2.17,  'max_pos': 10},
-                       'BD50/60mL': {'ID': 2.67,  'max_pos': 10}}
+    syringeTypeDict = {'BD1mL':     {'ID': 0.478, 'max_pos': 0}, 
+                       'BD5mL':     {'ID': 1.207, 'max_pos': 4.7},
+                       'BD10mL':    {'ID': 1.45,  'max_pos': 6.5},
+                       'BD30mL':    {'ID': 2.17,  'max_pos': 0},
+                       'BD50/60mL': {'ID': 2.67,  'max_pos': 0}}
 
     def __init__(self, syringeType = None, ID = None, max_pos = None):
         """
@@ -64,7 +65,7 @@ class Pump:
                       "1/8": 1600,
                       "1/16": 3200}
     
-    def __init__(self, stepPin, flushPin, revPin, GPIOPins, dirPin, 
+    def __init__(self, stepPin, flushPin, revPin, GPIOPins, dirPin, fillValvePin = None, 
                  endPin = None, syringe = Syringe(syringeType='BD5mL'), 
                  stepType = "Half", pitch = 0.08):
         
@@ -114,6 +115,9 @@ class Pump:
             # add event detection for the end pin
             GPIO.setup(endPin, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
             GPIO.add_event_detect(endPin, GPIO.RISING, callback = self.calibrate)
+
+        if fillValvePin is not None:
+            self.fillValve = Valve(fillValvePin)
 
     @property
     def syringe(self):
@@ -210,7 +214,7 @@ class Pump:
             print(msg)
         return n_steps, stepsPermL
 
-    def move(self, amount, forward, verbose = False):
+    def move(self, amount, forward, verbose = False, unreserve = True):
         """
         move a given amount of fluid out of or into the syringe
         
@@ -225,6 +229,7 @@ class Pump:
         """
         steps, stepsPermL = self.calculate_steps(amount, verbose)
         step_count=0
+
         self.reserve()
         while (step_count<steps):
             try:
@@ -238,7 +243,8 @@ class Pump:
                 self.unreserve()
                 raise e
             step_count += 1
-        self.unreserve()
+        if unreserve:
+            self.unreserve()
 
     def enable(self):
         self.enabled = True

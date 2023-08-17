@@ -1,5 +1,6 @@
 from pump import Syringe, Pump, PumpThread, EndTrackError
 from plugins import lickometer, audio, LED
+from plugins.valve import Valve
 import RPi.GPIO as GPIO
 import yaml
 from datetime import datetime
@@ -31,7 +32,6 @@ class RewardInterface:
             config = yaml.safe_load(f)
 
         self.pumps = {}
-        self.fill_valves = {}
 
         for i in config['pumps']: 
             syringeType = config['pumps'][i].pop('defaultSyringeType') if 'defaultSyringeType' in config['pumps'][i] else None
@@ -45,9 +45,6 @@ class RewardInterface:
                 raise ValueError(f"Expected 3 pins to be specified for argument 'GPIOPins' for pump '{i}', {len(config['pumps'][i]['GPIOPins'])} provided")
             
             config['pumps'][i]['GPIOPins'] = tuple(config['pumps'][i]['GPIOPins'])
-            if 'fillValvePin' in config['pumps'][i]:
-                self.fill_valves[i] = Valve(config['pumps'][i].pop('fillValvePin'))
-
             self.pumps[i] = Pump(**config['pumps'][i])
 
         self.plugins = {}
@@ -78,6 +75,25 @@ class RewardInterface:
     def calibrate(self, pump):
         self.pumps[pump].calibrate()
 
+    def fill_lines(self, amounts):
+        for i in amounts:
+            self.modules[i].pump.enable()
+            if hasattr(self.modules[i], 'valve'):
+                self.modules[i].valve.open()
+            if hasattr(self.modules[i].pump, 'fillValve'):
+                self.modules[i].pump.fillValve.close()
+            print(f'filling {i}')
+            self.modules[i].pump.move(amounts[i], True, unreserve = False)
+            if hasattr(self.modules[i], 'valve'):
+                self.modules[i].valve.close()
+            if hasattr(self.modules[i].pump, 'fillValve'):
+                self.modules[i].pump.fillValve.open()
+            print('reloading')
+            self.modules[i].pump.move(amounts[i], False, unreserve = False)
+        if hasattr(self.modules[i].pump, 'fillValve'):
+            self.modules[i].pump.fillValve.close()
+
+
     def record(self, reset = True):
         self.recording = True
         if reset:
@@ -100,28 +116,36 @@ class RewardInterface:
 
     def trigger_reward(self, module, amount, force = False, lick_triggered = False):
         self.modules[module].trigger_reward(amount, force = force, lick_triggered = lick_triggered)
-        for i in self.fill_valves:
-            self.fill_valves[i].close()
+        for i in self.pumps:
+            if hasattr(self.pumps[i], 'fillValve'):
+                self.pumps[i].fillValve.close()
 
     def _fill_syringes(self):
+        #TODO: right now if there's no specified fill valve for a pump
+        # we still fill without any valve control. is this ok? or should 
+        # we throw an error?
+
         while True:
             for i in self.pumps:
                 if (not self.pumps[i].in_use) and self.auto_fill:
                     if not self.pumps[i].at_max_pos:
                         if not self.pumps[i].enabled:
                             self.pumps[i].enable()
-                        for i in self.fill_valves:
-                            self.fill_valves[i].open()
+                            if hasattr(self.pumps[i], 'fillValve'):
+                                self.pumps[i].fillValve.open()
                             self.pumps[i].single_step(False, "Full")
                     else:
-                        self.fill_valves[i].close() 
-                else:
-                   self.fill_valves[i].close() 
+                        if hasattr(self.pumps[i], 'fillValve'):
+                            self.pumps[i].fillValve.close()
             # this sleep is necessasry to avoid interfering
             # with other tasks that may want to use the pump
             time.sleep(.0005)
 
     def toggle_auto_fill(self, on):
+        if not on:
+            for i in self.pumps:
+                if hasattr(self.pumps[i], 'fillValve'):
+                    self.pumps[i].fillValve.close()
         self.auto_fill = on
 
     def change_syringe(self, pump=None, syringeType=None, ID=None):
@@ -223,31 +247,3 @@ class RewardModule:
 
     def __del__(self):
         GPIO.cleanup()
-
-    
-class Valve:
-    def __init__(self, valvePin, NC = True):
-        self.valvePin = valvePin
-        self.NC = NC
-        GPIO.setup(self.valvePin,GPIO.OUT)
-        GPIO.output(self.valvePin,GPIO.LOW)
-        self.opened = not self.NC
-
-    def open(self):
-        if not self.opened:
-            print(f'opening {self.valvePin}')
-            if self.NC:
-                GPIO.output(self.valvePin,GPIO.HIGH)
-            else:
-                GPIO.output(self.valvePin,GPIO.LOW)
-            self.opened = True
-
-    def close(self):
-        if self.opened:
-            print(f'closing {self.valvePin}')
-            if self.NC:
-                GPIO.output(self.valvePin,GPIO.LOW)
-            else:
-                GPIO.output(self.valvePin,GPIO.HIGH)
-            self.opened = False
-
