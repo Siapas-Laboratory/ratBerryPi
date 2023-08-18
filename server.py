@@ -7,6 +7,8 @@ from pump import EndTrackError
 from plugins import lickometer, audio, LED
 import yaml
 import pickle
+import logging
+from datetime import datetime
 
 
 class Server:
@@ -30,14 +32,15 @@ class Server:
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                print(f'binding port {self.port}')
+                logging.info(f'binding port {self.port}')
                 sock.bind(('', self.port))
                 sock.listen()
-                print('waiting for connections...')
+                logging.info('waiting for connections')
                 self.conn, (ip, _) =  sock.accept()
                 sock.close()
-                print('waiting for data...')
+                logging.info('waiting for data')
                 self.waiting = True
+                self.reward_interface.record()
                 while self.waiting:
                     data = self.conn.recv(1024) # receive the data
                     if not data:
@@ -46,16 +49,20 @@ class Server:
                         self.handle_request(data)
                 self.conn.close()
                 self.conn = None
-                if self.reward_interface.recording: 
-                    self.reward_interface.save()
+                self.reward_interface.save()
 
-            except  KeyboardInterrupt:
-                print('shutting down')
+            except KeyboardInterrupt:
+                logging.info('shutting down')
                 self.shutdown()
+            except socket.error as e:
+                if e.errno != errno.ECONNRESET:
+                    logging.debug(e)
+                    logging.info('shutting down')
+                    self.shutdown()
             except Exception as e:
                 if e.errno != errno.ECONNRESET:
-                    print(e)
-                    print('shutting down')
+                    logging.debug(e)
+                    logging.info('shutting down')
                     self.shutdown()
 
     def handle_request(self, data):
@@ -71,11 +78,11 @@ class Server:
         args = pickle.loads(data)
         command = args.pop('command')
         if command == "EXIT":
-            print("client disconnected")
+            logging.info("client disconnected")
             self.waiting = False
             return
         elif command == "KILL":
-            print("server is shutting down")
+            logging.info("client requested for the server to shut down")
             self.on = False
             self.waiting = False
             return
@@ -87,21 +94,26 @@ class Server:
                 f(**args)
                 reply = '1'
             except (ValueError, TypeError, AttributeError, KeyError) as e:
-                print(e)
+                logging.debug(e)
                 reply = '2'
-            except NoLickometer:
+            except NoLickometer as e:
+                logging.debug(e)
                 reply = '3'
-            except NoLED:
+            except NoLED as e:
+                logging.debug(e)
                 reply = '4'
-            except NoSpeaker:
+            except NoSpeaker as e:
+                logging.debug(e)
                 reply = '5'
-            except PumpInUse:
+            except PumpInUse as e:
+                logging.debug(e)
                 reply = '6'
-            except EndTrackError:
+            except EndTrackError as e:
+                logging.debug(e)
                 reply = '7'
 
         self.conn.sendall(str.encode(reply))
-        print('reply sent')
+        logging.info('reply sent')
 
     def broadcast(self):
         client_threads = []
@@ -121,7 +133,6 @@ class Server:
                 if e.errno != errno.ECONNRESET:
                     break
             
-    
     def respond(self, conn):
         conn.setblocking(0)
         ready = select.select([conn], [], [], .5)
@@ -197,6 +208,8 @@ if __name__ == '__main__':
     parser.add_argument('--reward_thresh', default = 3, help = 'number of licks within a burst required to start the pump')
     
     args = parser.parse_args()
+
+    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG, filename=f"{datetime.now().strftime('%m-%d-%Y-%H-%M-%S.log')}")
 
     reward_interface = RewardInterface(args.burst_thresh, args.reward_thresh)
 

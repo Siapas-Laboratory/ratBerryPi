@@ -8,6 +8,7 @@ import pandas as pd
 import os
 import threading
 import time
+import logging
 
 class NoSpeaker(Exception):
     pass
@@ -82,13 +83,13 @@ class RewardInterface:
                 self.modules[i].valve.open()
             if hasattr(self.modules[i].pump, 'fillValve'):
                 self.modules[i].pump.fillValve.close()
-            print(f'filling {i}')
+            logging.info(f'filling {i}')
             self.modules[i].pump.move(amounts[i], True, unreserve = False)
             if hasattr(self.modules[i], 'valve'):
                 self.modules[i].valve.close()
             if hasattr(self.modules[i].pump, 'fillValve'):
                 self.modules[i].pump.fillValve.open()
-            print('reloading')
+            logging.info('reloading')
             self.modules[i].pump.move(amounts[i], False, unreserve = False)
         if hasattr(self.modules[i].pump, 'fillValve'):
             self.modules[i].pump.fillValve.close()
@@ -102,7 +103,7 @@ class RewardInterface:
             self.modules[i].log = []
             self.modules[i].recording = True
         self.log = [{'time': datetime.now(), 'event': 'start', 'module': None}]
-        print('recording')
+        logging.info('recording')
 
     def save(self):
         for i in self.modules:
@@ -112,7 +113,7 @@ class RewardInterface:
         df = df.sort_values('time')
         fname = datetime.strftime(datetime.now(), "%Y_%m_%d_%H_%M_%S.csv")
         df.to_csv(os.path.join('data',fname)) 
-        print('saved!')
+        logging.info('saved!')
 
     def trigger_reward(self, module, amount, force = False, lick_triggered = False):
         self.modules[module].trigger_reward(amount, force = force, lick_triggered = lick_triggered)
