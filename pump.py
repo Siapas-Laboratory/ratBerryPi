@@ -12,7 +12,7 @@
 import RPi.GPIO as GPIO
 from RpiMotorLib import RpiMotorLib
 import time
-import numpy as np
+import math
 import threading
 import os
 from plugins.valve import Valve
@@ -67,7 +67,7 @@ class Pump:
     
     def __init__(self, stepPin, flushPin, revPin, GPIOPins, dirPin, fillValvePin = None, 
                  endPin = None, syringe = Syringe(syringeType='BD5mL'), 
-                 stepType = "Half", pitch = 0.08):
+                 stepType = "Half", pitch = 0.08, init_position = 0):
         
         """
         this is a class that allows for the control of a syringe
@@ -97,7 +97,7 @@ class Pump:
         self.pitch = pitch
         self.enabled = False
         self.in_use = False
-        self.position = 0
+        self.position = init_position
         self.track_end = True
         
         # Declare a instance of class pass GPIO pins numbers and the motor type
@@ -156,7 +156,7 @@ class Pump:
     def get_conversion(self, stepType = None):
         stepType = stepType if stepType is not None else self.stepType
         stepsPerThread = self.stepTypeDict[stepType]
-        mlPerCm = np.pi * ((self.syringe.ID/2)**2)
+        mlPerCm = math.pi * ((self.syringe.ID/2)**2)
         mlPerThread = mlPerCm * self.pitch
         return  stepsPerThread/ mlPerThread
 

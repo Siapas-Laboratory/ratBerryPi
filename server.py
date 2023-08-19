@@ -4,12 +4,12 @@ import select
 import errno
 from reward import RewardInterface, PumpInUse, NoLickometer, NoFillValve, NoLED, NoSpeaker
 from pump import EndTrackError
-from plugins import lickometer, audio, LED
+from plugins import lickometer, audio, led
 import yaml
 import pickle
 import logging
 from datetime import datetime
-
+import os
 
 class Server:
     def __init__(self, reward_interface = None):
@@ -206,12 +206,12 @@ if __name__ == '__main__':
     parser.add_argument('--burst_thresh', default = 0.5,
                          help = 'time threshold in seconds on the inter lick interval for starting a new burst, consequently also the time after a lick before stopping the pump')
     parser.add_argument('--reward_thresh', default = 3, help = 'number of licks within a burst required to start the pump')
-    
     args = parser.parse_args()
 
-    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG, filename=f"{datetime.now().strftime('%m-%d-%Y-%H-%M-%S.log')}")
+    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG, 
+                        filename=os.path.join("logs", f"{datetime.now().strftime('%m-%d-%Y-%H-%M-%S.log')}"))
+    logging.getLogger().addHandler(logging.StreamHandler())
 
     reward_interface = RewardInterface(args.burst_thresh, args.reward_thresh)
-
     server = Server(reward_interface=reward_interface)
     server.start()

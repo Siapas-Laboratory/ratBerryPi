@@ -1,5 +1,5 @@
 from pump import Syringe, Pump, PumpThread, EndTrackError
-from plugins import lickometer, audio, LED
+from plugins import lickometer, audio, led
 from plugins.valve import Valve
 import RPi.GPIO as GPIO
 import yaml
@@ -49,14 +49,16 @@ class RewardInterface:
             self.pumps[i] = Pump(**config['pumps'][i])
 
         self.plugins = {}
+        self.audio_interface = audio.AudioInterface()
+
         if 'plugins' in config:
             for k, v in config['plugins'].items():
+                if v['type'] == 'lickometer':
+                    self.plugins[k] = lickometer.Lickometer(k, v['lickPin'], burst_thresh = burst_thresh, parent = self)
                 if v['type'] == 'LED':
-                    self.plugins[k] = LED.LED(v['LEDPin'])
+                    self.plugins[k] = led.LED(k, v['LEDPin'])
                 elif v['type'] == 'speaker':
-                    if not hasattr(self, 'audio_interface'):
-                        self.audio_interface = audio.AudioInterface()
-                    self.plugins[k] = audio.Speaker(self.audio_interface, v['SDPin'])
+                    self.plugins[k] = audio.Speaker(k, self.audio_interface, v['SDPin'])
 
         self.modules = {}
         for i in config['modules']:
@@ -103,17 +105,15 @@ class RewardInterface:
             self.modules[i].log = []
             self.modules[i].recording = True
         self.log = [{'time': datetime.now(), 'event': 'start', 'module': None}]
-        logging.info('recording')
+        logging.info('started recording')
 
     def save(self):
-        for i in self.modules:
-            self.modules[i].recording = False
-            self.log.extend(self.modules[i].log)
         df = pd.DataFrame(self.log)
         df = df.sort_values('time')
         fname = datetime.strftime(datetime.now(), "%Y_%m_%d_%H_%M_%S.csv")
         df.to_csv(os.path.join('data',fname)) 
         logging.info('saved!')
+        self.recording = False
 
     def trigger_reward(self, module, amount, force = False, lick_triggered = False):
         self.modules[module].trigger_reward(amount, force = force, lick_triggered = lick_triggered)
@@ -157,32 +157,32 @@ class RewardInterface:
                 self.pumps[i].change_syringe(syringeType=syringeType, ID=ID)
     
     def reset_licks(self, module):
-        if self.modules[module].lickometer:
+        if hasattr(self.modules[module], 'lickometer'):
             self.modules[module].lickometer.reset_licks()
         else:
             raise NoLickometer
         
     def reset_all_licks(self):
         for i in self.modules:
-            if self.modules[i].lickometer:
+            if hasattr(self.modules[i], 'lickometer'):
                 self.modules[i].lickometer.reset_licks()
             else:
                 raise NoLickometer
     
-    def toggle_LED(self, on, module = None, led = None):
+    def toggle_LED(self, on, module = None, LED = None):
         if module is not None:
             if hasattr(self.modules[module], 'LED'):
-                if isinstance(self.modules[module].LED, LED.LED):
+                if isinstance(self.modules[module].LED, led.LED):
                     if on: self.modules[module].LED.turn_on()
                     else: self.modules[module].LED.turn_off()
                 else:
                     raise NoLED
             else:
                 raise NoLED
-        elif led is not None:
-            if isinstance(self.plugins[led], LED.LED):
-                if on: self.plugins[led].turn_on()
-                else: self.plugins[led].turn_off()
+        elif LED is not None:
+            if isinstance(self.plugins[LED], led.LED):
+                if on: self.plugins[LED].turn_on()
+                else: self.plugins[LED].turn_off()
             else:
                 raise NoLED
 
@@ -207,31 +207,23 @@ class RewardInterface:
 
 class RewardModule:
 
-    def __init__(self, name, pump, valvePin = None, lickPin = None, 
-                plugins = {}, burst_thresh = .5, reward_thresh = 3):
+    def __init__(self, name, pump, valvePin= None, plugins = {}, 
+                burst_thresh = .5, reward_thresh = 3):
 
         self.pump = pump
         self.name = name
         self.reward_thresh = reward_thresh
         self.pump_thread = None
 
-        if lickPin:
-            self.lickometer = lickometer.Lickometer(lickPin, burst_thresh = burst_thresh, parent = self)
-        else:
-            self.lickometer = None
-
         for i,v in plugins.items():
             setattr(self, i, v)
 
         if valvePin is not None:
             self.valve = Valve(valvePin)
-
-        self.log = []
-        self.recording = False
     
     @property
     def pump_trigger(self):
-        if self.lickometer:
+        if hasattr(self, 'lickometer'):
             return self.lickometer.in_burst and (self.lickometer.burst_lick>self.reward_thresh)
         else:
             return None

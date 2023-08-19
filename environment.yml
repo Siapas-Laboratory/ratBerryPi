@@ -1,9 +1,2 @@
-name: reward-module
-dependencies:
-  - python=3.
-  - socket
-  - pandas
-  - pip
-    - rpimotorlib
-    - RPi.GPIO
-    - pyaudio
+pandas
+pip

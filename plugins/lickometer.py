@@ -6,7 +6,9 @@ import os
 
 
 class Lickometer:
-    def __init__(self, lickPin, burst_thresh = 0.5, update_interval = .01, parent = None):
+    def __init__(self, name, lickPin, burst_thresh = 0.5, update_interval = .01, parent = None):
+        
+        self.name = name
         self.lickPin = lickPin
         self.licks = 0
         self.in_burst = False
@@ -31,7 +33,7 @@ class Lickometer:
             if self.parent.recording:
                 self.parent.log.append({'time': self.last_lick, 
                                         'event': 'lick',
-                                        'module': self.parent.name})
+                                        'plugin': self.name})
         print(self.licks, self.burst_lick, self.last_lick)
 
     def reset_licks(self):

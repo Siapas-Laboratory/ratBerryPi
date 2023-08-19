@@ -68,7 +68,8 @@ class AudioInterface:
 
         
 class Speaker:
-    def __init__(self, audio_interface, SDPin):
+    def __init__(self, name, audio_interface, SDPin):
+        self.name = name
         self.audio_interface = audio_interface
         self.SDPin = SDPin
         GPIO.setup(self.SDPin, GPIO.OUT)

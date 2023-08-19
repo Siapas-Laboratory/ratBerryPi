@@ -5,18 +5,18 @@ modules:
   module1:
     valvePin: 16
     pump: pump1
-    lickPin: 2
     plugins:
       LED: LED1
       speaker: speaker1
+      lickometer: lickometer1
 
   module2:
     valvePin: 17
     pump: pump1
-    lickPin: 5
     plugins:
       LED: LED2
       speaker: speaker2
+      lickometer: lickometer2
 
 
 pumps:
@@ -40,9 +40,15 @@ plugins:
   speaker1:
     type: speaker
     SDPin: 3
+  lickometer1:
+    type: lickometer
+    lickPin: 2
   LED2:
     type: LED
     LEDPin: 8
   speaker2:
     type: speaker
     SDPin: 7
+  lickometer2:
+    type: lickometer
+    lickPin: 5
