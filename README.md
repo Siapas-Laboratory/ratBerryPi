@@ -55,7 +55,7 @@ Under `plugins` the user should specify unique names for each individual plugin 
  The only constraint in configuring reward modules is that each module must specify a single pump that it is attached to and, optionally, a pin for controlling the valve on the manifold which feeds the port. The pump need not be unique to each module, but the valves should be unique. Indeed, in the design detailed here, all modules share a pump. Similarly, modules may share plugins as needed. If plugins are
 
 ## Usage
-There are 2 main modes of operation for this platform. The Raspberry Pi can be configured as a server that clients on other machines may connect to in order to run commands as needed. Alternatively, one may write a program which creates an instance of the RewardInterface class defined in `reward.py` and invoke methods of this class to run a behavioral protocol. The help documentation for the `RewardInterface` class includes relevant information about it's exposed methods for this second use case. Here we will elaborate on the server-client mode of operation.
+There are 2 main modes of operation for this platform. The Raspberry Pi can be configured as a server that clients on other machines may connect to in order to run commands as needed. Alternatively, one may write a program which creates an instance of the `RewardInterface` class defined in `reward.py` and invoke methods of this class to run a behavioral protocol. The help documentation for the `RewardInterface` class includes relevant information about it's exposed methods for this second use case. Here we will elaborate on the server-client mode of operation.
 
 ### Server-Client Setup
 ...

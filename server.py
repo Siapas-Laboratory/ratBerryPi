@@ -205,6 +205,9 @@ class Server:
                 conn.sendall(reply.encode('utf-8'))       
 
     def shutdown(self):
+        """
+        shutdown the server
+        """
         self.on = False
         self.waiting = False
         if self.conn:

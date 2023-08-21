@@ -36,26 +36,15 @@ class Syringe:
                        'BD30mL':    {'ID': 2.17,  'max_pos': 0},
                        'BD50/60mL': {'ID': 2.67,  'max_pos': 0}}
 
-    def __init__(self, syringeType = None, ID = None, max_pos = None):
-        """
+    def __init__(self, syringeType = 'BD10mL'):
+        try:
+            self.ID = self.syringeTypeDict[syringeType]['ID']
+            self.max_pos = self.syringeTypeDict[syringeType]['max_pos']
+            self.syringeType = syringeType
+        except KeyError:
+            msg = f"invalid syringeType '{syringeType}'. valid syringes include {[i for i in self.syringeTypeDict]}"
+            raise ValueError(msg)
 
-        """
-
-        assert (int(syringeType is None) + int(ID is None))==1, "exactly one of inputs syringeType or ID should be specified "
-        if syringeType is not None:
-            try:
-                self.ID = self.syringeTypeDict[syringeType]['ID']
-                self.max_pos = self.syringeTypeDict[syringeType]['max_pos']
-            except KeyError:
-                msg = f"invalid syringeType '{syringeType}'. valid syringes include {[i for i in self.syringeTypeDict]}"
-                raise ValueError(msg)
-        else:
-            self.ID = ID
-            self.max_pos = max_pos
-            assert max_pos is not None, "must specify max_pos if specifying ID"
-
-    def __repr__(self):
-        return f"Syringe(ID={self.ID})"
 
 class Pump:
     
@@ -258,11 +247,11 @@ class Pump:
     def unreserve(self):
         self.in_use = False         
 
-    def change_syringe(self, syringeType = None, ID = None, max_pos = None):
+    def change_syringe(self, syringeType):
         """
         convenience function to change the syringe type
         """
-        self.syringe = Syringe(syringeType, ID, max_pos)
+        self.syringe = Syringe(syringeType)
 
 
 
