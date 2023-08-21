@@ -1,8 +1,10 @@
 import socket
 import pickle
 import yaml
+from pathlib import Path
+from datetime import datetime
 
-with open('config.yaml', 'r') as f:
+with open(Path(__file__).parent/'config.yaml', 'r') as f:
     config = yaml.safe_load(f)
 HOST = socket.gethostname()
 PORT = config['PORT']
@@ -18,11 +20,11 @@ class Client:
         self.connected = False
         self.status = {}
 
-    def get_prop(self, module, prop):
+    def get(self, req):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
             conn.connect((self.host, self.broadcast_port))
-            req = f"{module} {prop}"
-            conn.sendall(req.encode('utf-8'))
+            req = pickle.dumps(req)
+            conn.sendall(req)
             reply = conn.recv(1024)
             if reply:
                 return reply.decode('utf-8')
@@ -48,9 +50,14 @@ class Client:
             self.exit()
         self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if self.verbose: print('connecting to host')
-        self.conn.connect((self.host, self.port))
-        if self.verbose: print('connected!')
-        self.connected = True
+        try:
+            self.conn.connect((self.host, self.port))
+            if self.verbose: print('connected!')
+            self.connected = True
+        except ConnectionRefusedError:
+            self.connected = False
+            self.conn.close()
+            raise ConnectionRefusedError
         
     def run_command(self, command, args):
         assert self.connected, "not connected to the server"
@@ -69,7 +76,7 @@ class Client:
     def __del__(self):
         self.exit()
 
-def remote_connect(host, port, broadcast_port):
+def remote_connect(host, port, broadcast_port, timeout = 10):
 
     client = Client(host, port, broadcast_port)
     try:
@@ -77,8 +84,14 @@ def remote_connect(host, port, broadcast_port):
         return client, None
     except ConnectionRefusedError:
         server_thread = remote_boot(host)
-        client.connect()
-        return client, server_thread
+        t_start = datetime.now()
+        while (datetime.now() - t_start).total_seconds()<timeout:
+            try:
+                client.connect()
+                return client, server_thread
+            except ConnectionRefusedError:
+                pass
+        raise ConnectionRefusedError
     
 def remote_boot(host, path = '~/Downloads/rpi-reward-module'):
 
@@ -95,7 +108,7 @@ def remote_boot(host, path = '~/Downloads/rpi-reward-module'):
             ssh.connect(host, username='pi')
             transport = ssh.get_transport()
             transport.set_keepalive(1) 
-            ssh.exec_command(f"cd {path}; python3 server.py")
+            ssh.exec_command(f"source activate reward-module; cd {path}; python3 server.py")
             self.running = True   
             while self.running:
                 pass

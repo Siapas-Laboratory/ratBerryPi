@@ -9,6 +9,7 @@ import os
 import threading
 import time
 import logging
+from pathlib import Path
 
 class NoSpeaker(Exception):
     pass
@@ -29,7 +30,7 @@ class RewardInterface:
     def __init__(self, burst_thresh = .5, reward_thresh = 1):
 
         GPIO.setmode(GPIO.BCM)
-        with open('config.yaml', 'r') as f:
+        with open(Path(__file__).parent/'config.yaml', 'r') as f:
             config = yaml.safe_load(f)
 
         self.pumps = {}
