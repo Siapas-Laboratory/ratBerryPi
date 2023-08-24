@@ -121,7 +121,7 @@ class RewardInterface:
         """
         self.pumps[pump].calibrate()
 
-    def fill_lines(self, amounts):
+    def fill_lines(self, amounts, res_amounts = {}):
         """
         fill the lines leading up to the specified reward ports
         with fluid
@@ -131,7 +131,24 @@ class RewardInterface:
                 a dictionary specifying the amount of fluid to 
                 fill the line leading up to each module with. keys
                 should be modules and values should be amounts in mL
+            res_amounts: dict
+                a dictionary specifying the amount of fluid to fill the
+                reservoirs with before filling the lines. keys should be 
+                pumps and values should be amounts in mL
+
         """
+
+        for i in self.modules:
+            if hasattr(self.modules[i], 'valve'):
+                self.modules[i].valve.close()
+            
+        for i in res_amounts:
+            self.pumps[i].enable()
+            if hasattr(self.modules[i].pump, 'fillValve'):
+                self.modules[i].pump.fillValve.open()
+            self.modules[i].pump.move(amounts[i], True, unreserve = False)
+            if hasattr(self.modules[i].pump, 'fillValve'):
+                self.modules[i].pump.fillValve.close()
 
         for i in amounts:
             self.modules[i].pump.enable()
