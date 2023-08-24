@@ -88,9 +88,10 @@ class Pump:
         self.in_use = False
         self.position = init_position
         self.track_end = True
+        self.GPIOPins = GPIOPins
         
         # Declare a instance of class pass GPIO pins numbers and the motor type
-        self.mymotor = RpiMotorLib.A4988Nema(dirPin , stepPin , GPIOPins, "DRV8825")
+        self.mymotor = RpiMotorLib.A4988Nema(dirPin , stepPin , self.GPIOPins, "DRV8825")
         
         # add event detection for the flush pin
         GPIO.setup(flushPin, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
@@ -241,7 +242,13 @@ class Pump:
     def disable(self):
         self.enabled = False
 
-    def reserve(self):
+    def reserve(self, stepType = None):
+        GPIO.setup(self.GPIOPins, GPIO.OUT)
+        if stepType:
+            self.mymotor.resolution_set(stepType)
+        else:
+            self.mymotor.resolution_set(self.stepType)
+        time.sleep(.001)
         self.in_use = True
 
     def unreserve(self):

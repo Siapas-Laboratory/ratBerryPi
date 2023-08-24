@@ -73,7 +73,7 @@ class RewardInterface:
         self.pumps = {}
         for i in config['pumps']: 
 
-            syringeType = config['pumps'][i].pop('syringeType') if 'defaultSyringeType' in config['pumps'][i] else None
+            syringeType = config['pumps'][i].pop('defaultSyringeType') if 'defaultSyringeType' in config['pumps'][i] else None
             syringe = Syringe(syringeType)
             config['pumps'][i]['syringe'] = syringe
             
@@ -102,7 +102,7 @@ class RewardInterface:
             config['modules'][i]['pump'] = self.pumps[config['modules'][i]['pump']]
             if 'plugins' in config['modules'][i]:
                 config['modules'][i]['plugins'] = {k: self.plugins[v] for k,v in config['modules'][i]['plugins'].items()}
-            self.modules[i] = RewardModule(i, **config['modules'][i], burst_thresh = burst_thresh, reward_thresh=reward_thresh)
+            self.modules[i] = RewardModule(i, **config['modules'][i], reward_thresh=reward_thresh)
         
         self.recording = False
         self.log = []

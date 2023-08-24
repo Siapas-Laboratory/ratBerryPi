@@ -21,7 +21,7 @@ modules:
 
 pumps:
   pump1:
-    fillValvePin: 26
+    fillValvePin: 20
     stepPin: 24 
     stepType: Half
     defaultSyringeType: BD10mL
@@ -29,9 +29,9 @@ pumps:
     revPin: 22
     dirPin: 23
     GPIOPins:
+      - 5
       - 6
-      - 13
-      - 19
+      - 26
 
 plugins:
   LED1:
@@ -51,4 +51,4 @@ plugins:
     SDPin: 7
   lickometer2:
     type: lickometer
-    lickPin: 5
+    lickPin: 9
