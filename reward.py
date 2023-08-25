@@ -195,8 +195,8 @@ class RewardInterface:
                 self.modules[i].pump.fillValve.open()
             logging.info('reloading')
             self.modules[i].pump.move(amounts[i], False, unreserve = False)
-        if hasattr(self.modules[i].pump, 'fillValve'):
-            self.modules[i].pump.fillValve.close()
+            if hasattr(self.modules[i].pump, 'fillValve'):
+                self.modules[i].pump.fillValve.close()
         for i in amounts:
             self.modules[i].pump.unreserve()
         for i in res_amounts:
