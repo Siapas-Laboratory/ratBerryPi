@@ -121,7 +121,7 @@ class RewardInterface:
         """
         self.pumps[pump].calibrate()
 
-    def fill_lines(self, amounts, res_amounts = {}):
+    def fill_lines(self, amounts, res_amounts = {}, prime_amounts = {}):
         """
         fill the lines leading up to the specified reward ports
         with fluid
@@ -144,11 +144,22 @@ class RewardInterface:
             
         for i in res_amounts:
             self.pumps[i].enable()
-            if hasattr(self.modules[i].pump, 'fillValve'):
-                self.modules[i].pump.fillValve.open()
-            self.modules[i].pump.move(amounts[i], True, unreserve = False)
+            if hasattr(self.pumps[i], 'fillValve'):
+                self.pumps[i].fillValve.open()
+            self.pumps[i].move(res_amounts[i], True, unreserve = False)
+            if hasattr(self.pumps[i], 'fillValve'):
+                self.pumps[i].fillValve.close()
+
+        for i in prime_amounts:
+            self.modules[i].pump.enable()
+            if hasattr(self.modules[i], 'valve'):
+                self.modules[i].valve.open()
             if hasattr(self.modules[i].pump, 'fillValve'):
                 self.modules[i].pump.fillValve.close()
+            logging.info(f'priming {i}')
+            self.modules[i].pump.move(amounts[i], True, unreserve = False)
+            if hasattr(self.modules[i], 'valve'):
+                self.modules[i].valve.close()
 
         for i in amounts:
             self.modules[i].pump.enable()
@@ -166,6 +177,13 @@ class RewardInterface:
             self.modules[i].pump.move(amounts[i], False, unreserve = False)
         if hasattr(self.modules[i].pump, 'fillValve'):
             self.modules[i].pump.fillValve.close()
+        for i in modules:
+            self.modules[i].pump.unreserve()
+        for i in res_amounts:
+            self.pumps[i].unreserve()
+        for i in prime_amounts:
+            self.modules[i].unreserve()
+        
 
 
     def record(self, reset = True):
@@ -346,6 +364,8 @@ class RewardInterface:
                 else: self.plugins[led].turn_off()
             else:
                 raise NoLED
+        else:
+            raise NoLED
 
     def play_tone(self, freq, dur, volume = 1, module = None, speaker = None):
         """
@@ -377,6 +397,8 @@ class RewardInterface:
                 self.plugins[speaker].play_tone(freq, dur, volume)
             else:
                 raise NoSpeaker
+        else:
+            raise NoSpeaker
     
     def __del__(self):
         GPIO.cleanup()

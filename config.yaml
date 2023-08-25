@@ -36,7 +36,7 @@ pumps:
 plugins:
   LED1:
     type: LED
-    LEDPin: 4
+    LEDPin: 14
   speaker1:
     type: speaker
     SDPin: 3
