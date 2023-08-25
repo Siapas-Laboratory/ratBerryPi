@@ -2,8 +2,9 @@ import socket
 import threading
 import select
 import errno
-from reward import RewardInterface, PumpInUse, NoLickometer, NoLED, NoSpeaker
-from pump import EndTrackError
+from reward import RewardInterface,NoLickometer, NoLED, NoSpeaker
+from pump import EndTrackError, PumpInUse, PumpNotEnabled
+#TODO: consolidate some of these errors
 import yaml
 import pickle
 import logging

@@ -22,9 +22,6 @@ class NoLED(Exception):
 class NoLickometer(Exception):
     pass
 
-class PumpInUse(Exception):
-    pass
-
 class NoFillValve(Exception):
     pass
 
@@ -111,6 +108,8 @@ class RewardInterface:
         self.auto_fill_thread = threading.Thread(target = self._fill_syringes)
         self.auto_fill_thread.start()
 
+        self.filling_lines = False
+
     def calibrate(self, pump):
         """
         Set the position of a provided pump to 0
@@ -138,6 +137,10 @@ class RewardInterface:
 
         """
 
+        #TODO: clean up this function a bit
+        #TODO: check availability ahead of time
+
+        self.filling_lines = True
         for i in self.modules:
             if hasattr(self.modules[i], 'valve'):
                 self.modules[i].valve.close()
@@ -161,6 +164,23 @@ class RewardInterface:
             if hasattr(self.modules[i], 'valve'):
                 self.modules[i].valve.close()
 
+        for i in prime_amounts:
+            if hasattr(self.modules[i].pump, 'fillValve'):
+                self.modules[i].pump.fillValve.open()
+            logging.info(f'refilling {i}')
+            self.modules[i].pump.move(amounts[i], False, unreserve = False)
+
+        for i in prime_amounts:
+            if hasattr(self.modules[i].pump, 'fillValve'):
+                self.modules[i].pump.fillValve.close()
+
+        for i in res_amounts:
+            if hasattr(self.pumps[i], 'fillValve'):
+                self.pumps[i].fillValve.open()
+            self.pumps[i].move(res_amounts[i], False, unreserve = False)
+            if hasattr(self.pumps[i], 'fillValve'):
+                self.pumps[i].fillValve.close()
+
         for i in amounts:
             self.modules[i].pump.enable()
             if hasattr(self.modules[i], 'valve'):
@@ -177,14 +197,14 @@ class RewardInterface:
             self.modules[i].pump.move(amounts[i], False, unreserve = False)
         if hasattr(self.modules[i].pump, 'fillValve'):
             self.modules[i].pump.fillValve.close()
-        for i in modules:
+        for i in amounts:
             self.modules[i].pump.unreserve()
         for i in res_amounts:
             self.pumps[i].unreserve()
         for i in prime_amounts:
             self.modules[i].unreserve()
+        self.filling_lines = False
         
-
 
     def record(self, reset = True):
         """
@@ -217,7 +237,7 @@ class RewardInterface:
         logging.info('saved!')
         self.recording = False
 
-    def trigger_reward(self, module, amount, force = False, lick_triggered = False):
+    def trigger_reward(self, module, amount, force = False, lick_triggered = False, sync = False):
         """
         trigger reward delivery on a provided reward module
 
@@ -233,10 +253,8 @@ class RewardInterface:
             lick_triggered: bool
                 whether or not to deliver the reward in a lick-triggered manner. 
         """
-        self.modules[module].trigger_reward(amount, force = force, lick_triggered = lick_triggered)
-        for i in self.pumps:
-            if hasattr(self.pumps[i], 'fillValve'):
-                self.pumps[i].fillValve.close()
+
+        self.modules[module].trigger_reward(amount, force = force, lick_triggered = lick_triggered, sync = sync)
 
     def _fill_syringes(self):
         """
@@ -258,6 +276,9 @@ class RewardInterface:
                             self.pumps[i].single_step(False, "Full")
                     else:
                         if hasattr(self.pumps[i], 'fillValve'):
+                            self.pumps[i].fillValve.close()
+                elif not self.filling_lines:
+                    if hasattr(self.pumps[i], 'fillValve'):
                             self.pumps[i].fillValve.close()
             # this sleep is necessasry to avoid interfering
             # with other tasks that may want to use the pump
@@ -426,11 +447,17 @@ class RewardModule:
         else:
             return None
 
-    def trigger_reward(self, amount, force = False, lick_triggered = False):
+    def trigger_reward(self, amount, force = False, lick_triggered = False, sync = False):
         
-        if self.pump.in_use and not force: raise PumpInUse
         if self.pump.at_min_pos: raise EndTrackError
         if force and self.pump_thread: self.pump_thread.stop()
+
+        if sync:
+            if lick_triggered:
+                raise ValueError("cannot deliver lick-triggered reward synchronously")
+            else:
+                self.pump.move(amount, forward = True)
+
         self.pump_thread = PumpThread(self.pump, amount, lick_triggered, 
                                       valve = self.valve, forward = True, 
                                       parent = self)

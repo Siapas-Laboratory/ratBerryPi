@@ -28,6 +28,9 @@ class EndTrackError(Exception):
 class PumpNotEnabled(Exception):
     pass
 
+class PumpInUse(Exception):
+    pass
+
 class Syringe:
     #TODO: determine max_pos for all possible syringes
     syringeTypeDict = {'BD1mL':     {'ID': 0.478, 'max_pos': 0}, 
@@ -184,7 +187,10 @@ class Pump:
                 self.single_step(False, "Full", force = True)
             self.unreserve()
             print("done")
-
+    
+    def is_available(self, amount):
+        vol_left = math.pi * ((self.syringe.ID/2)**2) * self.position
+        return amount < vol_left
             
     def calculate_steps(self, amount, verbose = False):
         """
@@ -204,7 +210,8 @@ class Pump:
             print(msg)
         return n_steps, stepsPermL
 
-    def move(self, amount, forward, verbose = False, unreserve = True):
+    def move(self, amount, forward, verbose = False, unreserve = True, 
+             force = False, pre_reserved = False, check_availability = True):
         """
         move a given amount of fluid out of or into the syringe
         
@@ -220,7 +227,13 @@ class Pump:
         steps, stepsPermL = self.calculate_steps(amount, verbose)
         step_count=0
 
-        self.reserve()
+        if not pre_reserved:
+            self.reserve(force = force)
+        
+        if check_availability:
+            if not self.is_available(amount):
+                raise EndTrackError
+
         while (step_count<steps):
             try:
                 self.single_step(forward, self.stepType)
@@ -242,7 +255,10 @@ class Pump:
     def disable(self):
         self.enabled = False
 
-    def reserve(self, stepType = None):
+    def reserve(self, stepType = None, force = True):
+        if self.in_use:
+            if not force:
+                raise PumpInUse
         GPIO.setup(self.GPIOPins, GPIO.OUT)
         if stepType:
             self.mymotor.resolution_set(stepType)
@@ -263,7 +279,7 @@ class Pump:
 
 
 class PumpThread(threading.Thread):
-    def __init__(self, pump, amount, triggered, valve = None, forward = True, parent = None):
+    def __init__(self, pump, amount, triggered, valve = None, forward = True, parent = None, force = False):
         super(PumpThread, self).__init__()
         self.parent = parent
         self.valve = valve
@@ -273,12 +289,22 @@ class PumpThread(threading.Thread):
         self.forward = forward
         self.status = 0
         self.triggered = triggered
+        self.force = force
         if self.triggered:
             assert self.parent, 'must specify parent triggered mode'
             try:
                 _ = self.parent.pump_trigger
             except AttributeError:
                 raise AttributeError('must specify property pump_trigger in parent for triggered mode')
+            
+    def start(self):
+        # try to reserve the pump before spawning the thread
+        # so we can throw an error if necessary
+        self.pump.reserve(force = self.force)
+        # pre-emptively check availability
+        if not self.force and (not self.pump.is_available(self.amount)):
+            raise EndTrackError
+        super(PumpThread, self).start()
 
     def run(self):
         if self.valve: self.valve.open()
@@ -289,7 +315,7 @@ class PumpThread(threading.Thread):
         else:
             try:
                 self.pump.enable()
-                self.pump.move(self.amount, self.forward)
+                self.pump.move(self.amount, self.forward, pre_reserved = True, check_availability = False)
                 self.running = False
             except EndTrackError:
                 self.status = -1
