@@ -80,7 +80,7 @@ class RewardInterface:
                 raise ValueError(f"Expected 3 pins to be specified for argument 'GPIOPins' for pump '{i}', {len(config['pumps'][i]['GPIOPins'])} provided")
             
             config['pumps'][i]['GPIOPins'] = tuple(config['pumps'][i]['GPIOPins'])
-            self.pumps[i] = Pump(**config['pumps'][i])
+            self.pumps[i] = Pump(i, **config['pumps'][i])
 
         self.plugins = {}
         self.audio_interface = AudioInterface()

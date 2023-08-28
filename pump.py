@@ -17,6 +17,8 @@ import threading
 import os
 from plugins.valve import Valve
 import time
+import pickle
+import logging
 
 ################################
 # RPi and Motor Pre-allocations
@@ -58,9 +60,9 @@ class Pump:
                       "1/8": 1600,
                       "1/16": 3200}
     
-    def __init__(self, stepPin, flushPin, revPin, GPIOPins, dirPin, fillValvePin = None, 
+    def __init__(self, name, stepPin, flushPin, revPin, GPIOPins, dirPin, fillValvePin = None, 
                  endPin = None, syringe = Syringe(syringeType='BD5mL'), 
-                 stepType = "Half", pitch = 0.08, init_position = 0):
+                 stepType = "Half", pitch = 0.08,  reset = False):
         
         """
         this is a class that allows for the control of a syringe
@@ -82,16 +84,44 @@ class Pump:
             tolerance: float
                 the allowable error in the amount of fluid delivered in mL
         """
-        
 
+        self.name = name
         self.syringe = syringe
         self.stepType = stepType
         self.stepDelay = .0005 
         self.pitch = pitch
         self.enabled = False
         self.in_use = False
-        self.position = init_position
-        self.track_end = True
+
+        if not os.path.exists("pump_states.pckl"):
+            logging.warning(f'pump states file not found, creating and setting {self.name} position to 0')
+            self.position = 0
+            pump_states = {self.name: self.position}
+            with open('pump_states.pckl', 'wb') as f:
+                pickle.dump(pump_states, f)
+        else:
+            with open('pump_states.pckl', 'rb') as f:
+                pump_states = pickle.load(f)
+            if not reset:
+                if self.name in pump_states:
+                    self.position = pump_states[self.name]
+                else:
+                    self.position = 0
+                    logging.warning(f'{self.name} state not found, resetting position to 0')
+                    pump_states[self.name] = self.position
+                    with open('pump_states.pckl', 'wb') as f:
+                        pickle.dump(pump_states, f)
+            else:
+                self.position = 0
+                pump_states[self.name] = self.position
+                with open('pump_states.pckl', 'wb') as f:
+                        pickle.dump(pump_states, f)
+
+        
+
+
+
+
         self.GPIOPins = GPIOPins
         
         # Declare a instance of class pass GPIO pins numbers and the motor type
@@ -182,18 +212,18 @@ class Pump:
             
     def __reverse(self, channel):
         if not self.in_use:
-            print("reversing")
+            if self.verbose: logging.info("reversing")
             self.reserve()
             while GPIO.input(channel)==GPIO.HIGH:
                 self.single_step(False, "Full", force = True)
             self.unreserve()
-            print("done")
+            if self.verbose: logging.info("done")
     
     def is_available(self, amount):
         vol_left = math.pi * ((self.syringe.ID/2)**2) * self.position
         return amount < vol_left
             
-    def calculate_steps(self, amount, verbose = False):
+    def calculate_steps(self, amount):
         """
         calculate the numer of steps of the motor
         needed to dispense a given amount of fluid
@@ -205,13 +235,13 @@ class Pump:
         """
         stepsPermL = self.get_conversion()
         n_steps = int(round(stepsPermL * amount))
-        if verbose:
+        if self.verbose:
             actual = n_steps*stepsPermL
             msg = f"{amount} mL requested; {actual} mL to be produced using stepType '{self.stepType}'; error = {amount - actual} mL"
-            print(msg)
+            logging.info(msg)
         return n_steps, stepsPermL
 
-    def move(self, amount, forward, verbose = False, unreserve = True, 
+    def move(self, amount, forward, unreserve = True, 
              force = False, pre_reserved = False, check_availability = True):
         """
         move a given amount of fluid out of or into the syringe
@@ -222,10 +252,8 @@ class Pump:
             desired fluid output in mL
         forward: bool
             whether or not to move the piston forward
-        verbose: bool
-            whether or not to print
         """
-        steps, stepsPermL = self.calculate_steps(amount, verbose)
+        steps, stepsPermL = self.calculate_steps(amount)
         step_count=0
 
         if not pre_reserved:
@@ -239,11 +267,11 @@ class Pump:
             try:
                 self.single_step(forward, self.stepType, force = force)
             except EndTrackError as e:
-                print(f"End reached after {step_count} steps ({step_count/stepsPermL} mL)")
+                logging.debug(f"End reached after {step_count} steps ({step_count/stepsPermL} mL)")
                 self.unreserve()
                 raise e
             except PumpNotEnabled as e:
-                print(f"Pump turned off after {step_count} steps ({step_count/stepsPermL} mL)")
+                logging.debug(f"Pump turned off after {step_count} steps ({step_count/stepsPermL} mL)")
                 self.unreserve()
                 raise e
             step_count += 1
@@ -348,15 +376,14 @@ class PumpThread(threading.Thread):
 
     def trigger_pump(self):
         prev_trigger_value = False
-        print('off')
         while self.running:
             current_trigger_value = self.parent.pump_trigger
             if prev_trigger_value != current_trigger_value:
                 if current_trigger_value:
-                    print('on')
+                    if self.pump.verbose: logging.info('pump trigger on')
                     self.pump.enable()
                 else:
-                    print('off')
+                    if self.pump.verbose: logging.info('pump trigger off')
                     self.pump.disable()
                 prev_trigger_value = current_trigger_value
             time.sleep(.001)
