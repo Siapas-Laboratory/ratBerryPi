@@ -16,6 +16,7 @@ import math
 import threading
 import os
 from plugins.valve import Valve
+import time
 
 ################################
 # RPi and Motor Pre-allocations
@@ -230,13 +231,13 @@ class Pump:
         if not pre_reserved:
             self.reserve(force = force)
         
-        if check_availability:
+        if forward and check_availability:
             if not self.is_available(amount):
                 raise EndTrackError
 
         while (step_count<steps):
             try:
-                self.single_step(forward, self.stepType)
+                self.single_step(forward, self.stepType, force = force)
             except EndTrackError as e:
                 print(f"End reached after {step_count} steps ({step_count/stepsPermL} mL)")
                 self.unreserve()
@@ -315,7 +316,7 @@ class PumpThread(threading.Thread):
         else:
             try:
                 self.pump.enable()
-                self.pump.move(self.amount, self.forward, pre_reserved = True, check_availability = False)
+                self.pump.move(self.amount, self.forward, pre_reserved = True, check_availability = False, force = self.force)
                 self.running = False
             except EndTrackError:
                 self.status = -1

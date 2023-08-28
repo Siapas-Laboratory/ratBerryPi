@@ -14,10 +14,11 @@ if __name__ == "__main__":
 	args = parser.parse_args()
 	cl = Client(args.host, args.port, args.broadcast_port)
 	cl.connect()
+	# cl.run_command("toggle_auto_fill", {'on': True})
 	
-	args = {"module": "module1",
+	cl_args = {"module": "module1",
 	 		"amount": args.amount,
 			"sync": True}
 	for _ in range(20):
-		cl.run_command("trigger_reward", args)
+		cl.run_command("trigger_reward", cl_args)
 		time.sleep(args.delay)
