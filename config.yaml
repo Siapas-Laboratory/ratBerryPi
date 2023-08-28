@@ -24,7 +24,7 @@ pumps:
     fillValvePin: 20
     stepPin: 24 
     stepType: Half
-    defaultSyringeType: BD10mL
+    defaultSyringeType: BD5mL
     flushPin: 27
     revPin: 22
     dirPin: 23

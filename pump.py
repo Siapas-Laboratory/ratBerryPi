@@ -62,7 +62,7 @@ class Pump:
     
     def __init__(self, name, stepPin, flushPin, revPin, GPIOPins, dirPin, fillValvePin = None, 
                  endPin = None, syringe = Syringe(syringeType='BD5mL'), 
-                 stepType = "Half", pitch = 0.08,  reset = False):
+                 stepType = "Half", pitch = 0.08,  reset = False, verbose = True):
         
         """
         this is a class that allows for the control of a syringe
@@ -92,35 +92,23 @@ class Pump:
         self.pitch = pitch
         self.enabled = False
         self.in_use = False
+        self.verbose = verbose
+        self.state_fpath = os.path.join("pump_states", f"{self.name}.pckl")
 
-        if not os.path.exists("pump_states.pckl"):
+        if not os.path.exists(self.state_fpath):
             logging.warning(f'pump states file not found, creating and setting {self.name} position to 0')
             self.position = 0
-            pump_states = {self.name: self.position}
-            with open('pump_states.pckl', 'wb') as f:
-                pickle.dump(pump_states, f)
+            with open(self.state_fpath, 'wb') as f:
+                pickle.dump(self.position, f)
         else:
-            with open('pump_states.pckl', 'rb') as f:
-                pump_states = pickle.load(f)
+            with open(self.state_fpath, 'rb') as f:
+                saved_pos = pickle.load(f)
             if not reset:
-                if self.name in pump_states:
-                    self.position = pump_states[self.name]
-                else:
-                    self.position = 0
-                    logging.warning(f'{self.name} state not found, resetting position to 0')
-                    pump_states[self.name] = self.position
-                    with open('pump_states.pckl', 'wb') as f:
-                        pickle.dump(pump_states, f)
+                self.position = saved_pos
             else:
                 self.position = 0
-                pump_states[self.name] = self.position
-                with open('pump_states.pckl', 'wb') as f:
-                        pickle.dump(pump_states, f)
-
-        
-
-
-
+                with open(self.state_fpath, 'wb') as f:
+                    pickle.dump(self.position, f)
 
         self.GPIOPins = GPIOPins
         
@@ -162,6 +150,10 @@ class Pump:
     
     @position.setter
     def position(self, position):
+        if hasattr(self, '_position'):
+            if abs(round(position,1) - round(self.position,1)) > 0:
+                with open(self.state_fpath, 'wb') as f:
+                    pickle.dump(self.position, f)
         self.at_min_pos = position <= 0
         self.at_max_pos = position >= self.syringe.max_pos
         self._position = position
@@ -304,6 +296,10 @@ class Pump:
         convenience function to change the syringe type
         """
         self.syringe = Syringe(syringeType)
+        
+    def __del__(self):
+        with open(self.state_fpath, 'wb') as f:
+            pickle.dump(self.position, f)
 
 
 
