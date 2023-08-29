@@ -3,7 +3,7 @@ BROADCAST_PORT: 5563
 
 modules:
   module1:
-    valvePin: 16
+    valvePin: 15
     pump: pump1
     plugins:
       LED: LED1
@@ -11,7 +11,7 @@ modules:
       lickometer: lickometer1
 
   module2:
-    valvePin: 17
+    valvePin: 21
     pump: pump1
     plugins:
       LED: LED2

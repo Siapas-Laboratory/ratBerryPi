@@ -16,7 +16,7 @@ class Valve:
                 GPIO.output(self.valvePin,GPIO.HIGH)
             else:
                 GPIO.output(self.valvePin,GPIO.LOW)
-            time.sleep(.02) # max response time for the valves is 20 ms
+            time.sleep(.05) # max response time for the valves is 20 ms
             self.opened = True
 
     def close(self):
@@ -26,5 +26,5 @@ class Valve:
                 GPIO.output(self.valvePin,GPIO.LOW)
             else:
                 GPIO.output(self.valvePin,GPIO.HIGH)
-            time.sleep(.02) # max response time for the valves is 20 ms
+            time.sleep(.05) # max response time for the valves is 20 ms
             self.opened = False
