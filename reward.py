@@ -420,6 +420,16 @@ class RewardInterface:
                 raise NoSpeaker
         else:
             raise NoSpeaker
+
+    def toggle_valve(self, module, open_valve):
+        if hasattr(self.modules[module], "valve"):
+            if open_valve:
+                self.modules[module].valve.open()
+            else:
+                self.modules[module].valve.close()
+                
+
+
     
     def __del__(self):
         GPIO.cleanup()
