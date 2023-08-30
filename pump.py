@@ -193,14 +193,14 @@ class Pump:
             
     def __flush(self, channel):
         if not self.in_use:
-            print("flushing")
+            if self.verbose: logging.info("flushing")
             self.reserve()
             while GPIO.input(channel)==GPIO.HIGH:
                 self.single_step(True, "Full", force = True)
             self.unreserve()
             if self.position<0:
                 self.calibrate()
-            print("done")
+            if self.verbose: logging.info("done")
             
     def __reverse(self, channel):
         if not self.in_use:

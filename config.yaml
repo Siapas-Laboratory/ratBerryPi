@@ -3,52 +3,36 @@ BROADCAST_PORT: 5563
 
 modules:
   module1:
-    valvePin: 15
+    valvePin: 10
     pump: pump1
     plugins:
-      LED: LED1
-      speaker: speaker1
       lickometer: lickometer1
 
   module2:
-    valvePin: 21
+    valvePin: 11
     pump: pump1
     plugins:
-      LED: LED2
-      speaker: speaker2
       lickometer: lickometer2
 
 
 pumps:
   pump1:
-    fillValvePin: 20
-    stepPin: 24 
+    fillValvePin: 2
+    stepPin: 3
     stepType: Half
     defaultSyringeType: BD5mL
-    flushPin: 27
-    revPin: 22
-    dirPin: 23
+    flushPin: 0
+    revPin: 5
+    dirPin: 6
     GPIOPins:
-      - 5
-      - 6
-      - 26
+      - 7
+      - 8
+      - 9
 
 plugins:
-  LED1:
-    type: LED
-    LEDPin: 14
-  speaker1:
-    type: speaker
-    SDPin: 3
   lickometer1:
     type: lickometer
-    lickPin: 2
-  LED2:
-    type: LED
-    LEDPin: 8
-  speaker2:
-    type: speaker
-    SDPin: 7
+    lickPin: 14
   lickometer2:
     type: lickometer
-    lickPin: 9
+    lickPin: 15

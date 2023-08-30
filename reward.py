@@ -466,7 +466,9 @@ class RewardModule:
     def trigger_reward(self, amount, force = False, lick_triggered = False, sync = False):
         
         if self.pump.at_min_pos  and not force: raise EndTrackError
-        if force and self.pump_thread: self.pump_thread.stop()
+        if force and self.pump_thread: 
+            if self.pump_thread.running:
+                self.pump_thread.stop()
 
         if sync:
             if lick_triggered:
@@ -481,7 +483,7 @@ class RewardModule:
 
         self.pump_thread = PumpThread(self.pump, amount, lick_triggered, 
                                       valve = self.valve, forward = True, 
-                                      parent = self)
+                                      parent = self, force = force)
         self.pump_thread.start()
 
     def __del__(self):
