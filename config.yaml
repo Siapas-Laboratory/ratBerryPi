@@ -3,36 +3,27 @@ BROADCAST_PORT: 5563
 
 modules:
   module1:
-    valvePin: 10
+    type: default
+    dead_volume: 1
+    port: port0
     pump: pump1
-    plugins:
-      lickometer: lickometer1
 
   module2:
-    valvePin: 11
+    type: default
+    dead_volume: 6
+    port: port1
     pump: pump1
-    plugins:
-      lickometer: lickometer2
-
 
 pumps:
   pump1:
-    fillValvePin: 2
-    stepPin: 3
+    fillValvePin: 4
+    stepPin: 5
     stepType: Half
-    defaultSyringeType: BD5mL
-    flushPin: 0
-    revPin: 5
-    dirPin: 6
+    syringeType: BD10mL
+    flushPin: 23
+    revPin: 24
+    dirPin: 8
     GPIOPins:
-      - 7
-      - 8
-      - 9
-
-plugins:
-  lickometer1:
-    type: lickometer
-    lickPin: 14
-  lickometer2:
-    type: lickometer
-    lickPin: 15
+      - 25
+      - 26
+      - 27

@@ -5,10 +5,14 @@
 # Desiderio Ascencio 
 #######################################
 
-"""Play a fixed frequency sound."""
 import numpy as np
 import pyaudio as pa  # sudo apt-get install python{,3}-pyaudio
 import RPi.GPIO as GPIO
+from .base import BasePlugin
+import sys
+sys.path.append("../")
+from utils import config_output
+
 
 
 
@@ -27,13 +31,14 @@ class AudioInterface:
                 if force:
                     self.stream.stop_stream()
                     self.stream.close()
-                    for i in self.SDPins:
-                        GPIO.output(i, GPIO.LOW)
+                    for i in range(len(self.SDPins)):
+                        self.SDPins[i].value = False
                 else:
                     return
         if SDPin:
-            GPIO.output(SDPin, GPIO.HIGH)
-            if SDPin not in self.SDPins: self.SDPins.append(SDPin)
+            SDPin.value = True
+            if SDPin not in self.SDPins: 
+                self.SDPins.append(SDPin)
 
         n_samples = int(self.fs * dur)
         restframes = n_samples % self.fs
@@ -50,8 +55,8 @@ class AudioInterface:
                 return (data, pa.paContinue)
             else:
                 print(frame_count)
-                for i in self.SDPins:
-                    GPIO.output(i, GPIO.LOW)
+                for i in range(len(self.SDPins)):
+                    self.SDPins[i].value = False
                 return (None, pa.paComplete)
 
         self.stream = self.session.open(format = pa.paFloat32,
@@ -67,13 +72,13 @@ class AudioInterface:
         self.session.terminate()
 
         
-class Speaker:
-    def __init__(self, name, audio_interface, SDPin):
+class Speaker(BasePlugin):
+    def __init__(self, name, parent, audio_interface, SDPin):
+        super(Speaker, self).__init__(name, parent)
         self.name = name
         self.audio_interface = audio_interface
-        self.SDPin = SDPin
-        GPIO.setup(self.SDPin, GPIO.OUT)
-        GPIO.output(self.SDPin, GPIO.LOW)
+        self.SDPin = config_output(SDPin)
+        self.SDPin.value = False
 
     def play_tone(self, freq, dur, volume=1, force = True):
         self.audio_interface.play_tone(freq, dur, volume=volume, SDPin=self.SDPin)

@@ -3,11 +3,16 @@ import RPi.GPIO as GPIO
 import threading
 import time
 import os
+from .base import BasePlugin
+import sys
+sys.path.append("../")
+from utils import config_output
 
 
-class Lickometer:
-    def __init__(self, name, lickPin, burst_thresh = 0.5, update_interval = .01, parent = None, outpin = None):
-        
+class Lickometer(BasePlugin):
+    def __init__(self, name, parent, lickPin, burst_thresh = 0.5, update_interval = .01, outpin = None):
+
+        super(Lickometer, self).__init__(name, parent)
         self.name = name
         self.lickPin = lickPin
         self.licks = 0
@@ -23,9 +28,9 @@ class Lickometer:
         GPIO.setup(self.lickPin, GPIO.IN)
         GPIO.add_event_detect(self.lickPin, GPIO.RISING, callback=self.increment_licks)
         if self.outpin:
-            GPIO.setup(self.outpin, GPIO.OUTPUT)
-            GPIO.output(self.outpin, GPIO.LOW)
-            GPIO.add_event_detect(self.outpin, GPIO.FALLING, callback = self.end_pulse)
+            self.outpin = config_output(outpin)
+            self.outpin.value = False
+            GPIO.add_event_detect(self.lickPin, GPIO.FALLING, callback = self.end_pulse)
 
         self.burst_thread = threading.Thread(target = self.monitor_bursts)
         self.burst_thread.start()
@@ -39,11 +44,12 @@ class Lickometer:
                 self.parent.log.append({'time': self.last_lick, 
                                         'event': 'lick',
                                         'plugin': self.name})
-        GPIO.output(self.outpin, GPIO.HIGH)
+            if self.outpin:
+                self.outpin.value = True
         print(self.licks, self.burst_lick, self.last_lick)
     
     def end_pulse(self):
-        GPIO.output(self.outpin, GPIO.LOW)
+        self.outpin.value = False
 
     def reset_licks(self):
         self.licks = 0

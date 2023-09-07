@@ -1,21 +1,26 @@
 from RPi import GPIO
 import time
+from .base import BasePlugin
+import sys
+sys.path.append("../")
+from utils import config_output
 
-class Valve:
-    def __init__(self, valvePin, NC = True):
+class Valve(BasePlugin):
+    def __init__(self, name, parent, valvePin, NC = True):
+        super(Valve, self).__init__(name, parent)
         self.valvePin = valvePin
         self.NC = NC
-        GPIO.setup(self.valvePin,GPIO.OUT)
-        GPIO.output(self.valvePin,GPIO.LOW)
+        self.valvePin = config_output(valvePin)
+        self.valvePin.value = False
         self.opened = not self.NC
 
     def open(self):
         if not self.opened:
             print(f'opening {self.valvePin}')
             if self.NC:
-                GPIO.output(self.valvePin,GPIO.HIGH)
+                self.valvePin.value = True
             else:
-                GPIO.output(self.valvePin,GPIO.LOW)
+                self.valvePin.value = False
             time.sleep(.05) # max response time for the valves is 20 ms
             self.opened = True
 
@@ -23,8 +28,8 @@ class Valve:
         if self.opened:
             print(f'closing {self.valvePin}')
             if self.NC:
-                GPIO.output(self.valvePin,GPIO.LOW)
+                self.valvePin.value = False
             else:
-                GPIO.output(self.valvePin,GPIO.HIGH)
+                self.valvePin.value = True
             time.sleep(.05) # max response time for the valves is 20 ms
             self.opened = False

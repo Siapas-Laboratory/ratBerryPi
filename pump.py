@@ -129,7 +129,7 @@ class Pump:
             GPIO.add_event_detect(endPin, GPIO.RISING, callback = self.calibrate)
 
         if fillValvePin is not None:
-            self.fillValve = Valve(fillValvePin)
+            self.fillValve = Valve(f'{self.name}-fillValve', self, fillValvePin)
 
     @property
     def syringe(self):
@@ -304,7 +304,7 @@ class Pump:
 
 
 class PumpThread(threading.Thread):
-    def __init__(self, pump, amount, triggered, valve = None, forward = True, parent = None, force = False):
+    def __init__(self, pump, amount, triggered, valve = None, forward = True, parent = None, force = False, post_delay = 2):
         super(PumpThread, self).__init__()
         self.parent = parent
         self.valve = valve
@@ -315,6 +315,7 @@ class PumpThread(threading.Thread):
         self.status = 0
         self.triggered = triggered
         self.force = force
+        self.post_delay = post_delay
         if self.triggered:
             assert self.parent, 'must specify parent triggered mode'
             try:
@@ -340,14 +341,18 @@ class PumpThread(threading.Thread):
         else:
             try:
                 self.pump.enable()
-                self.pump.move(self.amount, self.forward, pre_reserved = True, check_availability = False, force = self.force)
+                self.pump.move(self.amount, self.forward, pre_reserved = True,
+                               check_availability = False, force = self.force, unreserve = False)
                 self.running = False
             except EndTrackError:
                 self.status = -1
                 pass
         self.pump.disable()
-        if self.valve: self.valve.close()
+        if self.valve:
+            time.sleep(self.post_delay)
+            self.valve.close()
         self.status = 2
+        self.pump.unreserve()
 
     def triggered_pump(self):
         self.pump_trigger_thread = threading.Thread(target = self.trigger_pump)

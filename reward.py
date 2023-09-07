@@ -12,6 +12,10 @@ import threading
 import time
 import logging
 from pathlib import Path
+from modules import *
+
+with open(Path(__file__).parent/'ports.yaml', 'r') as f:
+    PORTS = yaml.safe_load(f)
 
 class NoSpeaker(Exception):
     pass
@@ -48,7 +52,7 @@ class RewardInterface:
 
     """
 
-    def __init__(self, burst_thresh = .5, reward_thresh = 1):
+    def __init__(self, config_file, load_defaults = True):
         """
         Constructs the reward interface from the config file
 
@@ -64,43 +68,38 @@ class RewardInterface:
         """
 
         GPIO.setmode(GPIO.BCM)
-        with open(Path(__file__).parent/'config.yaml', 'r') as f:
-            config = yaml.safe_load(f)
+
+        with open(config_file, 'r') as f:
+            self.config = yaml.safe_load(f)
 
         self.pumps = {}
-        for i in config['pumps']: 
-
-            syringeType = config['pumps'][i].pop('defaultSyringeType') if 'defaultSyringeType' in config['pumps'][i] else None
-            syringe = Syringe(syringeType)
-            config['pumps'][i]['syringe'] = syringe
-            
-            if 'GPIOPins' not in config['pumps'][i]:
-                raise ValueError(f"Missing argument 'GPIOPins' for pump '{i}'")
-            elif len(config['pumps'][i]['GPIOPins'])!=3:
-                raise ValueError(f"Expected 3 pins to be specified for argument 'GPIOPins' for pump '{i}', {len(config['pumps'][i]['GPIOPins'])} provided")
-            
-            config['pumps'][i]['GPIOPins'] = tuple(config['pumps'][i]['GPIOPins'])
-            self.pumps[i] = Pump(i, **config['pumps'][i])
+        # load all pumps
+        for i in self.config['pumps']: 
+            if 'syringeType' in self.config['pumps'][i]:
+                syringe = Syringe(self.config['pumps'][i].pop('syringeType'))
+            else:
+                syringe = Syringe()
+            self.config['pumps'][i]['syringe'] = syringe
+            self.config['pumps'][i]['GPIOPins'] = tuple(self.config['pumps'][i]['GPIOPins'])
+            self.pumps[i] = Pump(i, **self.config['pumps'][i])
 
         self.plugins = {}
         self.audio_interface = AudioInterface()
 
-        if 'plugins' in config:
-            for k, v in config['plugins'].items():
-                if v['type'] == 'lickometer':
-                    self.plugins[k] = Lickometer(k, v['lickPin'], burst_thresh = burst_thresh, parent = self)
-                if v['type'] == 'LED':
-                    self.plugins[k] = LED(k, v['LEDPin'])
-                elif v['type'] == 'speaker':
-                    self.plugins[k] = Speaker(k, self.audio_interface, v['SDPin'])
+        # load any loose plugins not attached to a module
+        if 'plugins' in self.config:
+            for k, v in self.config['plugins'].items():
+                v['parent'] = self
+                plugin_type = v.pop('type')
+                if plugin_type == 'Speaker':
+                    v['audio_interface'] == self.audio_interface
+                constructor = globals()[plugin_type]
+                self.plugins[k] = constructor(k, **v)
 
         self.modules = {}
-        for i in config['modules']:
-            config['modules'][i]['pump'] = self.pumps[config['modules'][i]['pump']]
-            if 'plugins' in config['modules'][i]:
-                config['modules'][i]['plugins'] = {k: self.plugins[v] for k,v in config['modules'][i]['plugins'].items()}
-            self.modules[i] = RewardModule(i, **config['modules'][i], reward_thresh=reward_thresh)
-        
+        if load_defaults:
+            self.load_default_modules()
+
         self.recording = False
         self.log = []
 
@@ -108,6 +107,30 @@ class RewardInterface:
         self.auto_fill_thread = threading.Thread(target = self._fill_syringes)
         self.auto_fill_thread.start()
 
+    def load_default_modules(self):
+
+        for i in self.config['modules']:
+            if self.config['modules'][i]['type'] == 'default':
+                pump = self.pumps[self.config['modules'][i]['pump']]
+                dead_volume = self.config['modules'][i].get('dead_volume')
+                if 'port' in self.config['modules'][i]:
+                    port = self.config['modules'][i]['port']
+                    port_pins = PORTS[port]
+                else:
+                    for j in ['valvePin', 'SDPin', 'lickPin', 'LEDPin']:
+                        port_pins[j] = self.config['modules'][i].get(j)
+                args = {'pump': pump, 'dead_volume': dead_volume}
+
+                if port_pins['valvePin']: 
+                    args['valve'] = Valve(f"{i}-valve", self, port_pins['valvePin'])
+                if port_pins['LEDPin']:
+                    args['led'] = LED(f"{i}-LED", self, port_pins["LEDPin"])
+                if port_pins['lickPin']:
+                    args['lickometer'] = Lickometer(f"{i}-lickometer", self, port_pins["lickPin"])
+                if port_pins['SDPin']:
+                    args['speaker'] = Speaker(f"{i}-speaker", self, self.audio_interface, port_pins["SDPin"])
+                
+                self.modules[i] = DefaultModule(i, **args)
         
 
     def calibrate(self, pump):
@@ -120,93 +143,115 @@ class RewardInterface:
         """
         self.pumps[pump].calibrate()
 
-    def fill_lines(self, amounts, res_amounts = {}, prime_amounts = {}):
+    def fill_lines(self, modules, prime_amount = 1, res_amount = None):
         """
         fill the lines leading up to the specified reward ports
         with fluid
 
         Args:
-            amounts: dict
-                a dictionary specifying the amount of fluid to 
-                fill the line leading up to each module with. keys
-                should be modules and values should be amounts in mL
-            res_amounts: dict
-                a dictionary specifying the amount of fluid to fill the
-                reservoirs with before filling the lines. keys should be 
-                pumps and values should be amounts in mL
+            modules: list
+                a list of all modules whose lines should be filled
+            prime_amount: int, dict
+                either a single value specifying the amount of fluid
+                to fill all lines with or a dictionary specifying how
+                much fluid to fill each line with. keys should be module
+                names and values should be amounts in mL
+            res_amount: int, dict
+                either a single value specifying the amount of fluid
+                to fill the lines leading up to all reservoirs with 
+                or a dictionary specifying how much fluid to fill each line
+                leading up to each reservoir. keys should be pump
+                names and values should be amounts in mL
 
         """
 
         #TODO: clean up this function a bit
         #TODO: check availability ahead of time
 
+        # temporarily turn off auto fill
         afill_was_on = self.auto_fill
-        self.auto_fill = False
-        for i in self.modules:
-            if hasattr(self.modules[i], 'valve'):
-                self.modules[i].valve.close()
-            
-        for i in res_amounts:
-            self.pumps[i].enable()
-            if hasattr(self.pumps[i], 'fillValve'):
-                self.pumps[i].fillValve.open()
-            if not self.pumps[i].in_use:
-                self.pumps[i].reserve()
-            self.pumps[i].move(res_amounts[i], True, unreserve = False, pre_reserved = True)
-            if hasattr(self.pumps[i], 'fillValve'):
-                self.pumps[i].fillValve.close()
+        self.toggle_auto_fill(False)
 
-        for i in prime_amounts:
-            self.modules[i].pump.enable()
-            if hasattr(self.modules[i], 'valve'):
-                self.modules[i].valve.open()
-            if hasattr(self.modules[i].pump, 'fillValve'):
-                self.modules[i].pump.fillValve.close()
-            logging.info(f'priming {i}')
-            self.modules[i].pump.move(prime_amounts[i], True, unreserve = False, pre_reserved = True)
-            if hasattr(self.modules[i], 'valve'):
-                self.modules[i].valve.close()
+        # get all unique pumps
+        modules = list([self.modules[i] for i in modules])
+        pumps = list(set([m.pump for m in modules]))
 
-        for i in prime_amounts:
-            if hasattr(self.modules[i].pump, 'fillValve'):
-                self.modules[i].pump.fillValve.open()
-            logging.info(f'refilling {i}')
-            self.modules[i].pump.move(prime_amounts[i], False, unreserve = False, pre_reserved = True)
+        if type(prime_amount) == int or float:
+            prime_amounts = {i: prime_amount for i in modules}
+        elif isinstance(prime_amount, dict):
+            _modules = set([self.modules[i] for i in prime_amount])
+            if not len(set(modules).intersection(_modules)) == len(modules):
+                raise ValueError("the keys of 'prime_amount' should be the same as the specified modules")
+            prime_amounts = prime_amount
+        else:
+            raise TypeError(f"invalid input of type {type(prime_amount)} for argument 'prime_amount'")
 
-        for i in prime_amounts:
-            if hasattr(self.modules[i].pump, 'fillValve'):
-                self.modules[i].pump.fillValve.close()
+        if res_amount is None:
+            res_amounts = {i: prime_amount for i in pumps}
+        elif type(res_amount) == int or float:
+            res_amounts = {i: res_amount for i in pumps}
+        elif isinstance(res_amount, dict):
+            _pumps = set([self.pumps[i] for i in res_amount])
+            if not len(set(pumps).intersection(_pumps)) == len(pumps):
+                raise ValueError("the keys of 'res_amount' should correspond to all pumps connected to the specified modules")
+            res_amounts = res_amount
+        else:
+            raise TypeError(f"invalid input of type {type(res_amount)} for argument 'res_amount'")
 
-        for i in res_amounts:
-            if hasattr(self.pumps[i], 'fillValve'):
-                self.pumps[i].fillValve.open()
-            self.pumps[i].move(res_amounts[i], False, unreserve = False, pre_reserved = True)
-            if hasattr(self.pumps[i], 'fillValve'):
-                self.pumps[i].fillValve.close()
+        # make sure all valves are closed before starting
+        for m in self.modules:
+            if hasattr(m, 'valve'):
+                m.valve.close()
 
-        for i in amounts:
-            self.modules[i].pump.enable()
-            if hasattr(self.modules[i], 'valve'):
-                self.modules[i].valve.open()
-            if hasattr(self.modules[i].pump, 'fillValve'):
-                self.modules[i].pump.fillValve.close()
-            logging.info(f'filling {i}')
-            self.modules[i].pump.move(amounts[i], True, unreserve = False, pre_reserved = True)
-            if hasattr(self.modules[i], 'valve'):
-                self.modules[i].valve.close()
-            if hasattr(self.modules[i].pump, 'fillValve'):
-                self.modules[i].pump.fillValve.open()
+        # reserve all pumps
+        for p in pumps: p.reserve()
+        
+        # prime all reservoirs
+        for p, amt in res_amounts.items():
+            logging.info(f"priming reservoir for {p.name}")
+            p.enable()
+            if hasattr(p, 'fillValve'):
+                p.fillValve.open()
+            p.move(amt, True, pre_reserved = True, unreserve = False)
+            if hasattr(p, 'fillValve'):
+                p.fillValve.close()
+
+        # prime all lines
+        for m, amt in prime_amounts.items():
+            logging.info(f'priming line for {m.name}')
+            m.fill_line(amt, pre_reserved = True, unreserve = False)
+        
+        # refill the syringes with the amounts used to prime the lines
+        for m, amt in prime_amounts.items():
+            if hasattr(m.pump, 'fillValve'):
+                m.pump.fillValve.open()
+            logging.info(f'refilling syringe with the amount used to prime the line for {m.name}')
+            m.pump.move(amt, False, pre_reserved = True, unreserve = False)
+            if hasattr(m.pump, 'fillValve'):
+                m.pump.fillValve.close()
+                time.sleep(.1)
+
+        for p, amt in res_amounts.items():
+            logging.info(f'refilling syringe with the amount used to prime the reservoir for {p.name}')
+            if hasattr(p, 'fillValve'):
+                p.fillValve.open()
+            p.move(amt, False, pre_reserved = True, unreserve = False)
+            if hasattr(p, 'fillValve'):
+                p.fillValve.close()
+
+        # fill the lines for all modules
+        for m in modules:
+            logging.info(f'filling line for {m.name}')
+            m.fill_line(pre_reserved = True, unreserve = False)
+            if hasattr(m.pump, 'fillValve'):
+                m.pump.fillValve.open()
             logging.info('reloading')
-            self.modules[i].pump.move(amounts[i], False, unreserve = False, pre_reserved = True)
-            if hasattr(self.modules[i].pump, 'fillValve'):
-                self.modules[i].pump.fillValve.close()
-        for i in amounts:
-            self.modules[i].pump.unreserve()
-        for i in res_amounts:
-            self.pumps[i].unreserve()
-        for i in prime_amounts:
-            self.modules[i].pump.unreserve()
-        self.auto_fill = afill_was_on
+            m.pump.move(m.dead_volume, False, unreserve = False, pre_reserved = True)
+            if hasattr(m.pump, 'fillValve'):
+                m.pump.fillValve.close()
+
+        for p in pumps: p.unreserve()
+        self.toggle_auto_fill(afill_was_on) # turn autofill back on if it was on
         
 
     def record(self, reset = True):
@@ -240,7 +285,7 @@ class RewardInterface:
         logging.info('saved!')
         self.recording = False
 
-    def trigger_reward(self, module, amount, force = False, lick_triggered = False, sync = False):
+    def trigger_reward(self, module, amount, force = False, lick_triggered = False, sync = False, post_delay = 2):
         """
         trigger reward delivery on a provided reward module
 
@@ -257,7 +302,7 @@ class RewardInterface:
                 whether or not to deliver the reward in a lick-triggered manner. 
         """
 
-        self.modules[module].trigger_reward(amount, force = force, lick_triggered = lick_triggered, sync = sync)
+        self.modules[module].trigger_reward(amount, force = force, lick_triggered = lick_triggered, sync = sync, post_delay = post_delay)
 
     def _fill_syringes(self):
         """
@@ -437,54 +482,5 @@ class RewardInterface:
             else:
                 self.modules[module].valve.close()
     
-    def __del__(self):
-        GPIO.cleanup()
-
-
-class RewardModule:
-
-    def __init__(self, name, pump, valvePin= None, plugins = {}, reward_thresh = 3):
-
-        self.pump = pump
-        self.name = name
-        self.reward_thresh = reward_thresh
-        self.pump_thread = None
-
-        for i,v in plugins.items():
-            setattr(self, i, v)
-
-        if valvePin is not None:
-            self.valve = Valve(valvePin)
-    
-    @property
-    def pump_trigger(self):
-        if hasattr(self, 'lickometer'):
-            return self.lickometer.in_burst and (self.lickometer.burst_lick>self.reward_thresh)
-        else:
-            return None
-
-    def trigger_reward(self, amount, force = False, lick_triggered = False, sync = False):
-        
-        if self.pump.at_min_pos  and not force: raise EndTrackError
-        if force and self.pump_thread: 
-            if self.pump_thread.running:
-                self.pump_thread.stop()
-
-        if sync:
-            if lick_triggered:
-                raise ValueError("cannot deliver lick-triggered reward synchronously")
-            else:
-                if hasattr(self, 'valve'):
-                    self.valve.open()
-                self.pump.enable()
-                self.pump.move(amount, forward = True)
-                if hasattr(self, 'valve'):
-                    self.valve.close()
-
-        self.pump_thread = PumpThread(self.pump, amount, lick_triggered, 
-                                      valve = self.valve, forward = True, 
-                                      parent = self, force = force)
-        self.pump_thread.start()
-
     def __del__(self):
         GPIO.cleanup()
