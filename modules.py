@@ -12,8 +12,7 @@ import threading
 import time
 import logging
 from pathlib import Path
-
-
+import math
 
 class RewardModule:
 
@@ -49,15 +48,29 @@ class RewardModule:
                                             parent = self, force = force, post_delay = post_delay)
             self.pump_thread.start()
 
-    def fill_line(self, amount = None, pre_reserved = False, unreserve = False):
+    def fill_line(self, amount = None, pre_reserved = False, unreserve = False, refill = True):
         if amount is None:
             amount = self.dead_volume
         self.pump.enable()
-        if self.valve:
-            self.valve.open()
-        self.pump.move(amount, forward = True, pre_reserved = pre_reserved, unreserve = unreserve)
-        if self.valve:
-            self.valve.close()
+        while amount>0:
+            if self.valve: self.valve.close()
+            if refill and hasattr(self.pump, 'fillValve'):
+                self.pump.fillValve.open()
+                self.pump.ret_to_max(pre_reserved = pre_reserved, unreserve = unreserve)
+                self.pump.fillValve.close()
+            if not self.pump.is_available(amount):
+                avail = math.pi * ((self.syringe.ID/2)**2) * self.position
+                if not hasattr(self.pump, 'fillValve'):
+                    raise ValueError("the requested amount is greater than the volume left in the syringe and no fill valve has been specified to refill intermittently ")
+            else:
+                avail = amount
+            if self.valve:
+                self.valve.open()
+            self.pump.move(avail, forward = True, pre_reserved = pre_reserved, unreserve = unreserve)
+            if self.valve:
+                self.valve.close()
+            amount = amount - avail
+        if self.valve: self.valve.close()
 
     def __del__(self):
         GPIO.cleanup()
@@ -65,7 +78,7 @@ class RewardModule:
 
 class DefaultModule(RewardModule):
 
-    def __init__(self, name, pump, valve, lickometer, speaker, led, dead_volume = 1, reward_thresh = 3):
+    def __init__(self, name, pump, lickometer, speaker, led, valve = None, dead_volume = 1, reward_thresh = 3):
 
         super().__init__(name, pump, valve, dead_volume)
         self.reward_thresh = reward_thresh

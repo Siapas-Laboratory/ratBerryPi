@@ -269,6 +269,14 @@ class Pump:
             step_count += 1
         if unreserve:
             self.unreserve()
+    
+    def ret_to_max(self, unreserve = True, force = False, pre_reserved = False):
+        if not self.at_max_pos:
+            amount = math.pi * ((self.syringe.ID/2)**2) * (self.syringe.max_pos - self.position) 
+            self.move(amount, False, unreserve = True, force = False, pre_reserved = False)
+        else:
+            raise EndTrackError
+
 
     def enable(self):
         self.enabled = True

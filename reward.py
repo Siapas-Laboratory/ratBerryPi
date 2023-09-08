@@ -14,8 +14,48 @@ import logging
 from pathlib import Path
 from modules import *
 
-with open(Path(__file__).parent/'ports.yaml', 'r') as f:
-    PORTS = yaml.safe_load(f)
+ETHERNET = {
+    "port0": {
+        "LEDPin": "GPA0",
+        "lickPin": 9,
+        "SDPin": 10,
+        "valvePin": "GPA1"},
+    "port1": {
+        "LEDPin": "GPA2",
+        "lickPin": 11,
+        "SDPin": 12,
+        "valvePin": "GPA3"},
+    "port2": {
+        "LEDPin": "GPA4",
+        "lickPin": 13,
+        "SDPin": 14,
+        "valvePin": "GPA5"},
+    "port3": {
+        "LEDPin": "GPA6",
+        "lickPin": 15,
+        "SDPin": 16,
+        "valvePin": "GPA7"},
+    "port4": {
+        "LEDPin": "GPB0",
+        "lickPin": 17,
+        "SDPin": 18,
+        "valvePin": "GPB1"},
+    "port5": {
+        "LEDPin": "GPB2",
+        "lickPin": 19,
+        "SDPin": 20,
+        "valvePin": "GPB3"},
+    "port6": {
+        "LEDPin": "GPB4",
+        "lickPin": 21,
+        "SDPin": 22,
+        "valvePin": "GPB5"},
+    "port7": {
+        "LEDPin": "GPB6",
+        "lickPin": 23,
+        "SDPin": 24,
+        "valvePin": "GPB7"}
+}
 
 class NoSpeaker(Exception):
     pass
@@ -112,10 +152,10 @@ class RewardInterface:
         for i in self.config['modules']:
             if self.config['modules'][i]['type'] == 'default':
                 pump = self.pumps[self.config['modules'][i]['pump']]
-                dead_volume = self.config['modules'][i].get('dead_volume')
+                dead_volume = self.config['modules'][i].get('dead_volume', 1)
                 if 'port' in self.config['modules'][i]:
                     port = self.config['modules'][i]['port']
-                    port_pins = PORTS[port]
+                    port_pins =  ETHERNET[port]
                 else:
                     for j in ['valvePin', 'SDPin', 'lickPin', 'LEDPin']:
                         port_pins[j] = self.config['modules'][i].get(j)
@@ -219,38 +259,32 @@ class RewardInterface:
         # prime all lines
         for m, amt in prime_amounts.items():
             logging.info(f'priming line for {m.name}')
-            m.fill_line(amt, pre_reserved = True, unreserve = False)
+            m.fill_line(amt, pre_reserved = True, unreserve = False, refill = False)
         
-        # refill the syringes with the amounts used to prime the lines
-        for m, amt in prime_amounts.items():
-            if hasattr(m.pump, 'fillValve'):
-                m.pump.fillValve.open()
-            logging.info(f'refilling syringe with the amount used to prime the line for {m.name}')
-            m.pump.move(amt, False, pre_reserved = True, unreserve = False)
-            if hasattr(m.pump, 'fillValve'):
-                m.pump.fillValve.close()
-                time.sleep(.1)
-
-        for p, amt in res_amounts.items():
-            logging.info(f'refilling syringe with the amount used to prime the reservoir for {p.name}')
+        # refill the syringes
+        for p in pumps:
+            logging.info(f'refilling syringe on {p.name} with the amount used to prime the lines')
             if hasattr(p, 'fillValve'):
                 p.fillValve.open()
-            p.move(amt, False, pre_reserved = True, unreserve = False)
-            if hasattr(p, 'fillValve'):
+                p.ret_to_max(pre_reserved = True, unreserve = False)
                 p.fillValve.close()
+                time.sleep(.1)
 
         # fill the lines for all modules
         for m in modules:
             logging.info(f'filling line for {m.name}')
             m.fill_line(pre_reserved = True, unreserve = False)
-            if hasattr(m.pump, 'fillValve'):
-                m.pump.fillValve.open()
-            logging.info('reloading')
-            m.pump.move(m.dead_volume, False, unreserve = False, pre_reserved = True)
-            if hasattr(m.pump, 'fillValve'):
-                m.pump.fillValve.close()
 
-        for p in pumps: p.unreserve()
+        # refill the syringes
+        for p in pumps:
+            logging.info(f'refilling syringe on {p.name}')
+            if hasattr(p, 'fillValve'):
+                p.fillValve.open()
+                p.ret_to_max(pre_reserved = True, unreserve = False)
+                p.fillValve.close()
+                time.sleep(.1)
+            p.unreserve()
+            
         self.toggle_auto_fill(afill_was_on) # turn autofill back on if it was on
         
 

@@ -77,3 +77,57 @@ For optimal performance, before using the device, all lines must be filled with 
 6. Open back up the ports on the manifold that go to the reward modules (as shown below; TODO: need a picture here).
 
 7. If you have not already done so, start up the server on the raspberry pi and connect a client. Use the ‘fill_lines’ command to fill all of the lines with water. This will sequentially open the valves for the reward modules and inject a specified amount of water. The amount should be at least as much as the dead volume in the line but no more than the syringe volume. Note, sequential filling is important here because if we open all valves to flush all at once, the valves will not  fill evenly and we may end up with air bubbles.
+
+
+Default ethernet port config:
+
+```
+port0:
+  LEDPin: GPA0
+  lickPin: 9
+  SDPin: 10
+  valvePin: GPA1
+
+port1:
+  LEDPin:  GPA2
+  lickPin: 11
+  SDPin: 12
+  valvePin: GPA3
+
+port2:
+  LEDPin:  GPA4
+  lickPin: 13
+  SDPin: 14
+  valvePin: GPA5
+
+port3:
+  LEDPin:  GPA6
+  lickPin: 15
+  SDPin: 16
+  valvePin:  GPA7
+
+port4:
+  LEDPin: GPB0
+  lickPin: 17
+  SDPin: 18
+  valvePin: GPB1
+
+port5:
+  LEDPin: GPB2
+  lickPin: 19
+  SDPin: 20
+  valvePin: GPB3
+
+port6:
+  LEDPin: GPB4
+  lickPin: 21
+  SDPin: 22
+  valvePin: GPB5
+
+port7:
+  LEDPin: GPB6
+  lickPin: 23
+  SDPin: 24
+  valvePin: GPB7
+
+```

@@ -1,6 +1,8 @@
+# network config
 PORT: 5562
 BROADCAST_PORT: 5563
 
+# module config
 modules:
   module1:
     type: default
@@ -14,6 +16,7 @@ modules:
     port: port1
     pump: pump1
 
+# pump config
 pumps:
   pump1:
     fillValvePin: 4
