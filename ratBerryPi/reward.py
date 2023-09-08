@@ -92,7 +92,7 @@ class RewardInterface:
 
     """
 
-    def __init__(self, config_file, load_defaults = True):
+    def __init__(self, config_file = Path(__file__).parent/"default_config.yaml", load_defaults = True):
         """
         Constructs the reward interface from the config file
 
@@ -284,7 +284,7 @@ class RewardInterface:
                 p.fillValve.close()
                 time.sleep(.1)
             p.unreserve()
-            
+
         self.toggle_auto_fill(afill_was_on) # turn autofill back on if it was on
         
 

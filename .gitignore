@@ -1,9 +1,9 @@
 .DS_Store
 __pycache__/
 *.pyc
-data/*
-!data/.gitkeep
-logs/*
-!logs/.gitkeep
-pump_states/*
-!pump_states/.gitkeep
+ratBerryPi/data/*
+!ratBerryPi/data/.gitkeep
+ratBerryPi/logs/*
+!ratBerryPi/logs/.gitkeep
+ratBerryPi/pump_states/*
+!ratBerryPi/pump_states/.gitkeep

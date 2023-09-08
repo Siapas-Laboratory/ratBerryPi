@@ -1,3 +1,6 @@
 RPi.GPIO
 rpimotorlib
 pyaudio
+pandas
+adafruit-blinka
+adafruit_mcp230xx
