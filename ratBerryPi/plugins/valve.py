@@ -1,9 +1,7 @@
 from RPi import GPIO
 import time
 from .base import BasePlugin
-import sys
-sys.path.append("../")
-from utils import config_output
+from ..utils import config_output
 
 class Valve(BasePlugin):
     def __init__(self, name, parent, valvePin, NC = True):

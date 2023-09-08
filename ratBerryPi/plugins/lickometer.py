@@ -4,9 +4,7 @@ import threading
 import time
 import os
 from .base import BasePlugin
-import sys
-sys.path.append("../")
-from utils import config_output
+from ..utils import config_output
 
 
 class Lickometer(BasePlugin):

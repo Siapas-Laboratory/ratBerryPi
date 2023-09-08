@@ -1,8 +1,8 @@
-from pump import Syringe, Pump, PumpThread, EndTrackError
-from plugins.lickometer import Lickometer
-from plugins.audio import AudioInterface, Speaker
-from plugins.led import LED
-from plugins.valve import Valve
+from .pump import Syringe, Pump, PumpThread, EndTrackError
+from .plugins.lickometer import Lickometer
+from .plugins.audio import AudioInterface, Speaker
+from .plugins.led import LED
+from .plugins.valve import Valve
 import RPi.GPIO as GPIO
 import yaml
 from datetime import datetime

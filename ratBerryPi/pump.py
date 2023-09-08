@@ -15,10 +15,11 @@ import time
 import math
 import threading
 import os
-from plugins.valve import Valve
+from .plugins.valve import Valve
 import time
 import pickle
 import logging
+from pathlib import Path
 
 ################################
 # RPi and Motor Pre-allocations
@@ -93,7 +94,7 @@ class Pump:
         self.enabled = False
         self.in_use = False
         self.verbose = verbose
-        self.state_fpath = os.path.join("pump_states", f"{self.name}.pckl")
+        self.state_fpath = Path(__file__).parent/"pump_states"/f"{self.name}.pckl"
 
         if not os.path.exists(self.state_fpath):
             logging.warning(f'pump states file not found, creating and setting {self.name} position to 0')

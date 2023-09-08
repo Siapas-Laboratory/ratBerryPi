@@ -9,9 +9,7 @@ import numpy as np
 import pyaudio as pa  # sudo apt-get install python{,3}-pyaudio
 import RPi.GPIO as GPIO
 from .base import BasePlugin
-import sys
-sys.path.append("../")
-from utils import config_output
+from ..utils import config_output
 
 
 

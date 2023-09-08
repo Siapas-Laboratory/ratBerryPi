@@ -19,14 +19,14 @@ modules:
 # pump config
 pumps:
   pump1:
-    fillValvePin: 4
-    stepPin: 5
+    fillValvePin: 7
+    stepPin: 8
     stepType: Half
     syringeType: BD10mL
-    flushPin: 23
-    revPin: 24
-    dirPin: 8
+    flushPin: 25
+    revPin: 26
+    dirPin: 27
     GPIOPins:
-      - 25
-      - 26
-      - 27
+      - 4
+      - 5
+      - 6

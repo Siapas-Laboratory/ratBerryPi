@@ -1,8 +1,6 @@
 import RPi.GPIO as GPIO
 from .base import BasePlugin
-import sys
-sys.path.append("../")
-from utils import config_output
+from ..utils import config_output
 
 class LED(BasePlugin):
     #TODO: need s function to flash the led for a specified amount of time
