@@ -120,7 +120,7 @@ class RewardInterface:
             else:
                 syringe = Syringe()
             self.config['pumps'][i]['syringe'] = syringe
-            self.config['pumps'][i]['GPIOPins'] = tuple(self.config['pumps'][i]['GPIOPins'])
+            self.config['pumps'][i]['modePins'] = tuple(self.config['pumps'][i]['modePins'])
             self.pumps[i] = Pump(i, **self.config['pumps'][i])
 
         self.plugins = {}

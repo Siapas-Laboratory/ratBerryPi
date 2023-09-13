@@ -23,7 +23,7 @@ class RewardModule:
         self.pump_thread = None
         self.dead_volume = dead_volume
 
-    def trigger_reward(self, amount, force = False, lick_triggered = False, sync = False, post_delay = 2):
+    def trigger_reward(self, amount, force = False, lick_triggered = False, sync = False, post_delay = 1):
         
         if force and self.pump_thread: 
             if self.pump_thread.running:
@@ -55,11 +55,12 @@ class RewardModule:
         while amount>0:
             if self.valve: self.valve.close()
             if refill and hasattr(self.pump, 'fillValve'):
-                self.pump.fillValve.open()
-                self.pump.ret_to_max(pre_reserved = pre_reserved, unreserve = unreserve)
-                self.pump.fillValve.close()
+                if not self.pump.at_max_pos:
+                    self.pump.fillValve.open()
+                    self.pump.ret_to_max(pre_reserved = pre_reserved, unreserve = unreserve)
+                    self.pump.fillValve.close()
             if not self.pump.is_available(amount):
-                avail = math.pi * ((self.syringe.ID/2)**2) * self.position
+                avail = math.pi * ((self.pump.syringe.ID/2)**2) * self.pump.position - .1
                 if not hasattr(self.pump, 'fillValve'):
                     raise ValueError("the requested amount is greater than the volume left in the syringe and no fill valve has been specified to refill intermittently ")
             else:

@@ -1,6 +1,4 @@
-import sys
-sys.path.append('../')
-from client import *
+from ratBerryPi.reward import *
 import time
 
 def run_test(reward_interface, module, amount, delay = 5, n_pulses = 20):

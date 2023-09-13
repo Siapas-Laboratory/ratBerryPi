@@ -10,7 +10,6 @@
 
 
 import RPi.GPIO as GPIO
-from RpiMotorLib import RpiMotorLib
 import time
 import math
 import threading
@@ -20,10 +19,8 @@ import time
 import pickle
 import logging
 from pathlib import Path
+from .utils import config_output
 
-################################
-# RPi and Motor Pre-allocations
-################################
 
 class EndTrackError(Exception):
     """reached end of track"""
@@ -54,15 +51,22 @@ class Syringe:
 
 
 class Pump:
+
+    step_type_configs = {'Full': (False, False, False),
+                         'Half': (True,  False, False),
+                         '1/4':  (False, True,  False),
+                         '1/8':  (True,  True,  False),
+                         '1/16': (False, False, True),
+                         '1/32': (True,  False, True)}
     
-    stepTypeDict = {"Full":200, 
+    steps_per_rot = {"Full":200, 
                       "Half":400,
                       "1/4":800,
                       "1/8": 1600,
                       "1/16": 3200}
     
-    def __init__(self, name, stepPin, flushPin, revPin, GPIOPins, dirPin, fillValvePin = None, 
-                 endPin = None, syringe = Syringe(syringeType='BD5mL'), 
+    def __init__(self, name, stepPin, flushPin, revPin, modePins, dirPin, fillValvePin = None, 
+                 endPin = None, syringe = Syringe(syringeType='BD5mL'), stepDelay = .0005,
                  stepType = "Half", pitch = 0.08,  reset = False, verbose = True):
         
         """
@@ -88,8 +92,15 @@ class Pump:
 
         self.name = name
         self.syringe = syringe
+
+        self.dirPin = config_output(dirPin)
+        self.stepPin = config_output(stepPin)
+        self.modePins = (config_output(modePins[0]),
+                         config_output(modePins[1]),
+                         config_output(modePins[2]))
+
         self.stepType = stepType
-        self.stepDelay = .0005 
+        self.stepDelay = stepDelay
         self.pitch = pitch
         self.enabled = False
         self.in_use = False
@@ -110,11 +121,6 @@ class Pump:
                 self.position = 0
                 with open(self.state_fpath, 'wb') as f:
                     pickle.dump(self.position, f)
-
-        self.GPIOPins = GPIOPins
-        
-        # Declare a instance of class pass GPIO pins numbers and the motor type
-        self.mymotor = RpiMotorLib.A4988Nema(dirPin , stepPin , self.GPIOPins, "DRV8825")
         
         # add event detection for the flush pin
         GPIO.setup(flushPin, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
@@ -161,10 +167,14 @@ class Pump:
     
     @stepType.setter
     def stepType(self, stepType):
-        if stepType in self.stepTypeDict:
+        if stepType in self.step_type_configs:
             self._stepType = stepType
+            self.modePins[0].value = self.step_type_configs[stepType][0]
+            self.modePins[1].value = self.step_type_configs[stepType][1]
+            self.modePins[2].value = self.step_type_configs[stepType][2]
+            time.sleep(.01)
         else:
-            raise ValueError(f"invalid step type. valid stepTypes include {[i for i in self.stepTypeDict]}")
+            raise ValueError(f"invalid step type. valid stepTypes include {[i for i in self.step_type_configs]}")
 
     def calibrate(self, channel=None):
         self.position = 0
@@ -172,33 +182,41 @@ class Pump:
 
     def get_conversion(self, stepType = None):
         stepType = stepType if stepType is not None else self.stepType
-        stepsPerThread = self.stepTypeDict[stepType]
+        stepsPerThread = self.steps_per_rot[stepType]
         mlPerCm = math.pi * ((self.syringe.ID/2)**2)
         mlPerThread = mlPerCm * self.pitch
         return  stepsPerThread/ mlPerThread
 
-    def single_step(self, forward, stepType, force = False):
+    def single_step(self, forward, force = False):
         clockwise = forward # note this should be flipped but i accidentally soldered the connector in the reverse order
         if ((self.at_min_pos and forward) or (self.at_max_pos and (not forward))) and not force:
             raise EndTrackError
         if (not force) and (not self.enabled):
             raise PumpNotEnabled
         
-        self.mymotor.motor_go(clockwise=clockwise, steptype=stepType, 
-                            steps=1, stepdelay=self.stepDelay, 
-                            verbose=False, initdelay=0)
+        if self.dirPin.value != clockwise:
+            self.dirPin.value = clockwise
+            time.sleep(.01)
+
+        self.stepPin.value = True
+        time.sleep(self.stepDelay)
+        self.stepPin.value = False
+        time.sleep(self.stepDelay)
+
         if forward:
-            self.position -= (self.pitch/self.stepTypeDict[stepType])
+            self.position -= (self.pitch/self.steps_per_rot[self.stepType])
         else:
-            self.position += (self.pitch/self.stepTypeDict[stepType])
+            self.position += (self.pitch/self.steps_per_rot[self.stepType])
             
     def __flush(self, channel):
         if not self.in_use:
             if self.verbose: logging.info("flushing")
-            self.reserve()
+            _prev_stepType = self.stepType
+            self.reserve(stepType = 'Full')
             while GPIO.input(channel)==GPIO.HIGH:
-                self.single_step(True, "Full", force = True)
+                self.single_step(True, force = True)
             self.unreserve()
+            self.stepType = _prev_stepType 
             if self.position<0:
                 self.calibrate()
             if self.verbose: logging.info("done")
@@ -206,10 +224,12 @@ class Pump:
     def __reverse(self, channel):
         if not self.in_use:
             if self.verbose: logging.info("reversing")
-            self.reserve()
+            _prev_stepType = self.stepType
+            self.reserve(stepType = 'Full')
             while GPIO.input(channel)==GPIO.HIGH:
-                self.single_step(False, "Full", force = True)
+                self.single_step(False, force = True)
             self.unreserve()
+            self.stepType = _prev_stepType
             if self.verbose: logging.info("done")
     
     def is_available(self, amount):
@@ -258,7 +278,7 @@ class Pump:
 
         while (step_count<steps):
             try:
-                self.single_step(forward, self.stepType, force = force)
+                self.single_step(forward, force = force)
             except EndTrackError as e:
                 logging.debug(f"End reached after {step_count} steps ({step_count/stepsPermL} mL)")
                 self.unreserve()
@@ -273,8 +293,12 @@ class Pump:
     
     def ret_to_max(self, unreserve = True, force = False, pre_reserved = False):
         if not self.at_max_pos:
-            amount = math.pi * ((self.syringe.ID/2)**2) * (self.syringe.max_pos - self.position) 
-            self.move(amount, False, unreserve = True, force = False, pre_reserved = False)
+            amount = math.pi * ((self.syringe.ID/2)**2) * (self.syringe.max_pos - self.position)
+            try:
+                self.move(amount, False, unreserve = unreserve, 
+                          force = force, pre_reserved = pre_reserved)
+            except EndTrackError:
+                return
         else:
             raise EndTrackError
 
@@ -289,12 +313,8 @@ class Pump:
         if self.in_use:
             if not force:
                 raise PumpInUse
-        GPIO.setup(self.GPIOPins, GPIO.OUT)
-        if stepType:
-            self.mymotor.resolution_set(stepType)
-        else:
-            self.mymotor.resolution_set(self.stepType)
-        time.sleep(.001)
+        if stepType and (stepType != self.stepType):
+            self.stepType = stepType
         self.in_use = True
 
     def unreserve(self):
@@ -313,7 +333,7 @@ class Pump:
 
 
 class PumpThread(threading.Thread):
-    def __init__(self, pump, amount, triggered, valve = None, forward = True, parent = None, force = False, post_delay = 2):
+    def __init__(self, pump, amount, triggered, valve = None, forward = True, parent = None, force = False, post_delay = 1):
         super(PumpThread, self).__init__()
         self.parent = parent
         self.valve = valve
