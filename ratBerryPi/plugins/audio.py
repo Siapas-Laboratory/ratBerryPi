@@ -19,7 +19,7 @@ class AudioInterface:
         self.session = pa.PyAudio()
         self.fs = fs
         self.stream = None
-        self.SDPins = []
+        self.SDPins = {}
 
 
     def play_tone(self, freq, dur, volume=1, SDPin = None, force = True):
@@ -29,15 +29,13 @@ class AudioInterface:
                 if force:
                     self.stream.stop_stream()
                     self.stream.close()
-                    for i in range(len(self.SDPins)):
+                    for i in self.SDPins:
                         self.SDPins[i].value = False
                 else:
                     return
         if SDPin:
-            SDPin.value = True
-            if SDPin not in self.SDPins: 
-                self.SDPins.append(SDPin)
-
+            self.SDPins[SDPin].value = True                
+            
         n_samples = int(self.fs * dur)
         restframes = n_samples % self.fs
         t = np.arange(n_samples)/self.fs
@@ -49,11 +47,15 @@ class AudioInterface:
             if len(self.samples)>0:
                 nbytes = int(frame_count * 4)
                 data = self.samples[:nbytes]
-                self.samples = self.samples[nbytes:]
-                return (data, pa.paContinue)
+                if len(self.samples) > nbytes:         
+                    self.samples = self.samples[nbytes:]
+                    return (data, pa.paContinue)
+                else:
+                    for i in self.SDPins:
+                        self.SDPins[i].value = False
+                    return (None, pa.paComplete)
             else:
-                print(frame_count)
-                for i in range(len(self.SDPins)):
+                for i in self.SDPins:
                     self.SDPins[i].value = False
                 return (None, pa.paComplete)
 
@@ -75,8 +77,10 @@ class Speaker(BasePlugin):
         super(Speaker, self).__init__(name, parent)
         self.name = name
         self.audio_interface = audio_interface
-        self.SDPin = config_output(SDPin)
-        self.SDPin.value = False
+        self.SDPin = SDPin
+        SDPin_io = config_output(self.SDPin)
+        SDPin_io.value = False
+        self.audio_interface.SDPins.update({self.SDPin: SDPin_io})
 
     def play_tone(self, freq, dur, volume=1, force = True):
         self.audio_interface.play_tone(freq, dur, volume=volume, SDPin=self.SDPin)
