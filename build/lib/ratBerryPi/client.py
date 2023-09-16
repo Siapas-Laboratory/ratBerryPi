@@ -4,15 +4,9 @@ import yaml
 from pathlib import Path
 from datetime import datetime
 
-with open(Path(__file__).parent/'config.yaml', 'r') as f:
-    config = yaml.safe_load(f)
-HOST = socket.gethostname()
-PORT = config['PORT']
-BROADCAST_PORT = config['BROADCAST_PORT']
-
 
 class Client:
-    def __init__(self, host = HOST, port = PORT, broadcast_port = BROADCAST_PORT, verbose = True):
+    def __init__(self, host, port, broadcast_port, verbose = True):
         self.host = host
         self.port = port
         self.verbose = verbose
@@ -22,6 +16,7 @@ class Client:
 
     def get(self, req):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
+            conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             conn.connect((self.host, self.broadcast_port))
             req = pickle.dumps(req)
             conn.sendall(req)
@@ -125,9 +120,9 @@ if __name__=='__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", default = HOST)
-    parser.add_argument("--port", default = PORT)
-    parser.add_argument("--broadcast_port", default = BROADCAST_PORT)
+    parser.add_argument("--host", default = socket.gethostbyname(socket.gethostname()))
+    parser.add_argument("--port", default = 5562)
+    parser.add_argument("--broadcast_port", default = 5563)
 
     args = parser.parse_args()
     client = Client(args.host, int(args.port), int(args.broadcast_port))
