@@ -220,7 +220,7 @@ class Pump:
         self._stepPin.value = False
         time.sleep(self.stepDelay)
 
-        if forward:
+        if self.direction == 'forward':
             self.position -= (self.pitch/self.steps_per_rot[self.stepType])
         else:
             self.position += (self.pitch/self.steps_per_rot[self.stepType])
@@ -284,7 +284,7 @@ class Pump:
             whether or not to move the piston forward
         """
         steps, stepsPermL = self.calculate_steps(amount)
-        step_coun = 0
+        step_count = 0
 
         if not pre_reserved:
             self.reserve(force = force)
