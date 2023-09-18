@@ -316,7 +316,9 @@ class RewardInterface:
         df = pd.DataFrame(self.log)
         df = df.sort_values('time')
         fname = datetime.strftime(datetime.now(), "%Y_%m_%d_%H_%M_%S.csv")
-        df.to_csv(os.path.join('data',fname)) 
+        data_dir = os.path.join(os.path.expanduser('~'), ".ratBerryPi", "data")
+        os.makedirs(data_dir, exist_ok = True)
+        df.to_csv(os.path.join(data_dir,fname)) 
         logging.info('saved!')
         self.recording = False
 

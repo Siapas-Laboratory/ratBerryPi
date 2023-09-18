@@ -106,7 +106,7 @@ class Pump:
         self.enabled = False
         self.in_use = False
         self.verbose = verbose
-        state_dir = "~/.ratBerryPi/pump_states"
+        state_dir = os.path.join(os.path.expanduser("~"), ".ratBerryPi", "pump_states")
         os.makedirs(state_dir, exist_ok = True)
         self.state_fpath = os.path.join(state_dir, f"{self.name}.pckl")
 
