@@ -225,7 +225,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    log_dir = '~/.ratBerryPi-logs'
+    log_dir = '~/.ratBerryPi/logs'
     os.makedirs(log_dir, exist_ok = True)
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG, 
                         filename=os.path.join(log_dir, f"{datetime.now().strftime('%m-%d-%Y-%H-%M-%S.log')}"))

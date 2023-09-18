@@ -71,51 +71,6 @@ class Client:
     def __del__(self):
         self.exit()
 
-def remote_connect(host, port, broadcast_port, timeout = 10):
-
-    client = Client(host, port, broadcast_port)
-    try:
-        client.connect()
-        return client, None
-    except ConnectionRefusedError:
-        server_thread = remote_boot(host)
-        t_start = datetime.now()
-        while (datetime.now() - t_start).total_seconds()<timeout:
-            try:
-                client.connect()
-                return client, server_thread
-            except ConnectionRefusedError:
-                pass
-        raise ConnectionRefusedError
-    
-def remote_boot(host, path = '~/Downloads/rpi-reward-module'):
-
-    import paramiko
-    import threading
-
-    class server_thread(threading.Thread):
-        def __init__(self):
-            super(server_thread, self).__init__()
-            
-        def run(self):
-            ssh = paramiko.SSHClient()
-            ssh.load_system_host_keys()
-            ssh.connect(host, username='pi')
-            transport = ssh.get_transport()
-            transport.set_keepalive(1) 
-            ssh.exec_command(f"source activate reward-module; cd {path}; python3 server.py")
-            self.running = True   
-            while self.running:
-                pass
-
-        def join(self):
-            self.running = False
-            super(server_thread, self).join()
-
-    t = server_thread()
-    t.start()
-    return t
-
 if __name__=='__main__':
     import argparse
 

@@ -5,7 +5,8 @@ setup(
     version = '0.0.0',
     author = "Nathaniel Nyema",
     author_email = "nnyema@caltech.edu",
-    description = "A Raspberry Pi based system for fluid reward delivery in rodent behavioral experiments.", 
+    description = "A Raspberry Pi based system for cue presentation and fluid reward delivery in rodent behavioral experiments.", 
     packages = find_packages(),
-    scripts = ['ratBerryPi/server.py']
+    scripts = ['ratBerryPi/server.py'],
+    package_data = {"": ["*.yaml"]}
 )

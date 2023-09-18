@@ -106,7 +106,9 @@ class Pump:
         self.enabled = False
         self.in_use = False
         self.verbose = verbose
-        self.state_fpath = Path(__file__).parent/"pump_states"/f"{self.name}.pckl"
+        state_dir = "~/.ratBerryPi/pump_states"
+        os.makedirs(state_dir, exist_ok = True)
+        self.state_fpath = os.path.join(state_dir, f"{self.name}.pckl")
 
         if not os.path.exists(self.state_fpath):
             logging.warning(f'pump states file not found, creating and setting {self.name} position to 0')

@@ -2,6 +2,7 @@ README.md
 setup.py
 ratBerryPi/__init__.py
 ratBerryPi/client.py
+ratBerryPi/default_config.yaml
 ratBerryPi/fill_lines.py
 ratBerryPi/modules.py
 ratBerryPi/pump.py

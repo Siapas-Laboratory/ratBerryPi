@@ -1,0 +1,28 @@
+# module config
+modules:
+  module1:
+    type: default
+    dead_volume: 1
+    port: port0
+    pump: pump1
+
+  module2:
+    type: default
+    dead_volume: 6
+    port: port1
+    pump: pump1
+
+# pump config
+pumps:
+  pump1:
+    fillValvePin: 7
+    stepPin: 8
+    stepType: Half
+    syringeType: BD10mL
+    flushPin: 25
+    revPin: 26
+    dirPin: 27
+    modePins:
+      - 4
+      - 5
+      - 6

@@ -1,4 +1,4 @@
-from ratBerryPi.pump import Syringe, Pump, PumpThread, EndTrackError
+from ratBerryPi.pump import Syringe, Pump
 from ratBerryPi.plugins.lickometer import Lickometer
 from ratBerryPi.plugins.audio import AudioInterface, Speaker
 from ratBerryPi.plugins.led import LED
