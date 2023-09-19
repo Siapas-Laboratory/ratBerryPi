@@ -2,14 +2,50 @@
 modules:
   module1:
     type: default
-    dead_volume: 1
+    dead_volume: 15
     port: port0
     pump: pump1
 
   module2:
     type: default
-    dead_volume: 6
+    dead_volume: 15
     port: port1
+    pump: pump1
+
+  module3:
+    type: default
+    dead_volume: 15
+    port: port2
+    pump: pump1
+
+  module4:
+    type: default
+    dead_volume: 15
+    port: port3
+    pump: pump1
+
+  module5:
+    type: default
+    dead_volume: 15
+    port: port4
+    pump: pump1
+
+  module6:
+    type: default
+    dead_volume: 15
+    port: port5
+    pump: pump1
+
+  module7:
+    type: default
+    dead_volume: 15
+    port: port6
+    pump: pump1
+
+  module8:
+    type: default
+    dead_volume: 15
+    port: port7
     pump: pump1
 
 # pump config

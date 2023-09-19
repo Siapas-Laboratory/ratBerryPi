@@ -5,14 +5,8 @@ from ratBerryPi.plugins.led import LED
 from ratBerryPi.plugins.valve import Valve
 
 import RPi.GPIO as GPIO
-import yaml
-from datetime import datetime
-import pandas as pd
-import os
-import threading
 import time
 import logging
-from pathlib import Path
 import math
 
 class RewardModule:

@@ -6,12 +6,10 @@ import socket
 import threading
 import select
 import errno
-import yaml
 import pickle
 import logging
 from datetime import datetime
 import os
-from pathlib import Path
 
 
 class Server:

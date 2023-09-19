@@ -5,7 +5,6 @@ The modules themselves are each fitted with a lickometer, speaker and LED. Up to
 
 For hardware/circuit schematics and build instructions see the hardware folder.
 
-
 ## Software Installation - (Raspberry Pi)
 Follow these steps to setup a raspberry pi for use with ratBerryPi:
 
@@ -50,9 +49,30 @@ cl = Client(host, port, broadcast_port)
 cl.connect()
 ```
 
-Once connected, the 2 most important methods of this class are `run_command` and `get`. `run_command` provides an interface to run commands remotely through the RewardInterface class. It takes as input 2 positional arguments, the first of which is a string indicating the name of a method in the RewardInterface class to run. The second argument is a dictionary specifying keyword arguments for this function. `get` provides an interface to retrieve state information from the reward interface. (NEED SOME INSTRUCTIONS FOR USING get HERE)
+Once connected, the 2 most important methods of this class are `run_command` and `get`. `run_command` provides an interface to run commands remotely through the RewardInterface class. It takes as input 2 positional arguments, the first of which is a string indicating the name of a method in the RewardInterface class to run. The second argument is a dictionary specifying keyword arguments for this function. `get` provides an interface to retrieve state information from the reward interface; it takes as input a dictionary specifying the request. This dictionary must have a field `prop` specifying the property to get. It should also specify one of the following entities which this property belongs to: `module`, `plugin`, or `pump`.  When specifying the a module, the user may optionally also specify a plugin on that module to query. When only specifying `plugin`, this should refer to a plugin that is not attached to a module. An example call to `get` may look like this:
 
-For those interested, we have provided [this python package](https://github.com/nathanielnyema/pyBehavior) which exposes some methods for connecting to ratBerryPi remotely and controlling the modules in a GUI.
+```
+req = {
+   'module': 'module1',
+   'plugin': 'LED',
+   'prop': 'on'
+}
+cl.get(req)
+```
+
+where we are determining whether or not the LED attached to module1 is on. Another common example is the following:
+
+```
+req = {
+   'pump': 'pump1'
+   'prop': 'position'
+}
+cl.get(req)
+```
+
+where we are getting the current position of the pump relative to the end of the track.
+
+For those interested, we have also created [this python package](https://github.com/nathanielnyema/pyBehavior) which provides a GUI for remotely controlling the ratBerryPi and exposes methods for defining behavioral protocols to run using the modules.
 
 ## Operating the Syringe and Manifold
 For optimal performance, before triggering any rewards, all lines for reward delivery must be filled with the solution to be delivered to the reward ports. The key to doing this properly is make sure there are as few air bubbles in the lines as possible. We've optimized a procedure for automatically filling the lines which we strongly recommend users call before triggering any rewards. The procedure involves first priming all of the lines by sequentially filling all segments of the manifold leading up to the reward ports. It is important that this happens first because if we try to draw fluid from the reservoir without eliminating all air from the manifold leading up to the valves, we will introduce air bubbles that will be very difficult to eliminate. Once the lines are primed, we alternate between delivering fluid to the lines to fill them, and refilling the syringe with fluid from the reservoir.
