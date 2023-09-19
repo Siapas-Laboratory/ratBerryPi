@@ -5,23 +5,31 @@ In the design detailed [here](), the modules themselves are each fitted with a l
 
 
 ## Software Installation - (Raspberry Pi)
-To get started, if you have not already done so, install `berryconda` on the raspberry pi that will serve as the interface to the reward modules. To do this run the following commands:
+Follow these steps to setup a raspberry pi for use with ratBerryPi:
 
+1. First install the [adafruit-blinka library](https://learn.adafruit.com/circuitpython-on-raspberrypi-linux/installing-circuitpython-on-raspberry-pi). This may require a reboot at one point. 
+2. Install some necessary pip installable dependencies. 
 ```
-wget https://github.com/jjhelmus/berryconda/releases/download/v2.0.0/Berryconda3-2.0.0-Linux-armv7l.sh
-bash Berryconda3-2.0.0-Linux-armv7l.sh
+sudo pip3 install adafruit-circuitpython-mcp230xx
 ```
+3. Install some more stuff that doesn't work well on linux when installed through pip.
+```
+sudo apt-get install libportaudio0 libportaudio2 libportaudiocpp0 portaudio19-dev python3-pandas
+sudo apt-get install python3-pyaudio
+```
+4. Clone this repository and navigate to it from terminal.
+5. Build and install the repository with the following commands
+```
+python3 setup.py bdist_wheel sdist
+pip3 install .
 
-From here you may need to open a new terminal. Now we will create a conda environment for this package. First clone this repository and navigate to the cloned directory. From here run the following commands
-
+*NOTE: When setting up a new raspberrypi, make sure to set the default audio output interface to the headphone jack using the raspi-config. You may not get any sound from the speakers otherwise.*
 ```
-conda create -n reward-module
-conda install -n reward-module pandas pyyaml pip
-source activate reward-module
-pip install -r requirements.txt
-```
+## Software Installation - (Client Device)
+Follow steps 4 and 5 above.
 
-## Configuration
+
+## Configuration (TODO: update this section)
 Before using the system, a `config.yaml` file must be created. This file is parsed to setup the pins on the raspberry pi. The provided `config.yaml` file contains pin definitions for the build detailed [here](). When configuring a custom setup, the key fields to be specified in this file are `PORT`, `BROADCAST_PORT`, `modules`, `pumps`, and `plugins`. `PORT` and `BROADCAST_PORT` are mainly needed for the Server-Client mode of operation (see Usage). Under `pumps`, the user must specify names for all pumps that will be controlled by the interface. Further, under each pump's name, one must specify the following fields, which mostly reference the pinout for the DRV8825, the driver for stepper motor actuating the pump.
 
 * `stepPin` - The pin on the raspberry pi connected to the STEP pin of the driver
