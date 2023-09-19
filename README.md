@@ -49,7 +49,11 @@ cl = Client(host, port, broadcast_port)
 cl.connect()
 ```
 
-Once connected, the 2 most important methods of this class are `run_command` and `get`. `run_command` provides an interface to run commands remotely through the RewardInterface class. It takes as input 2 positional arguments, the first of which is a string indicating the name of a method in the RewardInterface class to run. The second argument is a dictionary specifying keyword arguments for this function. `get` provides an interface to retrieve state information from the reward interface; it takes as input a dictionary specifying the request. This dictionary must have a field `prop` specifying the property to get. It should also specify one of the following entities which this property belongs to: `module`, `plugin`, or `pump`.  When specifying the a module, the user may optionally also specify a plugin on that module to query. When only specifying `plugin`, this should refer to a plugin that is not attached to a module. An example call to `get` may look like this:
+Once connected, the 2 most important methods of this class are `run_command` and `get`. 
+
+`run_command` provides an interface to run commands remotely through the `RewardInterface` class. It takes as input 2 positional arguments, the first of which is a string indicating the name of a method in the RewardInterface class to run. The second argument is a dictionary specifying keyword arguments for this function. 
+
+`get` provides an interface to retrieve state information from the reward interface; it takes as input a dictionary specifying the request. This dictionary must have a field `prop` specifying the property to get. It should also specify one of the following entities which this property belongs to: `module`, `plugin`, or `pump`.  When specifying the a module, the user may optionally also specify a plugin on that module to query. When only specifying `plugin`, this should refer to a plugin that is not attached to a module. An example call to `get` may look like this:
 
 ```
 req = {
