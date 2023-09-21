@@ -30,13 +30,11 @@ class RewardModule:
             else:
                 if self.valve: 
                     self.valve.open()
-                self.pump.enable()
                 self.pump.reserve(force = force)
-                self.pump.move(amount, force = force, direction = 'forward', pre_reserved = True, unreserve = False)
+                self.pump.move(amount, force = force, direction = 'forward', pre_reserved = True, unreserve = True)
                 if self.valve:
                     time.sleep(post_delay)
                     self.valve.close()
-                self.pump.unreserve()
         else:
             self.pump_thread = PumpThread(self.pump, amount, lick_triggered, 
                                             valve = self.valve, direction = 'forward', 
@@ -46,7 +44,6 @@ class RewardModule:
     def fill_line(self, amount = None, pre_reserved = False, unreserve = False, refill = True):
         if amount is None:
             amount = self.dead_volume
-        self.pump.enable()
         while amount>0:
             if self.valve: self.valve.close()
             if refill and hasattr(self.pump, 'fillValve'):

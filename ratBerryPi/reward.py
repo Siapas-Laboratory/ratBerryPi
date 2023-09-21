@@ -250,7 +250,6 @@ class RewardInterface:
         # prime all reservoirs
         for p, amt in res_amounts.items():
             logging.info(f"priming reservoir for {p.name}")
-            p.enable()
             if hasattr(p, 'fillValve'):
                 p.fillValve.open()
             p.move(amt, direction = 'forward', pre_reserved = True, unreserve = False)
