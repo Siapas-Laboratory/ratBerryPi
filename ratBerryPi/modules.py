@@ -55,7 +55,7 @@ class RewardModule:
                     self.pump.ret_to_max(pre_reserved = pre_reserved, unreserve = unreserve)
                     self.pump.fillValve.close()
             if not self.pump.is_available(amount):
-                avail = math.pi * ((self.pump.syringe.ID/2)**2) * self.pump.position - .1
+                avail = self.pump.vol_left - .1
                 if not hasattr(self.pump, 'fillValve'):
                     raise ValueError("the requested amount is greater than the volume left in the syringe and no fill valve has been specified to refill intermittently ")
             else:

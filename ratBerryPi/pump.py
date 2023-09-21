@@ -172,6 +172,10 @@ class Pump:
     def position(self):
         return self._position
     
+    @property
+    def vol_left(self):
+        return math.pi * ((self.syringe.ID/2)**2) * self.position
+    
     @position.setter
     def position(self, position):
         if hasattr(self, '_position'):
@@ -250,8 +254,7 @@ class Pump:
             if self.verbose: logging.info("done")
     
     def is_available(self, amount):
-        vol_left = math.pi * ((self.syringe.ID/2)**2) * self.position
-        return amount < vol_left
+        return amount < self.vol_left
             
     def calculate_steps(self, amount):
         """
@@ -294,7 +297,8 @@ class Pump:
         if self.direction == 'forward' and check_availability:
             if not self.is_available(amount):
                 raise EndTrackError
-        
+        was_enabled = self.enabled
+        self.enable()
         while (step_count<steps):
             try:
                 self.single_step(force = force)
@@ -310,10 +314,12 @@ class Pump:
         
         if unreserve:
             self.unreserve()
+        if not was_enabled:
+            self.disable()
     
     def ret_to_max(self, unreserve = True, force = False, pre_reserved = False):
         if not self.at_max_pos:
-            amount = math.pi * ((self.syringe.ID/2)**2) * (self.syringe.max_pos - self.position)
+            amount = (math.pi * ((self.syringe.ID/2)**2) * self.syringe.max_pos) - self.vol_left
             try:
                 self.move(amount, direction = 'backward', unreserve = unreserve, 
                           force = force, pre_reserved = pre_reserved)
@@ -321,7 +327,6 @@ class Pump:
                 return
         else:
             raise EndTrackError
-
 
     def enable(self):
         self.enabled = True
@@ -353,7 +358,8 @@ class Pump:
 
 
 class PumpThread(threading.Thread):
-    def __init__(self, pump, amount, triggered, valve = None, direction = 'forward', parent = None, force = False, post_delay = 1, stepType = None):
+    def __init__(self, pump, amount, triggered, valve = None, direction = 'forward', 
+                 parent = None, force = False, post_delay = 1, stepType = None):
         super(PumpThread, self).__init__()
         self.parent = parent
         self.valve = valve
@@ -390,14 +396,12 @@ class PumpThread(threading.Thread):
             self.triggered_pump()
         else:
             try:
-                self.pump.enable()
                 self.pump.move(self.amount, self.direction, pre_reserved = True,
                                check_availability = False, force = self.force, unreserve = False)
                 self.running = False
             except EndTrackError:
                 self.status = -1
                 pass
-        self.pump.disable()
         if self.valve:
             time.sleep(self.post_delay)
             self.valve.close()
@@ -409,6 +413,7 @@ class PumpThread(threading.Thread):
         self.pump_trigger_thread.start()
         steps, stepsPermL = self.pump.calculate_steps(self.amount)
         step_count = 0
+        was_enabled = self.pump.enabled
         self.pump.disable() # disable the pump until we get a trigger
         os.nice(19) # give priority to this thread
         while (step_count<steps) and self.running:
@@ -422,6 +427,10 @@ class PumpThread(threading.Thread):
                 pass
         self.running = False
         self.pump_trigger_thread.join()
+        if was_enabled:
+            self.pump.enable()
+        else:
+            self.pump.disable()
 
     def trigger_pump(self):
         prev_trigger_value = False
