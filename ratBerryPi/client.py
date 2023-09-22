@@ -19,7 +19,7 @@ class Client:
             conn.sendall(req)
             reply = conn.recv(1024)
             if reply:
-                return reply.decode('utf-8')
+                return pickle.loads(reply)
             else:
                 if self.verbose: print('server does not appear to be running. closing connection')
                 self.connected = False

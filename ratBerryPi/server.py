@@ -176,12 +176,12 @@ class Server:
             return
         else: # otherwise handle the request
             try:
-                reply = eval(f"self.reward_interface.{data}")
+                reply = pickle.dumps(eval(f"self.reward_interface.{data}"))
             except AttributeError as e:
                 logging.debug(e)
-                reply = f'invalid request'
+                reply = f'invalid request'.encode()
             finally:
-                conn.sendall(reply.encode('utf-8'))       
+                conn.sendall(reply)       
 
     def shutdown(self):
         """
