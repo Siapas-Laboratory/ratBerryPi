@@ -15,7 +15,7 @@ class Client:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
             conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             conn.connect((self.host, self.broadcast_port))
-            req = pickle.dumps(req)
+            req = req.encode()
             conn.sendall(req)
             reply = conn.recv(1024)
             if reply:
