@@ -269,7 +269,7 @@ class Pump:
         stepsPermL = self.get_conversion()
         n_steps = int(round(stepsPermL * amount))
         if self.verbose:
-            actual = n_steps*stepsPermL
+            actual = n_steps/stepsPermL
             msg = f"{amount} mL requested; {actual} mL to be produced using stepType '{self.stepType}'; error = {amount - actual} mL"
             logging.info(msg)
         return n_steps, stepsPermL
