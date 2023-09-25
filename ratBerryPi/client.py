@@ -41,6 +41,7 @@ class Client:
         if self.connected:
             self.exit()
         self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         if self.verbose: print('connecting to host')
         try:
             self.conn.connect((self.host, self.port))
