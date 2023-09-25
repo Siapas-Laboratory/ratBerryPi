@@ -5,14 +5,8 @@ from ratBerryPi.plugins.led import LED
 from ratBerryPi.plugins.valve import Valve
 
 import RPi.GPIO as GPIO
-import yaml
-from datetime import datetime
-import pandas as pd
-import os
-import threading
 import time
 import logging
-from pathlib import Path
 import math
 
 class RewardModule:
@@ -36,13 +30,11 @@ class RewardModule:
             else:
                 if self.valve: 
                     self.valve.open()
-                self.pump.enable()
                 self.pump.reserve(force = force)
-                self.pump.move(amount, force = force, direction = 'forward', pre_reserved = True, unreserve = False)
+                self.pump.move(amount, force = force, direction = 'forward', pre_reserved = True, unreserve = True)
                 if self.valve:
                     time.sleep(post_delay)
                     self.valve.close()
-                self.pump.unreserve()
         else:
             self.pump_thread = PumpThread(self.pump, amount, lick_triggered, 
                                             valve = self.valve, direction = 'forward', 
@@ -52,7 +44,6 @@ class RewardModule:
     def fill_line(self, amount = None, pre_reserved = False, unreserve = False, refill = True):
         if amount is None:
             amount = self.dead_volume
-        self.pump.enable()
         while amount>0:
             if self.valve: self.valve.close()
             if refill and hasattr(self.pump, 'fillValve'):
@@ -61,7 +52,7 @@ class RewardModule:
                     self.pump.ret_to_max(pre_reserved = pre_reserved, unreserve = unreserve)
                     self.pump.fillValve.close()
             if not self.pump.is_available(amount):
-                avail = math.pi * ((self.pump.syringe.ID/2)**2) * self.pump.position - .1
+                avail = self.pump.vol_left - .1
                 if not hasattr(self.pump, 'fillValve'):
                     raise ValueError("the requested amount is greater than the volume left in the syringe and no fill valve has been specified to refill intermittently ")
             else:

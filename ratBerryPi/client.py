@@ -1,8 +1,5 @@
 import socket
 import pickle
-import yaml
-from pathlib import Path
-from datetime import datetime
 
 
 class Client:
@@ -18,11 +15,11 @@ class Client:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
             conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             conn.connect((self.host, self.broadcast_port))
-            req = pickle.dumps(req)
+            req = req.encode()
             conn.sendall(req)
             reply = conn.recv(1024)
             if reply:
-                return reply.decode('utf-8')
+                return pickle.loads(reply)
             else:
                 if self.verbose: print('server does not appear to be running. closing connection')
                 self.connected = False

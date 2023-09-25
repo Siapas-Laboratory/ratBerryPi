@@ -6,12 +6,10 @@ import socket
 import threading
 import select
 import errno
-import yaml
 import pickle
 import logging
 from datetime import datetime
 import os
-from pathlib import Path
 
 
 class Server:
@@ -165,7 +163,7 @@ class Server:
         if ready[0]: # if data is available
             try:
                 # receive the request from the client
-                data = conn.recv(1024)
+                data = conn.recv(1024).decode()
             except socket.error as e:
                 if e.errno != errno.ECONNRESET:
                     raise e
@@ -177,27 +175,13 @@ class Server:
             conn.close()
             return
         else: # otherwise handle the request
-            data = pickle.loads(data)
-            prop = data['prop']
             try:
-                if 'module' in data:
-                    module = self.reward_interface.modules[data['module']]
-                    if 'plugin' in data: 
-                        plugin = getattr(module, data['plugin'])
-                        reply = f'{getattr(plugin, prop)}'
-                    else:
-                        reply = f'{getattr(module, prop)}'
-                elif 'pump' in data:
-                    pump = self.reward_interface.pumps[data['pump']]
-                    reply = f'{getattr(pump, prop)}'
-                elif 'plugin' in data:
-                    plugin = self.reward_interface.plugins[data['plugin']]
-                    reply = f'{getattr(plugin, prop)}'
+                reply = pickle.dumps(eval(f"self.reward_interface.{data}"))
             except AttributeError as e:
                 logging.debug(e)
-                reply = f'invalid request'
+                reply = f'invalid request'.encode()
             finally:
-                conn.sendall(reply.encode('utf-8'))       
+                conn.sendall(reply)       
 
     def shutdown(self):
         """
