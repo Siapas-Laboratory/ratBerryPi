@@ -138,11 +138,11 @@ class RewardInterface:
                 self.plugins[k] = constructor(k, **v)
 
         self.modules = {}
-        if load_defaults:
-            self.load_default_modules()
-
         self.recording = False
         self.log = []
+        
+        if load_defaults:
+            self.load_default_modules()
 
         self.auto_fill = False
         self.auto_fill_thread = threading.Thread(target = self._fill_syringes)
