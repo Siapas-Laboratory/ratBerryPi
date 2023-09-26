@@ -143,6 +143,7 @@ class Server:
             try:
                 conn, _ =  sock.accept()
                 t = threading.Thread(target = self.respond, args = (conn,))
+                logging.debug('broad connection made')
                 t.start()
                 client_threads.append(t)
             except KeyboardInterrupt:
@@ -160,29 +161,28 @@ class Server:
         conn: socket.socket
             socket for sending and receiving data
         """
-        conn.setblocking(0)
         while self.on:
-            ready = select.select([conn], [], [], .5) # wait until data is available on conn or timeout
-            if ready[0]:
+            try:
+                # receive the request from the client
+                data = conn.recv(1024)
+            except socket.error as e:
+                logging.debug(e)
+                if e.errno != errno.ECONNRESET:
+                    raise e
+                return
+            if not data: # if the client left close the connection
+                logging.debug('no data')
+                conn.close()
+                return
+            else: # otherwise handle the request
                 try:
-                    # receive the request from the client
-                    data = conn.recv(1024)
-                except socket.error as e:
-                    if e.errno != errno.ECONNRESET:
-                        raise e
-                    return
-                if not data: # if the client left close the connection
-                    conn.close()
-                    return
-                else: # otherwise handle the request
-                    try:
-                        data = data.decode()
-                        reply = pickle.dumps(eval(f"self.reward_interface.{data}"))
-                    except AttributeError as e:
-                        logging.debug(e)
-                        reply = f'invalid request'.encode()
-                    finally:
-                        conn.sendall(reply)       
+                    data = data.decode()
+                    reply = pickle.dumps(eval(f"self.reward_interface.{data}"))
+                except AttributeError as e:
+                    logging.debug(e)
+                    reply = f'invalid request'.encode()
+                finally:
+                    conn.sendall(reply)       
 
     def shutdown(self):
         """

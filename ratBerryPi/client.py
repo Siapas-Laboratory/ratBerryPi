@@ -51,7 +51,7 @@ class Client:
             print('connecting to host')
         try:
             self.conn.connect((self.host, self.port))
-            self.broad_conn.connect((self.host, self.port))
+            self.broad_conn.connect((self.host, self.broadcast_port))
             if self.verbose: 
                 print('connected!')
             self.connected = True
