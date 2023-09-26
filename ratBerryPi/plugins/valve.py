@@ -10,8 +10,7 @@ class Valve(BasePlugin):
         self.NC = NC
         self.valvePin = config_output(valvePin)
         self.valvePin.value = False
-        self.is_open = not self.NC
-
+        
     @property
     def is_open(self):
         if self.NC:
