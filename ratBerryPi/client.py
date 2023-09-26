@@ -10,18 +10,25 @@ class Client:
         self.broadcast_port = broadcast_port
         self.connected = False
         self.status = {}
+        self.channels = {}
 
-    def get(self, req):         
+    def get(self, req, channel = None):
+        if channel:
+            conn = self.channels[channel]
+        else:
+            conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            conn.connect((self.host, self.broadcast_port))
         req = req.encode()
-        self.broad_conn.sendall(req)
-        reply = self.broad_conn.recv(1024)
-        if reply:
-            return pickle.loads(reply)
+        conn.sendall(req)
+        reply = conn.recv(1024)
+        if not channel: conn.close()
+        if reply: return pickle.loads(reply)
         else:
             if self.verbose: 
                 print('server does not appear to be running. closing connection')
             self.conn.close()
-            self.broad_conn.close()
+            for i in self.channels: self.channels[i].close()
             self.connected = False
             return reply
 
@@ -29,14 +36,14 @@ class Client:
         assert self.connected, "not connected to the server"
         self.conn.sendall(pickle.dumps({'command': 'KILL'}))
         self.conn.close()
-        self.broad_conn.close()
+        for i in self.channels: self.channels[i].close()
         self.connected = False
 
     def exit(self):
         if self.connected:
             self.conn.sendall(pickle.dumps({'command': 'EXIT'}))
             self.conn.close()
-            self.broad_conn.close()
+            for i in self.channels: self.channels[i].close()
             self.connected = False
     
     def connect(self):
@@ -45,22 +52,24 @@ class Client:
         self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-        self.broad_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.broad_conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         if self.verbose: 
             print('connecting to host')
         try:
             self.conn.connect((self.host, self.port))
-            self.broad_conn.connect((self.host, self.broadcast_port))
-            if self.verbose: 
-                print('connected!')
+            if self.verbose: print('connected!')
             self.connected = True
         except ConnectionRefusedError:
             self.connected = False
             self.conn.close()
-            self.broad_conn.close()
+            for i in self.channels: self.channels[i].close()
             raise ConnectionRefusedError
         
+    def new_channel(self, name):
+        conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        conn.connect((self.host, self.broadcast_port))
+        self.channels[name] = conn
+
     def run_command(self, command, args):
         assert self.connected, "not connected to the server"
         args['command'] = command
@@ -72,7 +81,7 @@ class Client:
         else:
             if self.verbose: print('server does not appear to be running. closing connection')
             self.conn.close()
-            self.broad_conn.close()
+            for i in self.channels: self.channels[i].close()
             self.connected = False
             return reply   
 
