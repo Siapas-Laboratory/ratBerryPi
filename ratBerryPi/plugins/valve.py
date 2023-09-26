@@ -12,6 +12,7 @@ class Valve(BasePlugin):
         self.valvePin.value = False
         self.is_open = not self.NC
 
+    @property
     def is_open(self):
         if self.NC:
             return self.valvePin.value
