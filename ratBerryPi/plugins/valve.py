@@ -10,7 +10,7 @@ class Valve(BasePlugin):
         self.NC = NC
         self.valvePin = config_output(valvePin)
         self.valvePin.value = False
-        
+
     @property
     def is_open(self):
         if self.NC:
@@ -27,7 +27,7 @@ class Valve(BasePlugin):
             time.sleep(.05) # max response time for the valves is 20 ms
 
     def close(self):
-        if self.is_open():
+        if self.is_open:
             if self.NC:
                 self.valvePin.value = False
             else:
