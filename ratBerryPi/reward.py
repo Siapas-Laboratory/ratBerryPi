@@ -353,10 +353,11 @@ class RewardInterface:
                     if not self.pumps[i].at_max_pos:
                         if not self.pumps[i].enabled:
                             self.pumps[i].enable()
-                            if hasattr(self.pumps[i], 'fillValve'):
+                        if hasattr(self.pumps[i], 'fillValve'):
+                            if not self.pumps[i].fillValve.is_open:
                                 self.pumps[i].fillValve.open()
-                            else:
-                                logging.warning(f"{i} has no specified fill valve")
+                        else:
+                            logging.warning(f"{i} has no specified fill valve")
                         self.pumps[i].single_step(direction = 'backward')
                     else:
                         if hasattr(self.pumps[i], 'fillValve'):
