@@ -52,11 +52,13 @@ class Server:
                 self.waiting = True
                 self.reward_interface.record()
                 while self.waiting:
-                    data = self.conn.recv(1024) # receive the data (blocking)
-                    if not data:
-                        self.waiting = False
-                    else:
-                        self.handle_request(data)
+                    ready = select.select([self.conn], [], [], 0.5)
+                    if ready[0]:
+                        data = self.conn.recv(1024)
+                        if not data:
+                            self.waiting = False
+                        else:
+                            self.handle_request(data)
                 self.conn.close()
                 self.conn = None
                 self.reward_interface.save()
@@ -158,30 +160,29 @@ class Server:
         conn: socket.socket
             socket for sending and receiving data
         """
-        conn.setblocking(0) #gurantees conn.recv will never block indefinitely
-        ready = select.select([conn], [], [], .5) # wait untill data is available on conn or timeout
-        if ready[0]: # if data is available
-            try:
-                # receive the request from the client
-                data = conn.recv(1024).decode()
-            except socket.error as e:
-                if e.errno != errno.ECONNRESET:
-                    raise e
-                return
-        else: # otherwise close the connection
-            conn.close()
-            return    
-        if not data: # if the client left close the connection
-            conn.close()
-            return
-        else: # otherwise handle the request
-            try:
-                reply = pickle.dumps(eval(f"self.reward_interface.{data}"))
-            except AttributeError as e:
-                logging.debug(e)
-                reply = f'invalid request'.encode()
-            finally:
-                conn.sendall(reply)       
+        conn.setblocking(0)
+        while self.on:
+            ready = select.select([conn], [], [], .5) # wait until data is available on conn or timeout
+            if ready[0]:
+                try:
+                    # receive the request from the client
+                    data = conn.recv(1024)
+                except socket.error as e:
+                    if e.errno != errno.ECONNRESET:
+                        raise e
+                    return
+                if not data: # if the client left close the connection
+                    conn.close()
+                    return
+                else: # otherwise handle the request
+                    try:
+                        data = data.decode()
+                        reply = pickle.dumps(eval(f"self.reward_interface.{data}"))
+                    except AttributeError as e:
+                        logging.debug(e)
+                        reply = f'invalid request'.encode()
+                    finally:
+                        conn.sendall(reply)       
 
     def shutdown(self):
         """

@@ -11,30 +11,32 @@ class Client:
         self.connected = False
         self.status = {}
 
-    def get(self, req):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
-            conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            conn.connect((self.host, self.broadcast_port))
-            req = req.encode()
-            conn.sendall(req)
-            reply = conn.recv(1024)
-            if reply:
-                return pickle.loads(reply)
-            else:
-                if self.verbose: print('server does not appear to be running. closing connection')
-                self.connected = False
-                return reply
+    def get(self, req):         
+        req = req.encode()
+        self.broad_conn.sendall(req)
+        reply = self.broad_conn.recv(1024)
+        if reply:
+            return pickle.loads(reply)
+        else:
+            if self.verbose: 
+                print('server does not appear to be running. closing connection')
+            self.conn.close()
+            self.broad_conn.close()
+            self.connected = False
+            return reply
 
     def kill(self):
         assert self.connected, "not connected to the server"
         self.conn.sendall(pickle.dumps({'command': 'KILL'}))
         self.conn.close()
+        self.broad_conn.close()
         self.connected = False
 
     def exit(self):
         if self.connected:
             self.conn.sendall(pickle.dumps({'command': 'EXIT'}))
             self.conn.close()
+            self.broad_conn.close()
             self.connected = False
     
     def connect(self):
@@ -42,14 +44,21 @@ class Client:
             self.exit()
         self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        if self.verbose: print('connecting to host')
+
+        self.broad_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.broad_conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if self.verbose: 
+            print('connecting to host')
         try:
             self.conn.connect((self.host, self.port))
-            if self.verbose: print('connected!')
+            self.broad_conn.connect((self.host, self.port))
+            if self.verbose: 
+                print('connected!')
             self.connected = True
         except ConnectionRefusedError:
             self.connected = False
             self.conn.close()
+            self.broad_conn.close()
             raise ConnectionRefusedError
         
     def run_command(self, command, args):
@@ -63,6 +72,7 @@ class Client:
         else:
             if self.verbose: print('server does not appear to be running. closing connection')
             self.conn.close()
+            self.broad_conn.close()
             self.connected = False
             return reply   
 
