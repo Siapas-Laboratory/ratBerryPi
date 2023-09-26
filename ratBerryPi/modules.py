@@ -31,12 +31,14 @@ class RewardModule:
                 if self.valve: 
                     self.valve.open()
                 self.pump.reserve(force = force)
+                if hasattr(self.pump, 'fillValve'):
+                    self.pump.fillValve.close()
                 self.pump.move(amount, force = force, direction = 'forward', pre_reserved = True, unreserve = True)
                 if self.valve:
                     time.sleep(post_delay)
                     self.valve.close()
         else:
-            self.pump_thread = PumpThread(self.pump, amount, lick_triggered, 
+            self.pump_thread = PumpThread(self.pump, amount, lick_triggered, close_fill = True,
                                             valve = self.valve, direction = 'forward', 
                                             parent = self, force = force, post_delay = post_delay)
             self.pump_thread.start()

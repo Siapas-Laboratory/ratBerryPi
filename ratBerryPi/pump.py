@@ -358,7 +358,7 @@ class Pump:
 
 
 class PumpThread(threading.Thread):
-    def __init__(self, pump, amount, triggered, valve = None, direction = 'forward', 
+    def __init__(self, pump, amount, triggered, valve = None, direction = 'forward', close_fill = False, 
                  parent = None, force = False, post_delay = 1, stepType = None):
         super(PumpThread, self).__init__()
         self.parent = parent
@@ -372,6 +372,7 @@ class PumpThread(threading.Thread):
         self.force = force
         self.post_delay = post_delay
         self.stepType = stepType if stepType else self.pump.stepType
+        self.close_fill = close_fill
         if self.triggered:
             assert self.parent, 'must specify parent triggered mode'
             try:
@@ -383,6 +384,8 @@ class PumpThread(threading.Thread):
         # try to reserve the pump before spawning the thread
         # so we can throw an error if necessary
         self.pump.reserve(force = self.force, stepType = self.stepType)
+        if self.close_fill and hasattr(self.pump, "fillValve"):
+            self.pump.fillValve.close()
         # pre-emptively check availability
         if not self.force and (not self.pump.is_available(self.amount)):
             raise EndTrackError
