@@ -141,6 +141,8 @@ class Pump:
         if fillValvePin is not None:
             self.fillValve = Valve(f'{self.name}-fillValve', self, fillValvePin)
 
+        self.pump_thread = None
+
     @property
     def direction(self):
         return self._direction
@@ -355,13 +357,18 @@ class Pump:
         with open(self.state_fpath, 'wb') as f:
             pickle.dump(self.position, f)
 
+    def async_pump(self, amount, triggered, valve = None, direction = 'forward', 
+                   trigger_source = None, force = False, post_delay = 1, stepType = None):
+        
+        self.pump_thread = Pump.PumpThread(self, amount, triggered, valve, direction,
+                                           trigger_source, force, post_delay, stepType)
 
 
 class PumpThread(threading.Thread):
-    def __init__(self, pump, amount, triggered, valve = None, direction = 'forward', close_fill = False, 
-                 parent = None, force = False, post_delay = 1, stepType = None):
+    def __init__(self, pump, amount, triggered, valve = None, direction = 'forward', close_fill = False,
+                 trigger_source = None, force = False, post_delay = 1, stepType = None):
         super(PumpThread, self).__init__()
-        self.parent = parent
+        self.trigger_source = trigger_source
         self.valve = valve
         self.pump = pump
         self.amount = amount
@@ -374,11 +381,12 @@ class PumpThread(threading.Thread):
         self.stepType = stepType if stepType else self.pump.stepType
         self.close_fill = close_fill
         if self.triggered:
-            assert self.parent, 'must specify parent triggered mode'
+            assert self.trigger_source, 'must specify trigger_source triggered mode'
             try:
-                _ = self.parent.pump_trigger
+                _ = self.trigger_source.pump_trigger
+                self.trigger_val = False
             except AttributeError:
-                raise AttributeError('must specify property pump_trigger in parent for triggered mode')
+                raise AttributeError('must specify property pump_trigger in trigger_source for triggered mode')
             
     def start(self):
         # try to reserve the pump before spawning the thread
@@ -420,14 +428,13 @@ class PumpThread(threading.Thread):
         self.pump.disable() # disable the pump until we get a trigger
         os.nice(19) # give priority to this thread
         while (step_count<steps) and self.running:
-            try:
-                self.pump.single_step(self.direction)
-                step_count += 1
-            except EndTrackError:
-                self.status = -1
-                break
-            except PumpNotEnabled:
-                pass
+            if self.trigger_val:
+                try:
+                    self.pump.single_step(self.direction)
+                    step_count += 1
+                except EndTrackError:
+                    self.status = -1
+                    break
         self.running = False
         self.pump_trigger_thread.join()
         if was_enabled:
@@ -438,14 +445,16 @@ class PumpThread(threading.Thread):
     def trigger_pump(self):
         prev_trigger_value = False
         while self.running:
-            current_trigger_value = self.parent.pump_trigger
+            current_trigger_value = self.trigger_source.pump_trigger
             if prev_trigger_value != current_trigger_value:
                 if current_trigger_value:
-                    if self.pump.verbose: logging.info('pump trigger on')
-                    self.pump.enable()
+                    if self.pump.verbose: 
+                        logging.info('pump trigger on')
+                    self.trigger_val = True
                 else:
-                    if self.pump.verbose: logging.info('pump trigger off')
-                    self.pump.disable()
+                    if self.pump.verbose: 
+                        logging.info('pump trigger off')
+                    self.trigger_val = False
                 prev_trigger_value = current_trigger_value
             time.sleep(.001)
 
