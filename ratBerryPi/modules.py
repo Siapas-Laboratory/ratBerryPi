@@ -42,7 +42,7 @@ class RewardModule:
         else:
             self.pump_thread = PumpThread(self.pump, amount, lick_triggered, close_fill = True,
                                             valve = self.valve, direction = 'forward', 
-                                            parent = self, force = force, post_delay = post_delay)
+                                            trigger_source = self, force = force, post_delay = post_delay)
             self.pump_thread.start()
 
     def fill_line(self, amount = None, pre_reserved = False, unreserve = False, refill = True):
