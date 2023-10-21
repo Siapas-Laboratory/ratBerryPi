@@ -83,7 +83,7 @@ class RewardInterface:
     fill_lines(amounts)
     record(reset = True)
     save()
-    trigger_reward(module, amount, force = False, lick_triggered = False)
+    trigger_reward(module, amount, force = False, triggered = False)
     toggle_auto_fill(on)
     change_syringe(syringeType, all = False, module = None, pump=None)
     reset_licks(module = None, lickometer = None)
@@ -93,7 +93,7 @@ class RewardInterface:
 
     """
 
-    def __init__(self, config_file = Path(__file__).parent/"default_config.yaml", load_defaults = True):
+    def __init__(self, config_file = Path(__file__).parent/"default_config.yaml", load_defaults:bool = True):
         """
         Constructs the reward interface from the config file
 
@@ -105,6 +105,8 @@ class RewardInterface:
             reward_thresh: int
                 the number of licks within a lick burst before the animal
                 starts receiving reward when using the lick-triggered reward mode
+            load_defaults: bool
+                flag to automatically load all default modules
         
         """
 
@@ -142,6 +144,9 @@ class RewardInterface:
         self.log = []
         
         if load_defaults:
+            # TODO: it could be worth coming up with a more general framework for loading modules
+            # perhaps define an abstract method in the base RewardModule class that must be overwritten
+            # with a function for the module to load itself from entries in the config file
             self.load_default_modules()
 
         self.auto_fill = False
@@ -206,9 +211,6 @@ class RewardInterface:
 
         """
 
-        #TODO: clean up this function a bit
-        #TODO: check availability ahead of time
-
         # temporarily turn off auto fill
         afill_was_on = self.auto_fill
         self.toggle_auto_fill(False)
@@ -238,6 +240,16 @@ class RewardInterface:
             res_amounts = res_amount
         else:
             raise TypeError(f"invalid input of type {type(res_amount)} for argument 'res_amount'")
+        
+        # TODO: this portion needs to be tested
+        # # check if there is enough fluid in the syringes to prime the lines
+        # for p in pumps:
+        #     amt = res_amounts[p]
+        #     for m,v in prime_amounts.items():
+        #         if m.pump == p:
+        #             amt += v
+        #     if not p.is_available(amt):
+        #         raise Exception("Not enough fluid to prime the lines")
 
         # make sure all valves are closed before starting
         for m in self.modules:
@@ -312,6 +324,11 @@ class RewardInterface:
         save the logs
         """
 
+        #TODO: should consider  using python's logging library directly for all logging
+        # currently the only real reason why plugins take as an argument their parent class
+        # is so we can access a common log list from the reward interface object but with 
+        # the logging module this would  not be necessary
+
         df = pd.DataFrame(self.log)
         df = df.sort_values('time')
         fname = datetime.strftime(datetime.now(), "%Y_%m_%d_%H_%M_%S.csv")
@@ -321,7 +338,7 @@ class RewardInterface:
         logging.info('saved!')
         self.recording = False
 
-    def trigger_reward(self, module, amount, force = False, lick_triggered = False, sync = False, post_delay = 2):
+    def trigger_reward(self, module, amount:float, force:bool = False, triggered:bool = False, sync:bool = False, post_delay:float = 2):
         """
         trigger reward delivery on a provided reward module
 
@@ -334,11 +351,20 @@ class RewardInterface:
                 whether or not to force reward delivery even if the pump is in use.
                 Note, this will not force reward delivery if the pump carriage sled
                 is at the end of the track
-            lick_triggered: bool
-                whether or not to deliver the reward in a lick-triggered manner. 
+            triggered: bool
+                whether or not to deliver the reward in a lick-triggered manner.
+            sync: bool
+                flag to deliver reward synchronously. if set to true this function is blocking
+                NOTE: triggered reward delivery is not supported when delivering reward synchronously
+            post_delay: float
+                amount of time in seconds to wait after reward delivery to ensure the entire reward amount
+                is has been delivered. setting this value too small will result in less reward being delievered
+                than requested
+
         """
 
-        self.modules[module].trigger_reward(amount, force = force, lick_triggered = lick_triggered, sync = sync, post_delay = post_delay)
+        self.modules[module].trigger_reward(amount, force = force, triggered = triggered, 
+                                            sync = sync, post_delay = post_delay)
 
     def _fill_syringes(self):
         """
@@ -366,7 +392,7 @@ class RewardInterface:
             # with other tasks that may want to use the pump
             time.sleep(.0005)
 
-    def toggle_auto_fill(self, on):
+    def toggle_auto_fill(self, on:bool):
         """
         turn auto-filling of the syringes on or off
 
@@ -380,7 +406,7 @@ class RewardInterface:
                     self.pumps[i].fillValve.close()
         self.auto_fill = on
 
-    def change_syringe(self, syringeType, all = False, module = None, pump=None):
+    def change_syringe(self, syringeType:str, all:bool = False, module:str = None, pump:str=None):
         """
         change the syringe type either on all pumps or one pump specified by either
         it's name or a module that it is attached to
@@ -409,7 +435,7 @@ class RewardInterface:
         elif module: 
             self.modules[module].pump.change_syringe(syringeType)
     
-    def reset_licks(self, module = None, lickometer = None):
+    def reset_licks(self, module:str = None, lickometer:str = None):
         """
         reset licks to 0 on a given module's lickometer
         or a specified lickometer
@@ -439,7 +465,7 @@ class RewardInterface:
             if isinstance(self.plugins[i], Lickometer):
                 self.plugins[i].reset_licks()
     
-    def toggle_LED(self, on, module = None, led = None):
+    def toggle_LED(self, on:bool, module:str = None, led:str = None):
         """
         toggle a given LED on or off
 
@@ -470,9 +496,9 @@ class RewardInterface:
         else:
             raise NoLED
 
-    def play_tone(self, freq, dur, volume = 1, module = None, speaker = None):
+    def play_tone(self, freq:float, dur:float, volume:float = 1, module:str = None, speaker:str = None):
         """
-        play a sine tone from a given speaker
+        play a sine tone from a specified speaker or the speaker on the specified module
 
         Args:
             freq: float
@@ -484,7 +510,7 @@ class RewardInterface:
                 should be a value from 0 to 1
             module: str
                 the name of the module whose speaker the tone should be played from
-            speaker
+            speaker: str
                 the name of the speaker the tone should be played from
         """
         if module is not None:
@@ -503,7 +529,7 @@ class RewardInterface:
         else:
             raise NoSpeaker
 
-    def toggle_valve(self, module, open_valve):
+    def toggle_valve(self, module:str, open_valve:bool):
         """
         toggle the valve for a given module open or close
 

@@ -71,7 +71,9 @@ class Pump:
         """
         this is a class that allows for the control of a syringe
         pump actuated by a Nema 17 Bipolar stepper motor and driven
-        by a DRV8825 via a raspberry pi.
+        by a DRV8825 via a raspberry pi. NOTE: we are not using RPIMotorLib
+        because we needed some functionality to track the position of the pump
+        but many of the provided functions are heavily inspired by RPIMotorLib
         
         Args:
         -----
@@ -165,18 +167,10 @@ class Pump:
     def syringe(self, syringe):
         assert isinstance(syringe, Syringe), 'syringe must be an instance of Syringe'
         self._syringe = syringe
-
-    @property
-    def stepType(self):
-        return self._stepType
     
     @property
     def position(self):
         return self._position
-    
-    @property
-    def vol_left(self):
-        return math.pi * ((self.syringe.ID/2)**2) * self.position
     
     @position.setter
     def position(self, position):
@@ -187,6 +181,14 @@ class Pump:
         self.at_min_pos = position <= 0
         self.at_max_pos = position >= self.syringe.max_pos
         self._position = position
+
+    @property
+    def vol_left(self):
+        return math.pi * ((self.syringe.ID/2)**2) * self.position
+    
+    @property
+    def stepType(self):
+        return self._stepType
     
     @stepType.setter
     def stepType(self, stepType):
@@ -210,7 +212,18 @@ class Pump:
         mlPerThread = mlPerCm * self.pitch
         return  stepsPerThread/ mlPerThread
 
-    def single_step(self, direction = None, force = False):
+    def single_step(self, direction:str = None, force:bool = False):
+        """
+        send a single pulse to step the pump's motor in a specified direction
+
+        Args:
+        -----
+        direction: str
+            direction to step the motor, either forward or backward
+        force: bool
+            flag to force the motor to step even if the carriage sled is near the end
+            of the track or the pump is not enabled
+        """
         if direction:
             if direction != self.direction:
                 self.direction = direction
@@ -337,6 +350,15 @@ class Pump:
         self.enabled = False
 
     def reserve(self, stepType = None, force = True):
+        """
+        function to reserve the pump. the pump must be reserved
+        while the function move is running. the pump is either reserved
+        within move or pre-reserved. attempting to reserve the pump
+        when it is already reserved will raise an error unless the force flag is raised
+        #TODO: should consider using pythons built in  thread lock functionality instead  
+        
+        """
+          
         if self.in_use:
             if not force:
                 raise PumpInUse
