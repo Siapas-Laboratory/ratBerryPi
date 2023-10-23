@@ -7,7 +7,7 @@
 # Modified by: Nathaniel Nyema
 #######################################
 
-from ratBerryPi.utils import config_output
+from ratBerryPi.utils import config_output, ResourceLocked
 from ratBerryPi.plugins.valve import Valve
 
 import RPi.GPIO as GPIO
@@ -29,8 +29,6 @@ class EndTrackError(Exception):
 class PumpNotEnabled(Exception):
     pass
 
-class PumpInUse(Exception):
-    pass
 
 class Syringe:
     #TODO: determine max_pos for all possible syringes
@@ -145,7 +143,7 @@ class Pump:
         if fillValvePin is not None:
             self.fillValve = Valve(f'{self.name}-fillValve', self, fillValvePin)
 
-        self.pump_thread = None
+        self.thread = None
 
     @property
     def direction(self):
@@ -250,7 +248,7 @@ class Pump:
                 self.position += (self.pitch/self.steps_per_rot[self.stepType])
             self.lock.release()
         else:
-            raise PumpInUse
+            raise ResourceLocked("Pump In Use")
             
     def __flush(self, channel):
         acquired = self.lock.acquire(False)
@@ -279,8 +277,11 @@ class Pump:
             if self.verbose: logging.info("done")
             self.lock.release()
     
-    def is_available(self, amount):
-        return amount < self.vol_left
+    def is_available(self, amount, direction = 'forward'):
+        if direction == 'forward':
+            return amount < self.vol_left
+        else:
+            return amount <= (math.pi * ((self.syringe.ID/2)**2) * self.syringe.max_pos) - self.vol_left
             
     def calculate_steps(self, amount):
         """
@@ -301,7 +302,7 @@ class Pump:
         return n_steps, stepsPermL
 
     def move(self, amount, direction, check_availability = True, 
-             blocking = True, timeout = 1):
+             blocking = False, timeout = -1):
         """
         move a given amount of fluid out of or into the syringe
         
@@ -321,8 +322,8 @@ class Pump:
             if direction:
                 if direction != self.direction:
                     self.direction = direction
-            if self.direction == 'forward' and check_availability:
-                if not self.is_available(amount):
+            if check_availability:
+                if not self.is_available(amount, direction):
                     raise EndTrackError
             was_enabled = self.enabled
             self.enable()
@@ -338,7 +339,7 @@ class Pump:
             self.lock.release()
             if not was_enabled: self.disable()
         else:
-            raise PumpInUse
+            raise ResourceLocked("Pump In Use")
 
     
     def ret_to_max(self, blocking = False, timeout = -1):
@@ -358,15 +359,6 @@ class Pump:
     def disable(self):
         self.enabled = False
 
-    # def reserve(self, blocking = True, timeout = 1):
-    #     acquired = self.lock.acquire(blocking = blocking, 
-    #                                  timeout = timeout)
-    #     if not acquired:
-    #         raise PumpInUse
-    
-    # def unreserve(self):
-    #     self.lock.release()
-
     def change_syringe(self, syringeType):
         """
         convenience function to change the syringe type
@@ -378,17 +370,23 @@ class Pump:
             pickle.dump(self.position, f)
 
     def async_pump(self, amount, triggered, valve = None, direction = 'forward', 
-                   close_fill = False, trigger_source = None, post_delay = 1, lock_timeout = 1):
+                   close_fill = False, trigger_source = None, post_delay = 1):
         
-        self.pump_thread = Pump.PumpThread(self, amount, triggered, valve, direction,
-                                           close_fill, trigger_source, post_delay, lock_timeout)
-        self.pump_thread.start()
+        self.thread = Pump.PumpThread(self, amount, triggered, valve, direction,
+                                           close_fill, trigger_source, post_delay)
+        self.thread.start()
+        # wait to check if the thread started successfully
+        time.sleep(.1)
+        if (not self.thread.running) and (not self.thread.success):
+            try:
+                raise self.thread.err
+            except:
+                print(self.thread.err)
     
     class PumpThread(threading.Thread):
         def __init__(self, pump, amount, triggered, valve = None, 
                     direction = 'forward', close_fill = False,
-                    trigger_source = None, post_delay = 1, 
-                    lock_timeout = 1):
+                    trigger_source = None, post_delay = 1):
             
             super(Pump.PumpThread, self).__init__()
             self.trigger_source = trigger_source
@@ -396,11 +394,12 @@ class Pump:
             self.pump = pump
             self.amount = amount
             self.running = False
+            self.success = False
             self.direction = direction
             self.triggered = triggered
             self.post_delay = post_delay
             self.close_fill = close_fill
-            self.lock_timeout = lock_timeout
+            self.err = None
 
             if self.triggered:
                 assert self.trigger_source, 'must specify trigger_source for triggered mode'
@@ -410,29 +409,30 @@ class Pump:
                 except (AttributeError, NotImplementedError):
                     raise AttributeError('must specify property pump_trigger in trigger_source for triggered mode')
                 
-        def start(self):
-            # try to reserve the pump before spawning the thread
-            # and check the availability of the reward amount
-            # so we can throw an error if necessary
-            pump_reserved = self.pump.lock.acquire(True, self.lock_timeout)
-            valve_reserved = self.valve.lock.acquire(True, self.lock_timeout) if self.valve else True
-            fill_valve_reserved = self.fillValve.lock.acquire(True, self.lock_timeout) if hasattr(self.pump, "fillValve") else True
-
-            if pump_reserved and valve_reserved and fill_valve_reserved:
-                if self.close_fill and hasattr(self.pump, "fillValve"):
-                    self.pump.fillValve.close()
-                # pre-emptively check availability
-                if not self.triggered and (not self.pump.is_available(self.amount)):
-                    raise EndTrackError
-                super(Pump.PumpThread, self).start()
-            else:
-                raise PumpInUse
 
         def run(self):
-            if self.valve: self.valve.open()
+            #pre-reserve resources so we can raise an error it they are in use
+            pump_reserved = self.pump.lock.acquire(False)
+            valve_reserved = self.valve.lock.acquire(False) if self.valve else True
+            fill_valve_reserved = self.pump.fillValve.lock.acquire(False) if hasattr(self.pump, "fillValve") else True
+
+            if not (pump_reserved and valve_reserved and fill_valve_reserved):
+                self.running = False
+                self.err = ResourceLocked("Pump In Use")
+                return
+            
+            # pre-emptively check availability
+            if not self.triggered and (not self.pump.is_available(self.amount, self.direction)):
+                self.running = False
+                self.err = ValueError("the requested amount is more than is available in the syringe")
+                return
+            
             self.running = True
-            if self.triggered:
-                self.triggered_pump()
+
+            if self.close_fill and hasattr(self.pump, "fillValve"):
+                self.pump.fillValve.close()
+            if self.valve: self.valve.open()
+            if self.triggered: self.triggered_pump()
             else:
                 try:
                     self.pump.move(self.amount, self.direction, check_availability = False)
@@ -442,14 +442,21 @@ class Pump:
             if self.valve:
                 time.sleep(self.post_delay)
                 self.valve.close()
+                self.valve.lock.release()
             try:
                 self.pump.lock.release()
+                if hasattr(self.pump, 'fillValve'): self.pump.fillValve.lock.release()
             except RuntimeError: 
                 # just in case the lock has already been released
                 pass
+            self.success = True
 
         def triggered_pump(self):
-            self.pump.lock.release() # unreserve pump so the trigger can handle reservations
+            # release the locks so the trigger can control them
+            self.pump.lock.release()
+            if self.valve: self.valve.lock.release()
+            if hasattr(self.pump, 'fillValve'): self.pump.fillValve.lock.release()
+
             self.pump_trigger_thread = threading.Thread(target = self.trigger_pump)
             self.pump_trigger_thread.start()
             steps, _ = self.pump.calculate_steps(self.amount)
@@ -457,19 +464,30 @@ class Pump:
             was_enabled = self.pump.enabled
             self.pump.enable() # disable the pump until we get a trigger
             os.nice(19) # give priority to this thread
-            while (step_count<steps) and self.running:
-                if self.trigger_val:
-                    try:
-                        self.pump.single_step()
-                        step_count += 1
-                    except EndTrackError:
-                        break
+            try:
+                while (step_count<steps) and self.running:
+                    if self.trigger_val:
+                        self.pump.lock.acquire()
+                        if self.valve: 
+                            self.valve.lock.acquire()
+                            self.valve.open()
+                        if hasattr(self.pump, 'fillValve'): 
+                            self.pump.fillValve.lock.acquire()
+                            self.pump.fillValve.close()
+                        while self.trigger_val and self.running:
+                            self.pump.single_step()
+                            step_count += 1
+                        if self.running:
+                            if self.valve: 
+                                self.valve.close()
+                                self.valve.lock.release()
+                            self.pump.lock.release()
+                            if hasattr(self.pump, 'fillValve'): self.pump.fillValve.lock.release()
+            except EndTrackError:
+                pass
             self.running = False
             self.pump_trigger_thread.join()
-            if was_enabled:
-                self.pump.enable()
-            else:
-                self.pump.disable()
+            if not was_enabled: self.pump.disable()
 
         def trigger_pump(self):
             prev_trigger_value = False
@@ -479,13 +497,11 @@ class Pump:
                     if current_trigger_value:
                         if self.pump.verbose: 
                             logging.info('pump trigger on')
-                        self.pump.lock.acquire()
                         self.trigger_val = True
                     else:
                         if self.pump.verbose: 
                             logging.info('pump trigger off')
                         self.trigger_val = False
-                        self.pump.lock.release()
                     prev_trigger_value = current_trigger_value
                 time.sleep(.001)
 

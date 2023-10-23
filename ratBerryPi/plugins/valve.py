@@ -1,7 +1,7 @@
 from RPi import GPIO
 import time
 from ratBerryPi.plugins.base import BasePlugin
-from ratBerryPi.utils import config_output
+from ratBerryPi.utils import config_output, ResourceLocked
 
 class Valve(BasePlugin):
     def __init__(self, name, parent, valvePin, NC = True):
@@ -19,17 +19,27 @@ class Valve(BasePlugin):
             return not self.valvePin.value
 
     def open(self):
-        if not self.is_open:
-            if self.NC:
-                self.valvePin.value = True
-            else:
-                self.valvePin.value = False
-            time.sleep(.05) # max response time for the valves is 20 ms
+        acquired = self.lock.acquire(False)
+        if acquired:
+            if not self.is_open:
+                if self.NC:
+                    self.valvePin.value = True
+                else:
+                    self.valvePin.value = False
+                time.sleep(.05) # max response time for the valves is 20 ms
+            self.lock.release()
+        else:
+            raise ResourceLocked(f"Valve {self.name} in use")
 
     def close(self):
-        if self.is_open:
-            if self.NC:
-                self.valvePin.value = False
-            else:
-                self.valvePin.value = True
-            time.sleep(.05) # max response time for the valves is 20 ms
+        acquired = self.lock.acquire(False)
+        if acquired:
+            if self.is_open:
+                if self.NC:
+                    self.valvePin.value = False
+                else:
+                    self.valvePin.value = True
+                time.sleep(.05) # max response time for the valves is 20 ms
+            self.lock.release()
+        else:
+            raise ResourceLocked(f"Valve {self.name} in use")

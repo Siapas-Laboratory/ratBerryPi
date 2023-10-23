@@ -1,8 +1,9 @@
-from ratBerryPi.pump import Syringe, Pump, EndTrackError, PumpInUse
+from ratBerryPi.pump import Syringe, Pump, EndTrackError
 from ratBerryPi.plugins.lickometer import Lickometer
 from ratBerryPi.plugins.audio import AudioInterface, Speaker
 from ratBerryPi.plugins.led import LED
 from ratBerryPi.plugins.valve import Valve
+from ratBerryPi.utils import ResourceLocked
 
 import RPi.GPIO as GPIO
 import time
@@ -25,7 +26,7 @@ class RewardModule:
         raise NotImplementedError("The pump_trigger property must be specified for lick triggered reward delivery")
 
     def trigger_reward(self, amount:float, force:bool = False, triggered = False, 
-                       sync = False, post_delay = 1, blocking = True, lock_timeout = 1):
+                       sync = False, post_delay = 1):
         """
         trigger reward delivery
 
@@ -52,13 +53,13 @@ class RewardModule:
                 self.pump.thread.stop()
         elif self.pump.thread:
             if self.pump.thread.running:
-                raise PumpInUse
+                raise ResourceLocked("Pump In Use")
 
         if sync:
             if triggered:
                 raise ValueError("cannot deliver lick-triggered reward synchronously")
             else:
-                acquired = self.acquire_locks(blocking, lock_timeout)
+                acquired = self.acquire_locks()
                 if acquired:
                     self.valve.open() # if make sure the valve is open before delivering reward
                     # make sure the fill valve is closed if the pump has one
@@ -76,11 +77,10 @@ class RewardModule:
                                  valve = self.valve, direction = 'forward',
                                  trigger_source = self, post_delay = post_delay)
 
-    def fill_line(self, amount:float = None, refill:bool = True, 
-                  blocking:bool = True, lock_timeout:float = 1, post_delay:float = 1):
+    def fill_line(self, amount:float = None, refill:bool = True, post_delay:float = 1):
         
         if amount is None: amount = self.dead_volume
-        acquired = self.acquire_locks(blocking, lock_timeout)
+        acquired = self.acquire_locks()
         if acquired:
             while amount>0:
                 self.valve.close()
@@ -109,7 +109,7 @@ class RewardModule:
             # release the locks
             self.release_locks()
 
-    def acquire_locks(self, blocking = True , timeout = 1):
+    def acquire_locks(self):
         """
         pre-acquire locks on shared resources
 
@@ -121,9 +121,9 @@ class RewardModule:
         timeout: float
             timeout period to wait if blocking is true
         """
-        pump_reserved = self.pump.lock.acquire(blocking, timeout) 
-        valve_reserved = self.valve.lock.acquire(blocking, timeout)
-        fill_valve_reserved = self.pump.fillValve.lock.acquire(blocking, timeout) if hasattr(self.pump, 'fillValve') else True 
+        pump_reserved = self.pump.lock.acquire(False) 
+        valve_reserved = self.valve.lock.acquire(False)
+        fill_valve_reserved = self.pump.fillValve.lock.acquire(False) if hasattr(self.pump, 'fillValve') else True 
         return pump_reserved and valve_reserved and fill_valve_reserved
     
     def release_locks(self):

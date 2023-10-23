@@ -1,6 +1,7 @@
 #TODO: consolidate some of these errors
 from ratBerryPi.reward import RewardInterface,NoLickometer, NoLED, NoSpeaker
-from ratBerryPi.pump import EndTrackError, PumpInUse, PumpNotEnabled
+from ratBerryPi.pump import EndTrackError, PumpNotEnabled
+from ratBerryPi.utils import ResourceLocked
 
 import socket
 import threading
@@ -106,22 +107,22 @@ class Server:
                 f(**args)
                 reply = '1'
             except (ValueError, TypeError, AttributeError, KeyError) as e:
-                logging.debug(e)
+                logging.exception(e)
                 reply = '2'
             except NoLickometer as e:
-                logging.debug(e)
+                logging.exception(e)
                 reply = '3'
             except NoLED as e:
-                logging.debug(e)
+                logging.exception(e)
                 reply = '4'
             except NoSpeaker as e:
-                logging.debug(e)
+                logging.exception(e)
                 reply = '5'
-            except PumpInUse as e:
-                logging.debug(e)
+            except ResourceLocked as e:
+                logging.exception(e)
                 reply = '6'
             except EndTrackError as e:
-                logging.debug(e)
+                logging.exception(e)
                 reply = '7'
 
         self.conn.sendall(str.encode(reply))
@@ -196,6 +197,7 @@ class Server:
         if self.broadcast_thread:
             self.broadcast_thread.join()
             self.broadcast_thread = None
+        self.reward_interface.stop()
         self.reward_interface = None
 
     def __del__(self):

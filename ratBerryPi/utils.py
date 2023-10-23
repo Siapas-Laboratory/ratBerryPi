@@ -22,8 +22,10 @@ def config_output(pin):
         p = digitalio.DigitalInOut(getattr(board, f'D{pin}'))
     p.direction = digitalio.Direction.OUTPUT
     return p
+      
 
-
-        
-
-    
+class ResourceLocked(BaseException):
+    def __init__(self, msg):
+        self.message = msg
+    def __str__(self):
+        return self.message

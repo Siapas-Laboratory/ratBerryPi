@@ -389,19 +389,22 @@ class RewardInterface:
                     if not self.pumps[i].at_max_pos:
                         if not self.pumps[i].enabled: 
                             self.pumps[i].enable()
-                        if hasattr(self.pumps[i], 'fillValve'):
-                           self.pumps[i].fillValve.open()
-                        else:
-                            logging.warning(f"{i} has no specified fill valve")
                         try:
+                            for m in self.modules.values():
+                                if m.pump == self.pumps[i]:
+                                    if m.valve: m.valve.close()
+                            if hasattr(self.pumps[i], 'fillValve'):
+                                self.pumps[i].fillValve.open()
+                            else:
+                                logging.warning(f"{i} has no specified fill valve")
                             self.pumps[i].single_step(direction = 'backward')
-                        except PumpInUse:
+                        except ResourceLocked:
                             pass
                     elif hasattr(self.pumps[i], 'fillValve'):
                         self.pumps[i].fillValve.close()
             # this sleep is necessasry to avoid interfering
             # with other tasks that may want to use the pump
-            # time.sleep(.0005)
+            time.sleep(.0005)
 
     def toggle_auto_fill(self, on:bool):
         """
@@ -414,7 +417,10 @@ class RewardInterface:
         if not on:
             for i in self.pumps:
                 if hasattr(self.pumps[i], 'fillValve'):
-                    self.pumps[i].fillValve.close()
+                    try:
+                        self.pumps[i].fillValve.close()
+                    except ResourceLocked:
+                        pass
         self.auto_fill = on
 
     def change_syringe(self, syringeType:str, all:bool = False, module:str = None, pump:str=None):
