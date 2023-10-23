@@ -149,6 +149,7 @@ class RewardInterface:
             # with a function for the module to load itself from entries in the config file
             self.load_default_modules()
 
+        self.on = True
         self.auto_fill = False
         self.auto_fill_thread = threading.Thread(target = self._fill_syringes)
         self.auto_fill_thread.start()
@@ -189,7 +190,7 @@ class RewardInterface:
         """
         self.pumps[pump].calibrate()
 
-    def fill_lines(self, modules, prime_amount = 1, res_amount = None):
+    def fill_lines(self, modules, prime_amount = 1, res_amount = None, blocking = False, timeout = 1):
         """
         fill the lines leading up to the specified reward ports
         with fluid
@@ -252,50 +253,59 @@ class RewardInterface:
         #         raise Exception("Not enough fluid to prime the lines")
 
         # make sure all valves are closed before starting
+
+        lock_statuses = []
         for m in self.modules:
             if hasattr(m, 'valve'):
+                acquired = m.valve.lock.acquire(blocking, timeout)
+                lock_statuses.append(acquired)
                 m.valve.close()
 
         # reserve all pumps
-        for p in pumps: p.reserve()
-        
-        # prime all reservoirs
-        for p, amt in res_amounts.items():
-            logging.info(f"priming reservoir for {p.name}")
+        for p in pumps: 
+            acquired = p.lock.acquire(blocking, timeout)
+            lock_statuses.append(acquired)
             if hasattr(p, 'fillValve'):
-                p.fillValve.open()
-            p.move(amt, direction = 'forward', pre_reserved = True, unreserve = False)
-            if hasattr(p, 'fillValve'):
-                p.fillValve.close()
+                p.fillValve.lock.acquire(blocking, timeout)      
 
-        # prime all lines
-        for m, amt in prime_amounts.items():
-            logging.info(f'priming line for {m.name}')
-            m.fill_line(amt, pre_reserved = True, unreserve = False, refill = False)
-        
-        # refill the syringes
-        for p in pumps:
-            logging.info(f'refilling syringe on {p.name} with the amount used to prime the lines')
-            if hasattr(p, 'fillValve'):
-                p.fillValve.open()
-                p.ret_to_max(pre_reserved = True, unreserve = False)
-                p.fillValve.close()
-                time.sleep(.1)
+        if all(lock_statuses):
+            # prime all reservoirs
+            for p, amt in res_amounts.items():
+                logging.info(f"priming reservoir for {p.name}")
+                if hasattr(p, 'fillValve'):
+                    p.fillValve.open()
+                p.move(amt, direction = 'forward')
+                if hasattr(p, 'fillValve'):
+                    p.fillValve.close()
 
-        # fill the lines for all modules
-        for m in modules:
-            logging.info(f'filling line for {m.name}')
-            m.fill_line(pre_reserved = True, unreserve = False)
+            # prime all lines
+            for m, amt in prime_amounts.items():
+                logging.info(f'priming line for {m.name}')
+                m.fill_line(amt, refill = False)
+            
+            # refill the syringes
+            for p in pumps:
+                logging.info(f'refilling syringe on {p.name} with the amount used to prime the lines')
+                if hasattr(p, 'fillValve'):
+                    p.fillValve.open()
+                    p.ret_to_max()
+                    p.fillValve.close()
+                    time.sleep(.1)
 
-        # refill the syringes
-        for p in pumps:
-            logging.info(f'refilling syringe on {p.name}')
-            if hasattr(p, 'fillValve'):
-                p.fillValve.open()
-                p.ret_to_max(pre_reserved = True, unreserve = False)
-                p.fillValve.close()
-                time.sleep(.1)
-            p.unreserve()
+            # fill the lines for all modules
+            for m in modules:
+                logging.info(f'filling line for {m.name}')
+                m.fill_line()
+
+            # refill the syringes
+            for p in pumps:
+                logging.info(f'refilling syringe on {p.name}')
+                if hasattr(p, 'fillValve'):
+                    p.fillValve.open()
+                    p.ret_to_max()
+                    p.fillValve.close()
+                    time.sleep(.1)
+                p.lock.release()
 
         self.toggle_auto_fill(afill_was_on) # turn autofill back on if it was on
         
@@ -373,24 +383,25 @@ class RewardInterface:
         directly. Use toggle_auto_fill to turn on auto-filling
         """
 
-        while True:
-            for i in self.pumps:
-                if (not self.pumps[i].in_use) and self.auto_fill:
+        while self.on:
+            if self.auto_fill:
+                for i in self.pumps:
                     if not self.pumps[i].at_max_pos:
-                        if not self.pumps[i].enabled:
+                        if not self.pumps[i].enabled: 
                             self.pumps[i].enable()
                         if hasattr(self.pumps[i], 'fillValve'):
-                            if not self.pumps[i].fillValve.is_open:
-                                self.pumps[i].fillValve.open()
+                           self.pumps[i].fillValve.open()
                         else:
                             logging.warning(f"{i} has no specified fill valve")
-                        self.pumps[i].single_step(direction = 'backward')
-                    else:
-                        if hasattr(self.pumps[i], 'fillValve'):
-                            self.pumps[i].fillValve.close()
+                        try:
+                            self.pumps[i].single_step(direction = 'backward')
+                        except PumpInUse:
+                            pass
+                    elif hasattr(self.pumps[i], 'fillValve'):
+                        self.pumps[i].fillValve.close()
             # this sleep is necessasry to avoid interfering
             # with other tasks that may want to use the pump
-            time.sleep(.0005)
+            # time.sleep(.0005)
 
     def toggle_auto_fill(self, on:bool):
         """
@@ -544,6 +555,8 @@ class RewardInterface:
                 self.modules[module].valve.open()
             else:
                 self.modules[module].valve.close()
-    
-    def __del__(self):
+
+    def stop(self):
+        self.on = False
+        self.auto_fill_thread.join()
         GPIO.cleanup()
