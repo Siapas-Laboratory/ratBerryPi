@@ -1,9 +1,9 @@
 from RPi import GPIO
 import time
-from ratBerryPi.plugins.base import BasePlugin
-from ratBerryPi.utils import config_output, ResourceLocked
+from ratBerryPi.resources.base import BaseResource, ResourceLocked
+from ratBerryPi.utils import config_output
 
-class Valve(BasePlugin):
+class Valve(BaseResource):
     def __init__(self, name, parent, valvePin, NC = True):
         super(Valve, self).__init__(name, parent)
         self.valvePin = valvePin

@@ -1,9 +1,6 @@
-from ratBerryPi.pump import Syringe, Pump
-from ratBerryPi.plugins.lickometer import Lickometer
-from ratBerryPi.plugins.audio import AudioInterface, Speaker
-from ratBerryPi.plugins.led import LED
-from ratBerryPi.plugins.valve import Valve
-from ratBerryPi.modules import *
+from ratBerryPi.interfaces.base_interface import BaseInterface
+from ratBerryPi.resources import Syringe, Pump, Lickometer, AudioInterface, Speaker, LED, Valve, ResourceLocked
+from ratBerryPi.interfaces.reward.modules import *
 
 import RPi.GPIO as GPIO
 import yaml
@@ -70,7 +67,7 @@ class NoLickometer(Exception):
 class NoFillValve(Exception):
     pass
 
-class RewardInterface:
+class RewardInterface(BaseInterface):
     """
     An interface for controlling the reward module
 

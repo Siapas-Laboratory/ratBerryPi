@@ -7,8 +7,9 @@
 # Modified by: Nathaniel Nyema
 #######################################
 
-from ratBerryPi.utils import config_output, ResourceLocked
-from ratBerryPi.plugins.valve import Valve
+from ratBerryPi.resources.base import BaseResource, ResourceLocked
+from ratBerryPi.utils import config_output
+from ratBerryPi.resources import Valve
 
 import RPi.GPIO as GPIO
 import time
@@ -33,7 +34,7 @@ class PumpNotEnabled(Exception):
     pass
 
 
-class Syringe:
+class Syringe(BaseResource):
     #TODO: determine max_pos for all possible syringes
     syringeTypeDict = {'BD1mL':     {'ID': 0.478, 'max_pos': 0}, 
                        'BD5mL':     {'ID': 1.207, 'max_pos': 4.7},
@@ -51,7 +52,7 @@ class Syringe:
             raise ValueError(msg)
 
 
-class Pump:
+class Pump(BaseResource):
 
     step_type_configs = {'Full': (False, False, False),
                          'Half': (True,  False, False),
@@ -92,8 +93,6 @@ class Pump:
             tolerance: float
                 the allowable error in the amount of fluid delivered in mL
         """
-
-        self.lock = threading.RLock()
         self.name = name
         self.syringe = syringe
 
@@ -111,7 +110,7 @@ class Pump:
         self.enabled = False
         self.in_use = False
         self.verbose = verbose
-        state_dir = "~/.ratBerryPi/pump_states"
+        state_dir = os.path.join(os.path.expanduser('~'), ".ratBerryPi", "pump_states")
         os.makedirs(state_dir, exist_ok = True)
         self.state_fpath = os.path.join(state_dir, f"{self.name}.pckl")
 

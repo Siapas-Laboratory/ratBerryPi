@@ -1,5 +1,5 @@
 import socket
-import pickle
+import json
 
 
 class Client:
@@ -21,9 +21,9 @@ class Client:
             conn.connect((self.host, self.broadcast_port))
         req = req.encode()
         conn.sendall(req)
-        reply = conn.recv(1024)
+        reply = conn.recv(1024).decode()
         if not channel: conn.close()
-        if reply: return pickle.loads(reply)
+        if reply: return json.loads(reply)
         else:
             if self.verbose: 
                 print('server does not appear to be running. closing connection')
@@ -34,14 +34,14 @@ class Client:
 
     def kill(self):
         assert self.connected, "not connected to the server"
-        self.conn.sendall(pickle.dumps({'command': 'KILL'}))
+        self.conn.sendall(json.dumps({'command': 'KILL'}).encode())
         self.conn.close()
         for i in self.channels: self.channels[i].close()
         self.connected = False
 
     def exit(self):
         if self.connected:
-            self.conn.sendall(pickle.dumps({'command': 'EXIT'}))
+            self.conn.sendall(json.dumps({'command': 'EXIT'}).encode())
             self.conn.close()
             for i in self.channels: self.channels[i].close()
             self.connected = False
@@ -70,10 +70,10 @@ class Client:
         conn.connect((self.host, self.broadcast_port))
         self.channels[name] = conn
 
-    def run_command(self, command, args):
+    def run_command(self, command, args = {}):
         assert self.connected, "not connected to the server"
         args['command'] = command
-        command = pickle.dumps(args)
+        command = json.dumps(args).encode()
         self.conn.sendall(command)
         reply = self.conn.recv(1024)
         if reply:

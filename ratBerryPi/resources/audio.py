@@ -7,14 +7,13 @@
 
 import numpy as np
 import pyaudio as pa  # sudo apt-get install python{,3}-pyaudio
-import RPi.GPIO as GPIO
-from ratBerryPi.plugins.base import BasePlugin
+from ratBerryPi.resources.base import BaseResource
 from ratBerryPi.utils import config_output
 
 
 
 
-class AudioInterface:
+class AudioInterface(BaseResource):
     def __init__(self, fs = 22050):
         ## NOTE: for higher frequency sounds need a higher sampling rate
         # to obey Nyquist sampling theorem. look into limits on the amplifier and
@@ -75,7 +74,7 @@ class AudioInterface:
         self.session.terminate()
 
         
-class Speaker(BasePlugin):
+class Speaker(BaseResource):
     def __init__(self, name, parent, audio_interface, SDPin):
         super(Speaker, self).__init__(name, parent)
         self.name = name

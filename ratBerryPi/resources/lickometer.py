@@ -2,12 +2,11 @@ from datetime import datetime
 import RPi.GPIO as GPIO
 import threading
 import time
-import os
-from ratBerryPi.plugins.base import BasePlugin
+from ratBerryPi.resources.base import BaseResource
 from ratBerryPi.utils import config_output
 
 
-class Lickometer(BasePlugin):
+class Lickometer(BaseResource):
     def __init__(self, name, parent, lickPin, on:threading.Event, burst_thresh = 0.5, update_interval = .01, outpin = None):
 
         super(Lickometer, self).__init__(name, parent)

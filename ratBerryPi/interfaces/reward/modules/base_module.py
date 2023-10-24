@@ -1,16 +1,10 @@
-from ratBerryPi.pump import Syringe, Pump, EndTrackError
-from ratBerryPi.plugins.lickometer import Lickometer
-from ratBerryPi.plugins.audio import AudioInterface, Speaker
-from ratBerryPi.plugins.led import LED
-from ratBerryPi.plugins.valve import Valve
-from ratBerryPi.utils import ResourceLocked
+from ratBerryPi.resources import Pump, Valve
+from ratBerryPi.resources.base import ResourceLocked
 
 import RPi.GPIO as GPIO
 import time
-import logging
-import math
 
-class RewardModule:
+class BaseRewardModule:
     """
     a base class for all reward modules
     any class defining a reward module should inherit from this class
@@ -138,29 +132,3 @@ class RewardModule:
 
     def __del__(self):
         GPIO.cleanup()
-
-
-class DefaultModule(RewardModule):
-    """
-    class defining the default reward delivery module
-    this module is equipped with a lickometer, speaker, led
-    and optionally a valve
-    """
-
-    def __init__(self, name, pump, lickometer:Lickometer, speaker:Speaker, led:LED,
-                  valve:Valve, dead_volume:float = 1, reward_thresh:int = 3):
-        
-        """
-        
-        """
-
-        super().__init__(name, pump, valve, dead_volume)
-        self.reward_thresh = reward_thresh
-        self.reward_thread = None
-        self.lickometer =  lickometer
-        self.speaker = speaker
-        self.LED = led
-
-    @property
-    def pump_trigger(self):
-        return self.lickometer.in_burst and (self.lickometer.burst_lick>self.reward_thresh)

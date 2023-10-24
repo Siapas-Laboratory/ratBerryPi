@@ -1,20 +1,17 @@
-#TODO: consolidate some of these errors
-from ratBerryPi.reward import RewardInterface,NoLickometer, NoLED, NoSpeaker
-from ratBerryPi.pump import EndTrackError, PumpNotEnabled
-from ratBerryPi.utils import ResourceLocked
+from ratBerryPi.interfaces.reward.interface import RewardInterface
 
 import socket
 import threading
 import select
 import errno
-import pickle
+import json
 import logging
 from datetime import datetime
 import os
 
 
 class Server:
-    def __init__(self, port, broadcast_port):
+    def __init__(self, port:int, broadcast_port:int, on:threading.Event = None, interface = None):
 
         self.port = port
         self.broadcast_port = broadcast_port
@@ -22,11 +19,12 @@ class Server:
         # set some default values
         self.conn = None
         self.waiting = False
-        self.on = threading.Event()
+        self.on = threading.Event() if not on else on
         self.broadcast_thread = None
 
         # create an instance of the reward interface
-        self.reward_interface =  RewardInterface(on = self.on)
+        self.interface =  RewardInterface(on = self.on) if not interface else interface()
+        self.interface.start()
 
 
     def start(self):
@@ -50,7 +48,7 @@ class Server:
                 sock.close()
                 logging.info('waiting for data')
                 self.waiting = True
-                self.reward_interface.record()
+                self.interface.record()
                 while self.waiting:
                     ready = select.select([self.conn], [], [], 0.5)
                     if ready[0]:
@@ -61,7 +59,7 @@ class Server:
                             self.handle_request(data)
                 self.conn.close()
                 self.conn = None
-                self.reward_interface.save()
+                self.interface.save()
 
             except socket.timeout:
                 pass
@@ -85,7 +83,7 @@ class Server:
             utf-8 encoded request sent to the server 
         """
 
-        args = pickle.loads(data)
+        args = json.loads(data)
         command = args.pop('command')
         if command == "EXIT":
             logging.info("client disconnected")
@@ -100,27 +98,12 @@ class Server:
             reply = '1'
         else:
             try:
-                f = getattr(self.reward_interface, command)
+                f = getattr(self.interface, command)
                 f(**args)
                 reply = '1'
-            except (ValueError, TypeError, AttributeError, KeyError) as e:
+            except Exception as e:
                 logging.exception(e)
                 reply = '2'
-            except NoLickometer as e:
-                logging.exception(e)
-                reply = '3'
-            except NoLED as e:
-                logging.exception(e)
-                reply = '4'
-            except NoSpeaker as e:
-                logging.exception(e)
-                reply = '5'
-            except ResourceLocked as e:
-                logging.exception(e)
-                reply = '6'
-            except EndTrackError as e:
-                logging.exception(e)
-                reply = '7'
 
         self.conn.sendall(str.encode(reply))
         logging.info('reply sent')
@@ -177,7 +160,7 @@ class Server:
             else: # otherwise handle the request
                 try:
                     data = data.decode()
-                    reply = pickle.dumps(eval(f"self.reward_interface.{data}"))
+                    reply = json.dumps(eval(f"self.interface.{data}")).encode()
                 except AttributeError as e:
                     logging.debug(e)
                     reply = f'invalid request'.encode()
@@ -197,8 +180,8 @@ class Server:
         if self.broadcast_thread:
             self.broadcast_thread.join()
             self.broadcast_thread = None
-        self.reward_interface.stop()
-        self.reward_interface = None
+        self.interface.stop()
+        self.interface = None
 
     def __del__(self):
         if self.on.is_set(): self.shutdown()

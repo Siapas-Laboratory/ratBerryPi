@@ -1,4 +1,4 @@
-from ratBerryPi.reward import *
+from ratBerryPi.interfaces.reward.interface import RewardInterface
 import time
 
 def run_test(reward_interface, module, amount, delay = 5, n_pulses = 20):
