@@ -18,9 +18,12 @@ import os
 import time
 import pickle
 import logging
-from pathlib import Path
+from enum import Enum
 
-
+#TODO: replace 'forward' and backward with this
+class Direction(Enum):
+    FORWARD=1
+    BACKWARD=2
 
 class EndTrackError(Exception):
     """reached end of track"""
@@ -429,13 +432,12 @@ class Pump:
                 return
             
             self.running = True
-
-            if self.close_fill and hasattr(self.pump, "fillValve"):
-                self.pump.fillValve.close()
-            if self.valve: self.valve.open()
             if self.triggered: self.triggered_pump()
             else:
                 try:
+                    if self.close_fill and hasattr(self.pump, "fillValve"):
+                        self.pump.fillValve.close()
+                    if self.valve: self.valve.open()
                     self.pump.move(self.amount, self.direction, check_availability = False)
                     self.running = False
                 except EndTrackError:
@@ -475,10 +477,10 @@ class Pump:
                         if hasattr(self.pump, 'fillValve'): 
                             self.pump.fillValve.lock.acquire()
                             self.pump.fillValve.close()
-                        while self.trigger_val and self.running:
-                            self.pump.single_step()
+                        while self.trigger_val and (step_count<steps):
+                            self.pump.single_step(direction = self.direction)
                             step_count += 1
-                        if self.running:
+                        if step_count < steps:
                             if self.valve: 
                                 self.valve.close()
                                 self.valve.lock.release()
