@@ -8,7 +8,7 @@ from ratBerryPi.utils import config_output
 
 
 class Lickometer(BasePlugin):
-    def __init__(self, name, parent, lickPin, burst_thresh = 0.5, update_interval = .01, outpin = None):
+    def __init__(self, name, parent, lickPin, on:threading.Event, burst_thresh = 0.5, update_interval = .01, outpin = None):
 
         super(Lickometer, self).__init__(name, parent)
         self.name = name
@@ -18,7 +18,7 @@ class Lickometer(BasePlugin):
         self.burst_lick = 0
         self.last_lick = datetime.now()
         self.burst_thresh = burst_thresh
-        self.on = True
+        self.on = on
         self.update_interval = update_interval
         self.parent = parent
         self.outpin = outpin
@@ -53,7 +53,7 @@ class Lickometer(BasePlugin):
         self.licks = 0
 
     def monitor_bursts(self):
-        while self.on:
+        while self.on.is_set():
             if (datetime.now() - self.last_lick).total_seconds()>self.burst_thresh:
                 self.burst_lick = 0
                 self.in_burst = False
@@ -62,5 +62,5 @@ class Lickometer(BasePlugin):
             time.sleep(self.update_interval)
             
     def __del__(self):
-        self.on = False
+        if self.on.is_set(): self.on.clear()
         self.burst_thread.join()

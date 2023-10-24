@@ -368,6 +368,7 @@ class Pump:
     def __del__(self):
         with open(self.state_fpath, 'wb') as f:
             pickle.dump(self.position, f)
+        if self.thread:self.thread.stop()
 
     def async_pump(self, amount, triggered, valve = None, direction = 'forward', 
                    close_fill = False, trigger_source = None, post_delay = 1):

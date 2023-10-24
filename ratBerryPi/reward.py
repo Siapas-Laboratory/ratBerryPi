@@ -93,7 +93,7 @@ class RewardInterface:
 
     """
 
-    def __init__(self, config_file = Path(__file__).parent/"default_config.yaml", load_defaults:bool = True):
+    def __init__(self, config_file = Path(__file__).parent/"default_config.yaml", load_defaults:bool = True, on:threading.Event = None):
         """
         Constructs the reward interface from the config file
 
@@ -110,6 +110,9 @@ class RewardInterface:
         
         """
 
+        self.on = threading.Event() if not on else on
+        if not on.is_set():
+            self.on.set()
         GPIO.setmode(GPIO.BCM)
 
         with open(config_file, 'r') as f:
@@ -149,7 +152,6 @@ class RewardInterface:
             # with a function for the module to load itself from entries in the config file
             self.load_default_modules()
 
-        self.on = True
         self.auto_fill = False
         self.auto_fill_thread = threading.Thread(target = self._fill_syringes)
         self.auto_fill_thread.start()
@@ -173,7 +175,7 @@ class RewardInterface:
                 if port_pins['LEDPin']:
                     args['led'] = LED(f"{i}-LED", self, port_pins["LEDPin"])
                 if port_pins['lickPin']:
-                    args['lickometer'] = Lickometer(f"{i}-lickometer", self, port_pins["lickPin"])
+                    args['lickometer'] = Lickometer(f"{i}-lickometer", self, port_pins["lickPin"], self.on)
                 if port_pins['SDPin']:
                     args['speaker'] = Speaker(f"{i}-speaker", self, self.audio_interface, port_pins["SDPin"])
                 
@@ -383,16 +385,18 @@ class RewardInterface:
         directly. Use toggle_auto_fill to turn on auto-filling
         """
 
-        while self.on:
+        while self.on.is_set():
             if self.auto_fill:
                 for i in self.pumps:
                     if not self.pumps[i].at_max_pos:
                         if not self.pumps[i].enabled: 
                             self.pumps[i].enable()
                         try:
-                            for m in self.modules.values():
-                                if m.pump == self.pumps[i]:
-                                    if m.valve: m.valve.close()
+                            # it takes long to check that all the valves are closed except the fill valve
+                            # maybe just assume they are closed ( as they should be)
+                            # for m in self.modules.values():
+                            #     if m.pump == self.pumps[i]:
+                            #         if m.valve: m.valve.close()
                             if hasattr(self.pumps[i], 'fillValve'):
                                 self.pumps[i].fillValve.open()
                             else:
@@ -563,6 +567,6 @@ class RewardInterface:
                 self.modules[module].valve.close()
 
     def stop(self):
-        self.on = False
+        if self.on.is_set(): self.on.clear()
         self.auto_fill_thread.join()
         GPIO.cleanup()

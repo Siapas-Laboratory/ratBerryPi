@@ -19,27 +19,27 @@ class Valve(BasePlugin):
             return not self.valvePin.value
 
     def open(self):
-        acquired = self.lock.acquire(False)
-        if acquired:
-            if not self.is_open:
+        if not self.is_open:
+            acquired = self.lock.acquire(False)
+            if acquired:
                 if self.NC:
                     self.valvePin.value = True
                 else:
                     self.valvePin.value = False
                 time.sleep(.05) # max response time for the valves is 20 ms
-            self.lock.release()
-        else:
-            raise ResourceLocked(f"Valve {self.name} in use")
+                self.lock.release()
+            else:
+                raise ResourceLocked(f"Valve {self.name} in use")
 
     def close(self):
-        acquired = self.lock.acquire(False)
-        if acquired:
-            if self.is_open:
+        if self.is_open:
+            acquired = self.lock.acquire(False)
+            if acquired:
                 if self.NC:
                     self.valvePin.value = False
                 else:
                     self.valvePin.value = True
                 time.sleep(.05) # max response time for the valves is 20 ms
-            self.lock.release()
-        else:
-            raise ResourceLocked(f"Valve {self.name} in use")
+                self.lock.release()
+            else:
+                raise ResourceLocked(f"Valve {self.name} in use")

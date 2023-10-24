@@ -22,11 +22,11 @@ class Server:
         # set some default values
         self.conn = None
         self.waiting = False
-        self.on = False
+        self.on = threading.Event()
         self.broadcast_thread = None
 
         # create an instance of the reward interface
-        self.reward_interface =  RewardInterface()
+        self.reward_interface =  RewardInterface(on = self.on)
 
 
     def start(self):
@@ -34,19 +34,18 @@ class Server:
         start the server  
         """
 
-        self.on = True
+        self.on.set()
         # spawn a thread to broadcast information about the interface
         self.broadcast_thread = threading.Thread(target = self.broadcast)
         self.broadcast_thread.start()
 
-        while self.on:
+        while self.on.is_set():
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                logging.info(f'binding port {self.port}')
+                sock.settimeout(0.1)
                 sock.bind(('', self.port))
                 sock.listen()
-                logging.info('waiting for connections')
                 self.conn, (_, _) =  sock.accept() # (this is blocking)
                 sock.close()
                 logging.info('waiting for data')
@@ -64,20 +63,18 @@ class Server:
                 self.conn = None
                 self.reward_interface.save()
 
+            except socket.timeout:
+                pass
             except KeyboardInterrupt:
-                logging.info('shutting down')
                 self.shutdown()
             except socket.error as e:
                 if e.errno != errno.ECONNRESET:
-                    logging.debug(e)
-                    logging.info('shutting down')
+                    logging.exception(e)
                     self.shutdown()
             except Exception as e:
-                if e.errno != errno.ECONNRESET:
-                    logging.debug(e)
-                    logging.info('shutting down')
-                    self.shutdown()
-
+                logging.exception(e)
+                self.shutdown()
+        
     def handle_request(self, data):
         """
         function to handle requests sent to the server
@@ -96,7 +93,7 @@ class Server:
             return
         elif command == "KILL":
             logging.info("client requested for the server to shut down")
-            self.on = False
+            self.on.clear()
             self.waiting = False
             return
         elif command == 'CheckServer':
@@ -138,20 +135,22 @@ class Server:
         # alternatively use a threadpool??
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.settimeout(0.1)
         sock.bind(('', self.broadcast_port))
         sock.listen()
-        while self.on:
+        while self.on.is_set():
             try:
                 conn, _ =  sock.accept()
                 t = threading.Thread(target = self.respond, args = (conn,))
                 logging.debug('broad connection made')
                 t.start()
                 client_threads.append(t)
-            except KeyboardInterrupt:
-                break
+            except socket.timeout:
+                pass
             except Exception as e:
-                if e.errno != errno.ECONNRESET:
-                    break
+                logging.exception(e)
+                break
+        for t in client_threads: t.join()
             
     def respond(self, conn):
         """
@@ -162,7 +161,7 @@ class Server:
         conn: socket.socket
             socket for sending and receiving data
         """
-        while self.on:
+        while self.on.is_set():
             try:
                 # receive the request from the client
                 data = conn.recv(1024)
@@ -189,7 +188,8 @@ class Server:
         """
         shutdown the server
         """
-        self.on = False
+        logging.info('shutting down...')
+        self.on.clear()
         self.waiting = False
         if self.conn:
             self.conn.close()
@@ -201,7 +201,7 @@ class Server:
         self.reward_interface = None
 
     def __del__(self):
-        self.shutdown()
+        if self.on.is_set(): self.shutdown()
 
 if __name__ == '__main__':
 
