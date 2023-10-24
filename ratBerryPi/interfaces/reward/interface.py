@@ -1,4 +1,4 @@
-from ratBerryPi.interfaces.base_interface import BaseInterface
+from ratBerryPi.interfaces.base import BaseInterface
 from ratBerryPi.resources import Pump, Lickometer, AudioInterface, Speaker, LED, Valve, ResourceLocked
 from ratBerryPi.resources.pump import Syringe
 from ratBerryPi.interfaces.reward.modules import *
@@ -91,7 +91,7 @@ class RewardInterface(BaseInterface):
 
     """
 
-    def __init__(self, config_file = Path(__file__).parent/"default_config.yaml", load_defaults:bool = True, on:threading.Event = None):
+    def __init__(self, on:threading.Event, config_file = Path(__file__).parent/"config.yaml", load_defaults:bool = True):
         """
         Constructs the reward interface from the config file
 
@@ -108,8 +108,7 @@ class RewardInterface(BaseInterface):
         
         """
 
-        self.on = threading.Event() if not on else on
-        GPIO.setmode(GPIO.BCM)
+        super(RewardInterface, self).__init__(on)
 
         with open(config_file, 'r') as f:
             self.config = yaml.safe_load(f)

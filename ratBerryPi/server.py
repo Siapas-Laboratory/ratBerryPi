@@ -1,4 +1,4 @@
-from ratBerryPi.interfaces.reward.interface import RewardInterface
+from ratBerryPi.interfaces import *
 
 import socket
 import threading
@@ -11,7 +11,7 @@ import os
 
 
 class Server:
-    def __init__(self, port:int, broadcast_port:int, on:threading.Event = None, interface = None):
+    def __init__(self, port:int, broadcast_port:int, interface_cls:BaseInterface):
 
         self.port = port
         self.broadcast_port = broadcast_port
@@ -19,12 +19,12 @@ class Server:
         # set some default values
         self.conn = None
         self.waiting = False
-        self.on = threading.Event() if not on else on
+        self.on = threading.Event()
         self.broadcast_thread = None
 
         # create an instance of the reward interface
-        self.interface =  RewardInterface(on = self.on) if not interface else interface()
-        self.interface.start()
+        assert issubclass(interface_cls, BaseInterface), "interface must be a subclass of BaseInterface"
+        self.interface = interface_cls(self.on)
 
 
     def start(self):
@@ -33,6 +33,7 @@ class Server:
         """
 
         self.on.set()
+        self.interface.start()
         # spawn a thread to broadcast information about the interface
         self.broadcast_thread = threading.Thread(target = self.broadcast)
         self.broadcast_thread.start()
@@ -190,8 +191,9 @@ if __name__ == '__main__':
 
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", default = 5562)
-    parser.add_argument("--broadcast_port", default = 5563)
+    parser.add_argument("-p","--port", default = 5562)
+    parser.add_argument("-b","--broadcast_port", default = 5563)
+    parser.add_argument("-i","--interface_type", default = "RewardInterface")
 
     args = parser.parse_args()
 
@@ -201,5 +203,6 @@ if __name__ == '__main__':
                         filename=os.path.join(log_dir, f"{datetime.now().strftime('%m-%d-%Y-%H-%M-%S.log')}"))
     logging.getLogger().addHandler(logging.StreamHandler())
 
-    server = Server(args.port, args.broadcast_port)
+    interface_cls = globals()[args.interface_type]
+    server = Server(args.port, args.broadcast_port, interface_cls)
     server.start()
