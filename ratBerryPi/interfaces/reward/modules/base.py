@@ -1,6 +1,4 @@
-from ratBerryPi.resources import Pump, Valve
-from ratBerryPi.resources.base import ResourceLocked
-
+from ratBerryPi.resources import Pump, Valve, ResourceLocked
 import RPi.GPIO as GPIO
 import time
 

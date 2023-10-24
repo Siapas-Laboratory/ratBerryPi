@@ -52,6 +52,9 @@ class Lickometer(BaseResource):
         self.licks = 0
 
     def monitor_bursts(self):
+        while not self.on.is_set():
+            # wait for the on signal
+            time.sleep(.1)
         while self.on.is_set():
             if (datetime.now() - self.last_lick).total_seconds()>self.burst_thresh:
                 self.burst_lick = 0

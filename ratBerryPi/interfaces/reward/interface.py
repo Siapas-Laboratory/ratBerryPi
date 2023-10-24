@@ -1,5 +1,6 @@
 from ratBerryPi.interfaces.base_interface import BaseInterface
-from ratBerryPi.resources import Syringe, Pump, Lickometer, AudioInterface, Speaker, LED, Valve, ResourceLocked
+from ratBerryPi.resources import Pump, Lickometer, AudioInterface, Speaker, LED, Valve, ResourceLocked
+from ratBerryPi.resources.pump import Syringe
 from ratBerryPi.interfaces.reward.modules import *
 
 import RPi.GPIO as GPIO
@@ -108,8 +109,6 @@ class RewardInterface(BaseInterface):
         """
 
         self.on = threading.Event() if not on else on
-        if not on.is_set():
-            self.on.set()
         GPIO.setmode(GPIO.BCM)
 
         with open(config_file, 'r') as f:
@@ -151,6 +150,9 @@ class RewardInterface(BaseInterface):
 
         self.auto_fill = False
         self.auto_fill_thread = threading.Thread(target = self._fill_syringes)
+    
+    def start(self):
+        if not self.on.is_set(): self.on.set()
         self.auto_fill_thread.start()
 
     def load_default_modules(self):

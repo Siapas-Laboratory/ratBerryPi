@@ -9,7 +9,7 @@
 
 from ratBerryPi.resources.base import BaseResource, ResourceLocked
 from ratBerryPi.utils import config_output
-from ratBerryPi.resources import Valve
+from ratBerryPi.resources.valve import Valve
 
 import RPi.GPIO as GPIO
 import time
@@ -34,7 +34,7 @@ class PumpNotEnabled(Exception):
     pass
 
 
-class Syringe(BaseResource):
+class Syringe:
     #TODO: determine max_pos for all possible syringes
     syringeTypeDict = {'BD1mL':     {'ID': 0.478, 'max_pos': 0}, 
                        'BD5mL':     {'ID': 1.207, 'max_pos': 4.7},
@@ -93,7 +93,7 @@ class Pump(BaseResource):
             tolerance: float
                 the allowable error in the amount of fluid delivered in mL
         """
-        self.name = name
+        super(Pump, self).__init__(name, None)
         self.syringe = syringe
 
         self._dirPin = config_output(dirPin)

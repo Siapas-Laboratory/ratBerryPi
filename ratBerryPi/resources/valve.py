@@ -1,4 +1,3 @@
-from RPi import GPIO
 import time
 from ratBerryPi.resources.base import BaseResource, ResourceLocked
 from ratBerryPi.utils import config_output

@@ -1,5 +1,5 @@
 from ratBerryPi.resources import Pump, Lickometer, Speaker, LED, Valve
-from ratBerryPi.interfaces.reward.modules import BaseRewardModule
+from ratBerryPi.interfaces.reward.modules.base import BaseRewardModule
 
 
 class DefaultModule(BaseRewardModule):
