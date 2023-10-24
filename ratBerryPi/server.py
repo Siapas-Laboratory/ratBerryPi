@@ -67,7 +67,9 @@ class Server:
             except KeyboardInterrupt:
                 self.shutdown()
             except socket.error as e:
-                if e.errno != errno.ECONNRESET:
+                if e.errno == errno.ECONNRESET:
+                    logging.warning("Connection abruptly reset by peer")
+                else:
                     logging.exception(e)
                     self.shutdown()
             except Exception as e:
@@ -150,9 +152,10 @@ class Server:
                 # receive the request from the client
                 data = conn.recv(1024)
             except socket.error as e:
-                logging.debug(e)
-                if e.errno != errno.ECONNRESET:
-                    raise e
+                if e.errno == errno.ECONNRESET:
+                    logging.warning("Connection abruptly reset by peer")
+                else:
+                    logging.exception(e)
                 return
             if not data: # if the client left close the connection
                 logging.debug('no data')
