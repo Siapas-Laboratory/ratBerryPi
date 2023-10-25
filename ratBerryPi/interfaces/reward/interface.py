@@ -134,9 +134,6 @@ class RewardInterface(BaseInterface):
                 self.plugins[k] = constructor(k, **v)
 
         self.modules = {}
-        self.recording = False
-        self.log = []
-        
         if load_defaults:
             # TODO: it could be worth coming up with a more general framework for loading modules
             # perhaps define an abstract method in the base RewardModule class that must be overwritten
@@ -316,32 +313,9 @@ class RewardInterface(BaseInterface):
                 whether or not to reset the lick counts on all
                 lickometers before recording
         """
-        super(RewardInterface, self).start()
         if reset: self.reset_all_licks()
-        for i in self.modules:
-            self.modules[i].log = []
-            self.modules[i].recording = True
-        self.log = [{'time': datetime.now(), 'event': 'start', 'module': None}]
-        logging.info('started recording')
+        super(RewardInterface, self).start()
 
-    def save(self):
-        """
-        save the logs
-        """
-
-        #TODO: should consider  using python's logging library directly for all logging
-        # currently the only real reason why plugins take as an argument their parent class
-        # is so we can access a common log list from the reward interface object but with 
-        # the logging module this would  not be necessary
-
-        df = pd.DataFrame(self.log)
-        df = df.sort_values('time')
-        fname = datetime.strftime(datetime.now(), "%Y_%m_%d_%H_%M_%S.csv")
-        data_dir = os.path.join(os.path.expanduser('~'), ".ratBerryPi", "data")
-        os.makedirs(data_dir, exist_ok = True)
-        df.to_csv(os.path.join(data_dir,fname)) 
-        logging.info('saved!')
-        self.recording = False
 
     def trigger_reward(self, module, amount:float, force:bool = False, triggered:bool = False, sync:bool = False, post_delay:float = 2):
         """

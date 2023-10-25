@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 import threading
 import RPi.GPIO as GPIO
 import logging
