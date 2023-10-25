@@ -14,7 +14,7 @@ class Olfactometer(BaseInterface):
             self.config = yaml.safe_load(f)
 
         self.valves = {k: Valve(k, self, v) for k,v in self.config["odor_valves"].items()}
-        self.outlet_valve = Valve("outlet_valve", self, self.config["outlet_valve"])
+        self.outlet_valve = Valve("outlet_valve", self, self.config["outlet_valve"], NC = False)
         self.release_valve = Valve("release_valve", self, self.config["release_valve"])
         
         self.odor_flow_contrller = alicat.FlowController(self.config["odor_flow_controller"])
