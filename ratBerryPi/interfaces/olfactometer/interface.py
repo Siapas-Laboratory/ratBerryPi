@@ -17,9 +17,9 @@ class Olfactometer(BaseInterface):
         self.outlet_valve = Valve("outlet_valve", self, self.config["outlet_valve"], NC = False)
         self.release_valve = Valve("release_valve", self, self.config["release_valve"])
         
-        self.odor_flow_contrller = alicat.FlowController(self.config["odor_flow_controller"])
-        self.dilutant_flow_contrller = alicat.FlowController(self.config["dilutant_flow_controller"])
-        self.inert_flow_controller = alicat.FlowController(self.config["inert_flow_controller"])
+        # self.odor_flow_contrller = alicat.FlowController(self.config["odor_flow_controller"])
+        # self.dilutant_flow_contrller = alicat.FlowController(self.config["dilutant_flow_controller"])
+        # self.inert_flow_controller = alicat.FlowController(self.config["inert_flow_controller"])
 
         self.odor_concentration= self.config["initial_odor_concentration"]
         self.flowrate = self.config["initial_flowrate"]
@@ -74,9 +74,9 @@ class Olfactometer(BaseInterface):
         set the flowrates on all mass flow controllers
         to the appropriate values
         """
-        await self.inert_flow_controller.set_flow_rate(self.flowrate)
-        await self.dilutant_flow_contrller.set_flow_rate(self.flowrate*(1-self.odor_concentration))
-        await self.odor_flow_contrller.set_flow_rate(self.flowrate * self.odor_concentration)
+        # await self.inert_flow_controller.set_flow_rate(self.flowrate)
+        # await self.dilutant_flow_contrller.set_flow_rate(self.flowrate*(1-self.odor_concentration))
+        # await self.odor_flow_contrller.set_flow_rate(self.flowrate * self.odor_concentration)
 
     def prep_odors(self, odors, wait_time:float = 1, odors_present_ok = False) -> None:
         """
@@ -95,7 +95,7 @@ class Olfactometer(BaseInterface):
         if not odors_present_ok:
             assert not any([self.odor_valves[v].is_open for v in self.odor_valves if v not in odors])
         for odor in odors: 
-            self.toggle_odor_valve(odor, open_valve = True, wait_time = wait_time)
+            self.toggle_odor_valve(odor, open_valve = True)
         time.sleep(wait_time)
         self.toggle_outlet_valve(open_valve=False)
 
@@ -112,7 +112,7 @@ class Olfactometer(BaseInterface):
         self.toggle_outlet_valve(open_valve=True)
         time.sleep(wait_time)
         for odor in self.odor_valves:
-            self.toggle_odor_valve(odor, open_valve = False, wait_time = wait_time)
+            self.toggle_odor_valve(odor, open_valve = False)
 
     def toggle_odor_valve(self, odor, open_valve = True):
         """
@@ -146,7 +146,7 @@ class Olfactometer(BaseInterface):
         if open_valve:
             self.outlet_valve.open()
         else:
-            assert any([v.is_open for v in self.odor_valves.values]), "no alternative air paths, cannot close outlet valve"
+            assert any([v.is_open for v in self.odor_valves.values()]), "no alternative air paths, cannot close outlet valve"
             self.outlet_valve.close()
 
 
