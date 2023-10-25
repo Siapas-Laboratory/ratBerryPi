@@ -4,30 +4,28 @@ import RPi.GPIO as GPIO
 import logging
 from datetime import datetime
 import os
+import typing
+import yaml
 
 class BaseInterface:
     
-    def __init__(self, on:threading.Event, data_dir = os.path.join(os.path.expanduser('~'), ".ratBerryPi", "data")):
-        super(BaseInterface, self).__init__()
+    def __init__(self, on:threading.Event, config_file:typing.Union[str, bytes, os.PathLike],
+                 data_dir = os.path.join(os.path.expanduser('~'), ".ratBerryPi", "data")):
+        
         GPIO.setmode(GPIO.BCM)
         self.on = on
+        with open(config_file, 'r') as f:
+            self.config = yaml.safe_load(f)
+
         self.recording = False
         self.data_dir = data_dir
-        self.logger = logging.getLogger()
-        self.logger.setLevel(logging.DEBUG)
+        self.logger = logging.getLogger(__name__)
 
         # placeholder for file handler
-        self.data_log_fh = None
-
-        # create handler for logging to the console
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.DEBUG)
-        # create formatter and add it to the handler
+        self.log_fh = None
+        # create formatter
         self.formatter = logging.Formatter('%(asctime)s.%(msecs)03d, %(levelname)s, %(message)s',
                                            "%Y-%m-%d %H:%M:%S")
-        ch.setFormatter(self.formatter)
-        # add the handlers to the logger
-        self.logger.addHandler(ch)
 
     def start(self):
         if not self.on.is_set(): self.on.set()
@@ -37,7 +35,7 @@ class BaseInterface:
         fname = datetime.strftime(datetime.now(), "%Y_%m_%d_%H_%M_%S.csv")
         data_path= os.path.join(self.data_dir, fname)
         self.log_fh = logging.FileHandler(data_path)
-        self.log_fh.setLevel(logging.DEBUG)
+        self.log_fh.setLevel(logging.INFO)
         self.log_fh.setFormatter(self.formatter)
         self.logger.addHandler(self.log_fh)
 

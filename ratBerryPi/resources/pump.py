@@ -18,7 +18,6 @@ import threading
 import os
 import time
 import pickle
-import logging
 from enum import Enum
 
 #TODO: replace 'forward' and backward with this
@@ -115,7 +114,7 @@ class Pump(BaseResource):
         self.state_fpath = os.path.join(state_dir, f"{self.name}.pckl")
 
         if not os.path.exists(self.state_fpath):
-            logging.warning(f'pump states file not found, creating and setting {self.name} position to 0')
+            self.logger.warning(f'pump states file not found, creating and setting {self.name} position to 0')
             self.position = 0
             with open(self.state_fpath, 'wb') as f:
                 pickle.dump(self.position, f)
@@ -256,7 +255,7 @@ class Pump(BaseResource):
         acquired = self.lock.acquire(False)
         if acquired:
             self.lock.acquire()
-            if self.verbose: logging.info("flushing")
+            if self.verbose: self.logger.info("flushing started")
             _prev_stepType = self.stepType
             self.stepType = 'Full'
             while GPIO.input(channel)==GPIO.HIGH:
@@ -264,19 +263,19 @@ class Pump(BaseResource):
             self.stepType = _prev_stepType 
             if self.position<0:
                 self.calibrate()
-            if self.verbose: logging.info("done")
+            if self.verbose: self.logger.info("flushing done")
             self.lock.release()
             
     def __reverse(self, channel):
         acquired = self.lock.acquire(False)
         if acquired:
-            if self.verbose: logging.info("reversing")
+            if self.verbose: self.logger.info("reversing started")
             _prev_stepType = self.stepType
             self.stepType = 'Full'
             while GPIO.input(channel)==GPIO.HIGH:
                 self.single_step(direction = 'backward')
             self.stepType = _prev_stepType
-            if self.verbose: logging.info("done")
+            if self.verbose: self.logger.info("reversing done")
             self.lock.release()
     
     def is_available(self, amount, direction = 'forward'):
@@ -297,10 +296,9 @@ class Pump(BaseResource):
         """
         stepsPermL = self.get_conversion()
         n_steps = int(round(stepsPermL * amount))
-        if self.verbose:
-            actual = n_steps/stepsPermL
-            msg = f"{amount} mL requested; {actual} mL to be produced using stepType '{self.stepType}'; error = {amount - actual} mL"
-            logging.info(msg)
+        actual = n_steps/stepsPermL
+        msg = f"{amount} mL requested; {actual} mL to be produced using stepType '{self.stepType}'; error = {amount - actual} mL"
+        self.logger.debug(msg)
         return n_steps, stepsPermL
 
     def move(self, amount, direction, check_availability = True, 
@@ -333,7 +331,7 @@ class Pump(BaseResource):
                 try:
                     self.single_step()
                 except PumpNotEnabled as e:
-                    logging.debug(f"Pump turned off after {step_count} steps ({step_count/stepsPermL} mL)")
+                    self.logger.warning(f"Pump turned off after {step_count} steps ({step_count/stepsPermL} mL)")
                     self.lock.release()
                     raise e
                 step_count += 1
@@ -498,11 +496,11 @@ class Pump(BaseResource):
                 if prev_trigger_value != current_trigger_value:
                     if current_trigger_value:
                         if self.pump.verbose: 
-                            logging.info('pump trigger on')
+                            self.logger.info('pump trigger on')
                         self.trigger_val = True
                     else:
                         if self.pump.verbose: 
-                            logging.info('pump trigger off')
+                            self.logger.info('pump trigger off')
                         self.trigger_val = False
                     prev_trigger_value = current_trigger_value
                 time.sleep(.001)

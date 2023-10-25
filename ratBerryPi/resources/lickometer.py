@@ -32,17 +32,12 @@ class Lickometer(BaseResource):
         self.burst_thread = threading.Thread(target = self.monitor_bursts)
         self.burst_thread.start()
     
-    def increment_licks(self, x):    
+    def increment_licks(self, x):
+        self.logger.info(f"{self.name}, lick")    
         self.licks += 1
         self.burst_lick +=1
         self.last_lick = datetime.now()
-        if self.parent:
-            if self.parent.recording:
-                self.parent.log.append({'time': self.last_lick, 
-                                        'event': 'lick',
-                                        'plugin': self.name})
-            if self.outpin:
-                self.outpin.value = True
+        if self.outpin: self.outpin.value = True
         print(self.licks, self.burst_lick, self.last_lick)
     
     def end_pulse(self):

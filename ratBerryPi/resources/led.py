@@ -15,6 +15,8 @@ class LED(BaseResource):
 
     def turn_on(self):
         self.LEDPin.value = True
+        self.logger.info(f"{self.name}, on")
     
     def turn_off(self):
         self.LEDPin.value = False
+        self.logger.info(f"{self.name}, off")

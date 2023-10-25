@@ -70,12 +70,11 @@ class NoFillValve(Exception):
 
 class RewardInterface(BaseInterface):
     """
-    An interface for controlling the reward module
+    An interface for controlling the reward modules
 
     ...
 
-    Methods
-    -------
+    Methods:
 
     calibrate(pump)
     fill_lines(amounts)
@@ -108,10 +107,7 @@ class RewardInterface(BaseInterface):
         
         """
 
-        super(RewardInterface, self).__init__(on)
-
-        with open(config_file, 'r') as f:
-            self.config = yaml.safe_load(f)
+        super(RewardInterface, self).__init__(on, config_file)
 
         self.pumps = {}
         # load all pumps

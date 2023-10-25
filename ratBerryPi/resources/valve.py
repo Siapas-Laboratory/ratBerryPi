@@ -25,6 +25,7 @@ class Valve(BaseResource):
                     self.valvePin.value = True
                 else:
                     self.valvePin.value = False
+                self.logger.info(f"{self.name}, open")
                 time.sleep(.05) # max response time for the valves is 20 ms
                 self.lock.release()
             else:
@@ -38,6 +39,7 @@ class Valve(BaseResource):
                     self.valvePin.value = False
                 else:
                     self.valvePin.value = True
+                self.logger.info(f"{self.name}, close")
                 time.sleep(.05) # max response time for the valves is 20 ms
                 self.lock.release()
             else:
