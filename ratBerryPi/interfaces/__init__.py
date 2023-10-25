@@ -1,6 +1,5 @@
-# Borrowed from https://julienharbulot.com/python-dynamical-import.html
+# modified from https://julienharbulot.com/python-dynamical-import.html
 from inspect import isclass
-from pkgutil import iter_modules
 from pathlib import Path
 import os
 from importlib import import_module
