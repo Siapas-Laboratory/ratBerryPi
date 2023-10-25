@@ -2,20 +2,24 @@ from abc import ABC, abstractmethod
 import threading
 import RPi.GPIO as GPIO
 
-class BaseInterface(ABC):
+class BaseInterface:
     
     def __init__(self, on:threading.Event):
         super(BaseInterface, self).__init__()
         GPIO.setmode(GPIO.BCM)
         self.on = on
+        self.recording = False
 
-    
-    @abstractmethod
     def start(self):
+        if not self.on.is_set(): self.on.set()
+
+    def record(self):
+        self.recording = True
+
+    def save(self):
         pass
 
-    @abstractmethod
     def stop(self):
-        pass
+        GPIO.cleanup()
 
     

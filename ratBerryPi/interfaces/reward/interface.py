@@ -151,7 +151,7 @@ class RewardInterface(BaseInterface):
         self.auto_fill_thread = threading.Thread(target = self._fill_syringes)
     
     def start(self):
-        if not self.on.is_set(): self.on.set()
+        super(RewardInterface, self).start()
         self.auto_fill_thread.start()
 
     def load_default_modules(self):
@@ -320,9 +320,8 @@ class RewardInterface(BaseInterface):
                 whether or not to reset the lick counts on all
                 lickometers before recording
         """
-        self.recording = True
-        if reset:
-            self.reset_all_licks()
+        super(RewardInterface, self).start()
+        if reset: self.reset_all_licks()
         for i in self.modules:
             self.modules[i].log = []
             self.modules[i].recording = True

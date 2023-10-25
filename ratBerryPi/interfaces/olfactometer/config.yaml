@@ -1,0 +1,12 @@
+odor_flow_controller: ""
+dilutant_flow_controller: ""
+inert_flow_controller: ""
+outlet_valve: GPB1
+release_valve: GPB3
+initial_dilution: 0.5
+initial_flowrate: 1
+odor_valves:
+  odor1: GPA1
+  odor2: GPA3
+  odor3: GPA5
+  odor4: GPA7
