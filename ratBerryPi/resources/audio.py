@@ -6,7 +6,6 @@
 #######################################
 
 import numpy as np
-import pyaudio as pa  # sudo apt-get install python{,3}-pyaudio
 from ratBerryPi.resources.base import BaseResource
 from ratBerryPi.utils import config_output
 
@@ -18,6 +17,8 @@ class AudioInterface(BaseResource):
         ## NOTE: for higher frequency sounds need a higher sampling rate
         # to obey Nyquist sampling theorem. look into limits on the amplifier and
         # pyaudio
+        import pyaudio as pa  # sudo apt-get install python{,3}-pyaudio
+
         self.session = pa.PyAudio()
         self.fs = fs
         self.stream = None

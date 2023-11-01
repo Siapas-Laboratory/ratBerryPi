@@ -6,7 +6,6 @@ from ratBerryPi.interfaces.reward.modules import *
 import RPi.GPIO as GPIO
 import yaml
 from datetime import datetime
-import pandas as pd
 import os
 import threading
 import time

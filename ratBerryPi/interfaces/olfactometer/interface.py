@@ -5,6 +5,7 @@ import alicat
 import asyncio
 import time
 
+
 class Olfactometer(BaseInterface):
     """
     An interface for controlling the olfactometer
@@ -14,6 +15,15 @@ class Olfactometer(BaseInterface):
     Attributes:
 
     flowrate: float
+    units: str
+    odor_flow_controller_units: str
+    dilutant_flow_controller_units: str
+    inert_flow_controller_units: str
+
+    odor_flow_controller_max: float
+    dilutant_flow_controller_max: float
+    inert_flow_controller_max: float
+
     odor_concentration: float
     odor_valves: Dict[str, Valve]
     odor_valve_states: Dict[str, bool]
@@ -25,20 +35,39 @@ class Olfactometer(BaseInterface):
 
     set_odor_concentration(odor_concentration)
     set_flowrate(flowrate)
-    prep_odors(odors, wait_time)
+    prep_odors(odors, wait_time, odors_present_ok)
     clear_mixing_manifold(wait_time)
-    toggle_odor_valve(odor, open_valve)
-    toggle_outlet_valve(open_valve)
+    toggle_odor_valve(odor, open_valve, force)
+    toggle_outlet_valve(open_valve, force)
     release_odor()
     switch_to_exhaust()
+    set_flowrate
     """
 
-    def __init__(self, on, config_file =  Path(__file__).parent/"config.yaml"):
+    FLOWRATE_UNIT_CONVERSIONS = {
+        'LPM': 1,
+        'CC': 1000
+    }
+
+
+    def __init__(self, on, config_file =  Path(__file__).parent/"config.yaml", units = 'LPM'):
         super(Olfactometer, self).__init__(on, config_file)
 
+        # create valves
         self.odor_valves = {k: Valve(k + "_valve", self, v) for k,v in self.config["odor_valves"].items()}
         self.outlet_valve = Valve("outlet_valve", self, self.config["outlet_valve"], NC = False)
         self.release_valve = Valve("release_valve", self, self.config["release_valve"])
+
+        # set the units
+        self.units = units
+        self.odor_flow_controller_units = self.config['odor_flow_controller_units']
+        self.dilutant_flow_controller_units = self.config['dilutant_flow_controller_units']
+        self.inert_flow_controller_units = self.config['inert_flow_controller_units']
+
+        # get the max flow rates
+        self.odor_flow_controller_max = self.config['odor_flow_controller_max']
+        self.dilutant_flow_controller_max = self.config['dilutant_flow_controller_max']
+        self.inert_flow_controller_max = self.config['inert_flow_controller_max']
 
         async def _get_controllers():
             self.odor_flow_controller = alicat.FlowController(unit = self.config["odor_flow_controller"])
@@ -66,6 +95,8 @@ class Olfactometer(BaseInterface):
     
     @flowrate.setter
     def flowrate(self, flowrate) -> None:
+        assert self._validate_flowrate(flowrate), "flowrate requires at least one flow controller to go out of it's range of operation"
+        self.logger.info(f'setting flowrate to {flowrate}')
         self._flowrate = flowrate
         asyncio.run(self._set_controller_flowrates())
 
@@ -80,7 +111,10 @@ class Olfactometer(BaseInterface):
     
     @odor_concentration.setter
     def odor_concentration(self, odor_concentration) -> None:
-        self._odor_concentration = odor_concentration
+        if hasattr(self, '_flowrate'):
+            assert self._validate_flowrate(self.flowrate, odor_concentration),"odor concentration requires at least one flow controller to go out of it's range of operation"
+        self.logger.info(f'setting odor concentration to {odor_concentration}')
+        self._odor_concentration = odor_concentration 
         if hasattr(self, '_flowrate'):
             asyncio.run(self._set_controller_flowrates())
     
@@ -91,6 +125,41 @@ class Olfactometer(BaseInterface):
         """
         return {k: v.is_open for k,v in self.odor_valves.items()}
 
+    @property
+    def units(self):
+        """
+        a common flow rate unit
+        """
+        return self._units 
+    
+    @units.setter
+    def units(self, units):
+        assert units in self.FLOWRATE_UNIT_CONVERSIONS, 'unrecognized unit'
+        self._units = units
+
+    def _validate_flowrate(self, flowrate: float, odor_concentration = None) -> None:
+        """
+        validate the flow rate
+        """
+        if not odor_concentration:
+            odor_concentration = self.odor_concentration
+        valid_flowrate = (self._convert_flowrate(flowrate, self.inert_flow_controller_units)<=self.inert_flow_controller_max) &\
+                         (self._convert_flowrate(flowrate * odor_concentration, self.odor_flow_controller_units)<=self.odor_flow_controller_max) &\
+                         (self._convert_flowrate(flowrate * (1-odor_concentration), self.dilutant_flow_controller_units)<=self.dilutant_flow_controller_max)
+        return valid_flowrate
+    def _convert_flowrate(self, flow_rate: float, to_units: str, from_units: str = None) -> None:
+        """
+        convert flow rate to new units
+        """
+        from_units = self.units if not from_units else from_units
+        return flow_rate * self.FLOWRATE_UNIT_CONVERSIONS[to_units]/self.FLOWRATE_UNIT_CONVERSIONS[from_units]
+
+    def change_units(self, units: str) -> None:
+        """
+        change the units that flowrates are expressed in
+        """
+        self.units = units
+        
     def set_odor_concentration(self, odor_concentration: float) -> None:
         """
         convenience function for setting the odor concentration
@@ -105,7 +174,7 @@ class Olfactometer(BaseInterface):
 
     def set_flowrate(self, flowrate: float) -> None:
         """
-        convenience function for setting the flowrate
+        convenience function for setting the total flowrate
 
         Args:
             flowrate: float
@@ -118,9 +187,15 @@ class Olfactometer(BaseInterface):
         set the flowrates on all mass flow controllers
         to the appropriate values
         """
-        await self.inert_flow_controller.set_flow_rate(self.flowrate)
-        await self.dilutant_flow_controller.set_flow_rate(self.flowrate*(1-self.odor_concentration))
-        await self.odor_flow_controller.set_flow_rate(self.flowrate * self.odor_concentration)
+        inert_flowrate = self._convert_flowrate(self.flowrate, self.inert_flow_controller_units)
+        dilutant_flowrate = self._convert_flowrate(self.flowrate * (1-self.odor_concentration), 
+                                                   self.dilutant_flow_controller_units)
+        odor_flowrate = self._convert_flowrate(self.flowrate * self.odor_concentration, 
+                                               self.odor_flow_controller_units)
+
+        await self.inert_flow_controller.set_flow_rate(inert_flowrate)
+        await self.dilutant_flow_controller.set_flow_rate(dilutant_flowrate)
+        await self.odor_flow_controller.set_flow_rate(odor_flowrate)
 
     def prep_odors(self, odors, wait_time: float = 1, odors_present_ok: bool = False) -> None:
         """
