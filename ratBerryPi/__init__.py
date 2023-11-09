@@ -12,6 +12,8 @@ stream_handler.setLevel(logging.DEBUG)
 logger.addHandler(stream_handler)
 
 log_dir = os.path.join(os.path.expanduser('~'), ".ratBerryPi", "logs")
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir, exist_ok=True)
 fname = datetime.strftime(datetime.now(), "%Y_%m_%d_%H_%M_%S.log")
 log_file = os.path.join(log_dir, fname)
 file_handler = logging.FileHandler(log_file)
