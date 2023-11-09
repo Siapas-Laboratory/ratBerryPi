@@ -60,7 +60,7 @@ class Server:
                             self.handle_request(data)
                 self.conn.close()
                 self.conn = None
-                self.interface.save()
+                self.interface.stop_recording()
 
             except socket.timeout:
                 pass

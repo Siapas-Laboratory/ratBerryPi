@@ -78,7 +78,6 @@ class RewardInterface(BaseInterface):
     calibrate(pump)
     fill_lines(amounts)
     record(reset = True)
-    save()
     trigger_reward(module, amount, force = False, triggered = False)
     toggle_auto_fill(on)
     change_syringe(syringeType, all = False, module = None, pump=None)
