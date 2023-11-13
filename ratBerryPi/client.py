@@ -3,7 +3,7 @@ import json
 
 
 class Client:
-    def __init__(self, host, port, broadcast_port, verbose = True):
+    def __init__(self, host, port, verbose = True):
         self.host = host
         self.port = port
         self.verbose = verbose
@@ -32,7 +32,7 @@ class Client:
     def new_channel(self, name):
         conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        conn.connect((self.host, self.broadcast_port))
+        conn.connect((self.host, self.port))
         self.channels[name] = conn
 
     def run_command(self, command, args = {}, channel = None):
@@ -59,7 +59,7 @@ class Client:
             raise ConnectionAbortedError
 
     def __del__(self):
-        self.exit()
+        self.close_channel()
 
 if __name__=='__main__':
     import argparse
@@ -67,10 +67,9 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default = socket.gethostbyname(socket.gethostname()))
     parser.add_argument("--port", default = 5562)
-    parser.add_argument("--broadcast_port", default = 5563)
 
     args = parser.parse_args()
-    client = Client(args.host, int(args.port), int(args.broadcast_port))
+    client = Client(args.host, int(args.port))
     client.connect()
 
     running = True

@@ -75,11 +75,11 @@ class Server:
                 conn.close()
                 return
             else: # otherwise handle the request
-                self.handle_request(data)
+                self.handle_request(conn, data)
         conn.close()
 
     
-    def handle_request(self, data):
+    def handle_request(self, conn, data):
         """
         function to handle requests sent to the server
 
@@ -93,6 +93,7 @@ class Server:
         command = args.pop('command')
         if command == "EXIT":
             logging.info("client disconnected")
+            conn.close()
             return
         elif command == "KILL":
             logging.info("client requested for the server to shut down")
@@ -111,7 +112,7 @@ class Server:
                 logging.exception(e)
                 reply = 'ERROR'
 
-        self.conn.sendall(str.encode(reply))
+        conn.sendall(str.encode(reply))
         logging.info('reply sent')
                 
     def shutdown(self):
