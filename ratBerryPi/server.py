@@ -39,7 +39,7 @@ class Server:
         while self.on.is_set():
             try:
                 conn, (_, _) =  sock.accept() # (this is blocking)
-                t = threading.Thread(target = self.respond, args = (conn,))
+                t = threading.Thread(target = self.handle_client, args = (conn,))
                 logging.debug('broad connection made')
                 t.start()
                 self.client_threads.append(t)
@@ -51,9 +51,9 @@ class Server:
                 logging.exception(e)
                 self.shutdown()
 
-    def respond(self, conn):
+    def handle_client(self, conn):
         """
-        respond to requests for information about the reward interface
+        handle clients
 
         Args:
         -----

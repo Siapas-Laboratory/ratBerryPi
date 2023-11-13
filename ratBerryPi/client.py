@@ -1,13 +1,18 @@
 import socket
 import json
+import logging
 
+logger = logging.getLogger(__name__)
 
 class Client:
-    def __init__(self, host, port, verbose = True):
+    def __init__(self, host, port):
         self.host = host
         self.port = port
-        self.verbose = verbose
-        self.channels = {}
+        self._channels = {}
+    
+    @property
+    def channels(self):
+        return self._channels
 
     def get(self, req, channel = None):
         reply = self.run_command("GET", args = {'req': req}, channel = channel)
@@ -16,50 +21,58 @@ class Client:
     def kill(self):
         self.run_command('KILL')
 
-    def close_channel(self, all = True, channel = None):
-        if not all:
-            if not channel:
-                raise ValueError("missing argument 'channel'")
-            self.run_command("EXIT", channel = channel)
-            self.channels[channel].close()
-            del self.channels[channel]
-        else:
-            for i in self.channels:
-                self.run_command("EXIT", channel = i)
-                self.channels[i].close()
-                del self.channels[i]
-        
+    def close_channel(self, channel):
+        self.channels[channel].close()
+        del self._channels[channel]
+    
+    def close_all_channels(self):
+        for i in self.channels:
+            self.close_channel(i)
+
     def new_channel(self, name):
-        conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        conn.connect((self.host, self.port))
-        self.channels[name] = conn
+        self._channels[name] = Channel(self.host, self.port, name)
 
     def run_command(self, command, args = {}, channel = None):
-        args['command'] = command
-        command = json.dumps(args).encode()
-
         if channel:
-            conn = self.channels[channel]
+            c = self.channels[channel]
         else:
-            conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            conn.connect((self.host, self.port))
-        conn.sendall(command)
-        reply = conn.recv(1024)
-        if reply:
-            return reply.decode('utf-8')
-        else:
-            if self.verbose: 
-                print('server does not appear to be running. closing all connections')
-            for i in self.channels: 
-                self.channels[i].close()
-            if not channel:
-                conn.close
+            c = Channel(self.host, self.port)
+        try:
+            return c.run_command(command, args)
+        except ConnectionAbortedError:
+            if channel:
+                del self._channels[channel]
             raise ConnectionAbortedError
 
     def __del__(self):
-        self.close_channel()
+        self.close_all_channels()
+
+class Channel:
+    def __init__(self, host, port, name = None):
+        self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.conn.connect((host, port))
+        self.name = name
+    
+    def run_command(self, command, args = {}):
+        args['command'] = command
+        command = json.dumps(args).encode()
+        self.conn.sendall(command)
+        reply = self.conn.recv(1024)
+
+        if reply:
+            return reply.decode('utf-8')
+        else:
+            logger.debug(f"connection closed on the server side. shutting down channel '{self.name}'")
+            self.conn.close()
+            raise ConnectionAbortedError
+        
+    def close(self):
+        logger.debug(f"shutting down channel '{self.name}'")
+        try:
+            self.run_command("EXIT")
+        except ConnectionAbortedError:
+            pass
 
 if __name__=='__main__':
     import argparse
