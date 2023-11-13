@@ -102,7 +102,7 @@ class Server:
         elif command == 'CheckServer':
             reply = json.dumps(True)
         elif command == 'GET':
-            reply = json.dumps(eval(f"self.interface{args['req']}"))
+            reply = json.dumps(eval(f"self.interface.{args['req']}"))
         else:
             try:
                 f = getattr(self.interface, command)
