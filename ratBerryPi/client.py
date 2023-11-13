@@ -26,7 +26,7 @@ class Client:
         del self._channels[channel]
     
     def close_all_channels(self):
-        for i in self.channels:
+        for i in list(self.channels.keys()):
             self.close_channel(i)
 
     def new_channel(self, name):
