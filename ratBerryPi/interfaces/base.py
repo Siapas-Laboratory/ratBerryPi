@@ -45,5 +45,3 @@ class BaseInterface:
     def stop(self):
         self.stop_recording()
         GPIO.cleanup()
-
-    
