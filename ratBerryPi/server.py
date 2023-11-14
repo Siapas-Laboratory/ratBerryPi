@@ -112,7 +112,7 @@ class Server:
                 logging.exception(e)
                 reply = 'ERROR'
 
-        conn.sendall(str.encode(reply + '/n'))
+        conn.sendall(str.encode(reply + '\n'))
         logging.info('reply sent')
                 
     def shutdown(self):
