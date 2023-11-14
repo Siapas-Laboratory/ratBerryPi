@@ -5,39 +5,50 @@ classdef RatBerryClient
     properties
         host
         port
-        connected
-        conn
+        channels
     end
     
     methods
         function self = RatBerryClient(host, port)
             self.host = host;
             self.port = port;
-            self.connected = false;
+            self.channels = struct();
         end
         
-        function self = connect(self)
-            %METHOD1 Summary of this method goes here
-            %   Detailed explanation goes here
-            self.conn = tcpclient(self.host, self.port);
-            self.connected = true;
+        function self = new_channel(self, name)
+            assert(~isfield(self.channels, name), 'channel already exists');
+            self.channels.(name) = RatBerryChannel(self.host, self.port, name);
         end
 
         function reply = run_command(self, command, varargin)
-            assert(self.connected, 'not connected')
-            if nargin>2
-                assert(numel(varargin)==1, 'too many inputs');
-                args = varargin{1};
-                assert(strcmp(class(args), 'struct'), "invalid input for argument 'args'");
-            end
-            args.command = command;
-            self.conn.write(jsonencode(args));
-            while self.conn.NumBytesAvailable == 0; continue; end
-            reply = jsondecode(char(self.conn.read()));
-        end
-        function reply = get(self, req, varargin)
-            self.
 
+            ip = inputParser();
+            ip.addParameter('args', struct(), @isstruct);
+            ip.addParameter('channel', '', @ischar);
+            v = varargin;
+            ip.parse( v{:} );
+            params = ip.Results;
+
+
+            if numel(params.channel) >0
+                ch = self.channels.(params.channel);
+            else
+                ch = RatBerryChannel(self.host, self.port, '');
+            end
+            reply = ch.run_command(command, params.args);
+        end
+
+        function reply = get(self, req, varargin)
+
+            ip = inputParser();
+            ip.addParameter('channel', '', @ischar);
+            v = varargin;
+            ip.parse( v{:} );
+            params = ip.Results;
+
+            args.req = req;
+
+            reply = self.run_command('GET', 'args', args, 'channel', params.channel);
         end
     end
 end

@@ -5,33 +5,39 @@ classdef RatBerryClient
     properties
         host
         port
-        connected
-        conn
+        channels
     end
     
     methods
         function self = RatBerryClient(host, port)
             self.host = host;
             self.port = port;
-            self.connected = false;
+            self.channels = struct();
         end
         
-        function self = connect(self)
+        function self = new_channell(self, name)
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
-            self.conn = tcpclient(self.host, self.port);
-            self.connected = true;
+            self.channels.(name) = RatBerryChannel(self.host, self.port, name);
         end
 
         function reply = run_command(self, command, varargin)
-            assert(self.connected, 'not connected')
-            if nargin>2
-                assert(numel(varargin)==1, 'too many inputs');
-                args = varargin{1};
-                assert(strcmp(class(args), 'struct'), "invalid input for argument 'args'");
+
+            ip = inputParser();
+            ip.addParameter('args', struct(), @isstruct);
+            ip.addParameter('channel', '', @ischar);
+            v = varargin;
+            ip.parse( v{:} );
+            params = ip.Results;
+
+
+            if numel(channel) >0
+                ch = self.channels.(params.channel);
+            else
+                ch = RatBerryChannel(self.host, self.port, '');
             end
-            args.command = command;
-            self.conn.write(jsonencode(args));
+            params.args.command = command;
+            ch.run_command()
             while self.conn.NumBytesAvailable == 0; continue; end
             reply = jsondecode(char(self.conn.read()));
         end
