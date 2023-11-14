@@ -42,11 +42,11 @@ modules:
     port: port6
     pump: pump1
 
-  module8:
-    type: default
-    dead_volume: 15
-    port: port7
-    pump: pump1
+  # module8:
+  #   type: default
+  #   dead_volume: 15
+  #   port: port7
+  #   pump: pump1
 
 # pump config
 pumps:

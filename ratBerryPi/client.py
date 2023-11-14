@@ -36,15 +36,16 @@ class Client:
             raise ValueError("channel already exists")
 
     def run_command(self, command, args = {}, channel = None):
-        if channel:
-            c = self.channels[channel]
-        else:
-            c = Channel(self.host, self.port)
         try:
-            return c.run_command(command, args)
-        except ConnectionAbortedError:
             if channel:
-                del self._channels[channel]
+                return self.channels[channel].run_command(command, args)
+            else:
+                c = Channel(self.host, self.port)
+                reply = c.run_command(command, args)
+                c.close()
+                return reply
+        except ConnectionAbortedError:
+            if channel: del self._channels[channel]
             raise ConnectionAbortedError
 
     def __del__(self):
@@ -74,9 +75,10 @@ class Channel:
             raise ConnectionAbortedError
         
     def close(self):
-        logger.debug(f"closing channel '{self.name}'")
-        self.conn.close()
-        self.connected = False
+        if self.connected:
+            logger.debug(f"closing channel '{self.name}'")
+            self.conn.close()
+            self.connected = False
 
 if __name__=='__main__':
     import argparse

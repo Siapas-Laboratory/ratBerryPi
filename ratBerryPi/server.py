@@ -77,7 +77,7 @@ class Server:
                     logging.exception(e)
                 return
         logging.debug('closing connections')
-        conn.shutdown()
+        conn.shutdown(socket.SHUT_RDWR)
         conn.close()
 
     

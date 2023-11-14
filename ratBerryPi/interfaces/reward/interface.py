@@ -48,11 +48,11 @@ ETHERNET = {
         "lickPin": 21,
         "SDPin": 22,
         "valvePin": "GPB5"},
-    "port7": {
-        "LEDPin": "GPB6",
-        "lickPin": 23,
-        "SDPin": 24,
-        "valvePin": "GPB7"}
+    # "port7": {
+    #     "LEDPin": "GPB6",
+    #     "lickPin": 23,
+    #     "SDPin": 24,
+    #     "valvePin": "GPB7"}
 }
 
 class NoSpeaker(Exception):
