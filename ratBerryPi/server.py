@@ -76,7 +76,8 @@ class Server:
                 else:
                     logging.exception(e)
                 return
-        logging.debug('closing connectiona')
+        logging.debug('closing connections')
+        conn.shutdown()
         conn.close()
 
     
@@ -92,16 +93,10 @@ class Server:
 
         args = json.loads(data)
         command = args.pop('command')
-        if command == "EXIT":
-            logging.info("client disconnected")
-            conn.close()
-            return
-        elif command == "KILL":
+        if command == "KILL":
             logging.info("client requested for the server to shut down")
             self.on.clear()
             return
-        elif command == 'CheckServer':
-            reply = json.dumps(True)
         elif command == 'GET':
             reply = json.dumps(eval(f"self.interface.{args['req']}"))
         else:

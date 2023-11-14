@@ -31,11 +31,11 @@ classdef RatBerryClient
 
 
             if numel(params.channel) >0
-                ch = self.channels.(params.channel);
+                [self.channels.(params.channel), reply] = self.channels.(params.channel).run_command(command, params.args);
             else
                 ch = RatBerryChannel(self.host, self.port, '');
+                [~, reply] = ch.run_command(command, params.args);
             end
-            reply = ch.run_command(command, params.args);
         end
 
         function reply = get(self, req, varargin)

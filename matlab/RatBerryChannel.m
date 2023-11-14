@@ -17,7 +17,7 @@ classdef RatBerryChannel
             self.connected = true;
         end
         
-        function reply = run_command(self, command, varargin)
+        function [self, reply] = run_command(self, command, varargin)
 
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
@@ -29,7 +29,13 @@ classdef RatBerryChannel
             end
             args.command = command;
             self.conn.write(jsonencode(args));
-            reply = jsondecode(char(self.conn.readline()));  
+            reply = char(self.conn.readline());
+            if numel(reply)>0
+                reply = jsondecode(reply);
+                self.connected = true;
+            else
+                self.connected = false;
+            end
         end
     end
 end

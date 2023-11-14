@@ -30,7 +30,10 @@ class Client:
             self.close_channel(i)
 
     def new_channel(self, name):
-        self._channels[name] = Channel(self.host, self.port, name)
+        if name not in self.channels:
+            self._channels[name] = Channel(self.host, self.port, name)
+        else:
+            raise ValueError("channel already exists")
 
     def run_command(self, command, args = {}, channel = None):
         if channel:
@@ -53,8 +56,11 @@ class Channel:
         self.conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.conn.connect((host, port))
         self.name = name
+        self.connected = True
     
     def run_command(self, command, args = {}):
+        if not self.connected:
+            raise ConnectionError
         args['command'] = command
         command = json.dumps(args).encode()
         self.conn.sendall(command)
@@ -63,16 +69,14 @@ class Channel:
         if reply:
             return reply.decode('utf-8')
         else:
-            logger.debug(f"connection closed on the server side. shutting down channel '{self.name}'")
-            self.conn.close()
+            logger.debug(f"connection closed on the server side")
+            self.close()
             raise ConnectionAbortedError
         
     def close(self):
-        logger.debug(f"shutting down channel '{self.name}'")
-        try:
-            self.run_command("EXIT")
-        except ConnectionAbortedError:
-            pass
+        logger.debug(f"closing channel '{self.name}'")
+        self.conn.close()
+        self.connected = False
 
 if __name__=='__main__':
     import argparse
