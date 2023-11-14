@@ -39,9 +39,9 @@ class Server:
             try:
                 ready = select.select([sock], [],[], 0.1)
                 if ready[0]:
-                    conn, (_, _) =  sock.accept() # (this is blocking)
+                    conn, (ip, port) =  sock.accept() # (this is blocking)
                     t = threading.Thread(target = self.handle_client, args = (conn,))
-                    logging.debug('broad connection made')
+                    logging.debug(f'connection made with {ip} on port {port}')
                     t.start()
                     self.client_threads.append(t)
             except KeyboardInterrupt:
@@ -59,24 +59,25 @@ class Server:
         conn: socket.socket
             socket for sending and receiving data
         """
+        host, port = conn.getpeername() 
         while self.on.is_set():
             try:
                 ready = select.select([conn], [],[], 0.1)
                 if ready[0]:
                     data = conn.recv(1024)
                     if not data: # if the client left close the connection
-                        logging.debug('no data')
+                        logging.debug(f'connection closed by {host} on port {port}')
                         conn.close()
                         return
                     else: # otherwise handle the request
                         self.handle_request(conn, data)
             except socket.error as e:
                 if e.errno == errno.ECONNRESET:
-                    logging.warning("Connection abruptly reset by peer")
+                    logging.warning(f'connection abruptly reset by {host} on port {port}')
                 else:
                     logging.exception(e)
                 return
-        logging.debug('closing connections')
+        logging.debug(f'closing connection with {host} on port {port}')
         conn.shutdown(socket.SHUT_RDWR)
         conn.close()
 
@@ -115,7 +116,7 @@ class Server:
         """
         shutdown the server
         """
-        logging.info('shutting down...')
+        logging.info('shutting down server...')
         self.on.clear()
         self.interface.stop()
         self.interface = None
