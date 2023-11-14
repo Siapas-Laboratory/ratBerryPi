@@ -32,19 +32,18 @@ class Server:
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.settimeout(0.1)
         sock.bind(('', self.port))
         sock.listen()
 
         while self.on.is_set():
             try:
-                conn, (_, _) =  sock.accept() # (this is blocking)
-                t = threading.Thread(target = self.handle_client, args = (conn,))
-                logging.debug('broad connection made')
-                t.start()
-                self.client_threads.append(t)
-            except socket.timeout:
-                pass
+                ready = select.select([sock], [],[], 0.1)
+                if ready[0]:
+                    conn, (_, _) =  sock.accept() # (this is blocking)
+                    t = threading.Thread(target = self.handle_client, args = (conn,))
+                    logging.debug('broad connection made')
+                    t.start()
+                    self.client_threads.append(t)
             except KeyboardInterrupt:
                 self.shutdown()
             except Exception as e:
@@ -62,20 +61,21 @@ class Server:
         """
         while self.on.is_set():
             try:
-                # receive the request from the client
-                data = conn.recv(1024)
+                ready = select.select([conn], [],[], 0.1)
+                if ready[0]:
+                    data = conn.recv(1024)
+                    if not data: # if the client left close the connection
+                        logging.debug('no data')
+                        conn.close()
+                        return
+                    else: # otherwise handle the request
+                        self.handle_request(conn, data)
             except socket.error as e:
                 if e.errno == errno.ECONNRESET:
                     logging.warning("Connection abruptly reset by peer")
                 else:
                     logging.exception(e)
                 return
-            if not data: # if the client left close the connection
-                logging.debug('no data')
-                conn.close()
-                return
-            else: # otherwise handle the request
-                self.handle_request(conn, data)
         conn.close()
 
     
