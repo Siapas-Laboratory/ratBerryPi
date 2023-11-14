@@ -76,6 +76,7 @@ class Server:
                 else:
                     logging.exception(e)
                 return
+        logging.debug('closing connectiona')
         conn.close()
 
     
