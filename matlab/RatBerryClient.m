@@ -20,6 +20,18 @@ classdef RatBerryClient
             self.channels.(name) = RatBerryChannel(self.host, self.port, name);
         end
 
+        function self = close_channel(self, name)
+            self.channels = rmfield(self.channels, name);
+        end
+
+        function self = close_all_channels(self)
+            self.channels = struct();
+        end
+
+        function kill(self)
+            [~] = self.run_command('KILL');
+        end
+
         function reply = run_command(self, command, varargin)
 
             ip = inputParser();

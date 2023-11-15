@@ -15,10 +15,21 @@ classdef RatBerryClient
             self.channels = struct();
         end
         
-        function self = new_channell(self, name)
-            %METHOD1 Summary of this method goes here
-            %   Detailed explanation goes here
+        function self = new_channel(self, name)
+            assert(~isfield(self.channels, name), 'channel already exists');
             self.channels.(name) = RatBerryChannel(self.host, self.port, name);
+        end
+
+        function self = close_channel(self, name)
+            self.channels = rmfield(self.channels, name);
+        end
+
+        function self = close_all_channels(self)
+            self.channels = struct();
+        end
+
+        function kill(self)
+            [~] = self.run_command('KILL');
         end
 
         function reply = run_command(self, command, varargin)
@@ -31,19 +42,25 @@ classdef RatBerryClient
             params = ip.Results;
 
 
-            if numel(channel) >0
-                ch = self.channels.(params.channel);
+            if numel(params.channel) >0
+                [self.channels.(params.channel), reply] = self.channels.(params.channel).run_command(command, params.args);
             else
                 ch = RatBerryChannel(self.host, self.port, '');
+                [~, reply] = ch.run_command(command, params.args);
             end
-            params.args.command = command;
-            ch.run_command()
-            while self.conn.NumBytesAvailable == 0; continue; end
-            reply = jsondecode(char(self.conn.read()));
         end
-        function reply = get(self, req, varargin)
-            self.
 
+        function reply = get(self, req, varargin)
+
+            ip = inputParser();
+            ip.addParameter('channel', '', @ischar);
+            v = varargin;
+            ip.parse( v{:} );
+            params = ip.Results;
+
+            args.req = req;
+
+            reply = self.run_command('GET', 'args', args, 'channel', params.channel);
         end
     end
 end
