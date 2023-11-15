@@ -358,10 +358,7 @@ class RewardInterface(BaseInterface):
                             self.pumps[i].enable()
                         try:
                             # it takes long to check that all the valves are closed except the fill valve
-                            # maybe just assume they are closed ( as they should be)
-                            # for m in self.modules.values():
-                            #     if m.pump == self.pumps[i]:
-                            #         if m.valve: m.valve.close()
+                            # instead we assume they are closed (as they should be)
                             if hasattr(self.pumps[i], 'fillValve'):
                                 self.pumps[i].fillValve.open()
                             else:
@@ -390,6 +387,12 @@ class RewardInterface(BaseInterface):
                         self.pumps[i].fillValve.close()
                     except ResourceLocked:
                         pass
+        elif not self.auto_fill:
+            # need to make sure all modules' valves are closed before
+            # starting autofill since autofill doesn't check that all 
+            # non-fill-valves are closed when refilling (this would be slow).
+            for i in self.modules:
+                self.modules[i].valve.close()
         self.auto_fill = on
 
     def change_syringe(self, syringeType:str, all:bool = False, module:str = None, pump:str=None):
@@ -518,6 +521,13 @@ class RewardInterface(BaseInterface):
     def toggle_valve(self, module:str, open_valve:bool):
         """
         toggle the valve for a given module open or close
+        
+        IMPORTANT NOTE: users are encouraged to use this method for controlling the valves
+        instead of accessing the valves via their module and manually toggling them
+        because the autofill method does not check the status of non-fill valves when refilling.
+        this function ideally being the preferred method for toggling the valves automatically
+        turns off auto-fill when opening a valve to avoid a refill happening when a non-fill valve is open
+        we cannot gurantee against this behavior when toggling manually
 
         Args:
             module: str
@@ -528,6 +538,7 @@ class RewardInterface(BaseInterface):
         if hasattr(self.modules[module], "valve"):
             if open_valve:
                 self.modules[module].valve.open()
+                self.toggle_auto_fill(False)
             else:
                 self.modules[module].valve.close()
 
