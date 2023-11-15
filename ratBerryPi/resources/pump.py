@@ -429,26 +429,24 @@ class Pump(BaseResource):
                 return
             
             self.running = True
-            if self.triggered: self.triggered_pump()
+            if self.triggered: 
+                self.triggered_pump()
             else:
                 try:
                     if self.close_fill and hasattr(self.pump, "fillValve"):
                         self.pump.fillValve.close()
                     if self.valve: self.valve.open()
                     self.pump.move(self.amount, self.direction, check_availability = False)
+                    if self.valve:
+                        time.sleep(self.post_delay)
+                        self.valve.close()
+                        self.valve.lock.release()
+                    self.pump.lock.release()
+                    if hasattr(self.pump, 'fillValve'): 
+                        self.pump.fillValve.lock.release()
                     self.running = False
                 except EndTrackError:
                     pass
-            if self.valve:
-                time.sleep(self.post_delay)
-                self.valve.close()
-                self.valve.lock.release()
-            try:
-                self.pump.lock.release()
-                if hasattr(self.pump, 'fillValve'): self.pump.fillValve.lock.release()
-            except RuntimeError: 
-                # just in case the lock has already been released
-                pass
             self.success = True
 
         def triggered_pump(self):
@@ -477,12 +475,13 @@ class Pump(BaseResource):
                         while self.trigger_val and (step_count<steps):
                             self.pump.single_step(direction = self.direction)
                             step_count += 1
-                        if step_count < steps:
-                            if self.valve: 
-                                self.valve.close()
-                                self.valve.lock.release()
-                            self.pump.lock.release()
-                            if hasattr(self.pump, 'fillValve'): self.pump.fillValve.lock.release()
+                        if self.valve:
+                            time.sleep(self.post_delay)
+                            self.valve.close()
+                            self.valve.lock.release()
+                        self.pump.lock.release()
+                        if hasattr(self.pump, 'fillValve'): 
+                            self.pump.fillValve.lock.release()
             except EndTrackError:
                 pass
             self.running = False
@@ -496,11 +495,11 @@ class Pump(BaseResource):
                 if prev_trigger_value != current_trigger_value:
                     if current_trigger_value:
                         if self.pump.verbose: 
-                            self.logger.info('pump trigger on')
+                            self.pump.logger.info('pump trigger on')
                         self.trigger_val = True
                     else:
                         if self.pump.verbose: 
-                            self.logger.info('pump trigger off')
+                            self.pump.logger.info('pump trigger off')
                         self.trigger_val = False
                     prev_trigger_value = current_trigger_value
                 time.sleep(.001)
