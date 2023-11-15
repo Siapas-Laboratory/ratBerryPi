@@ -7,6 +7,6 @@ setup(
     author_email = "nnyema@caltech.edu",
     description = "A Raspberry Pi based system for cue presentation and fluid reward delivery in rodent behavioral experiments.", 
     packages = find_packages(),
-    scripts = ['ratBerryPi/server.py'],
+    scripts = ['ratBerryPi/server.py', 'ratBerryPi/client.py'],
     package_data = {"": ["*.yaml"]}
 )

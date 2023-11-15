@@ -61,6 +61,7 @@ classdef RatBerryClient
             args.req = req;
 
             reply = self.run_command('GET', 'args', args, 'channel', params.channel);
+            reply = jsondecode(reply);
         end
     end
 end
