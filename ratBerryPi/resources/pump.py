@@ -34,17 +34,18 @@ class PumpNotEnabled(Exception):
 
 
 class Syringe:
-    #TODO: determine max_pos for all possible syringes
-    syringeTypeDict = {'BD1mL':     {'ID': 0.478, 'max_pos': 0}, 
-                       'BD5mL':     {'ID': 1.207, 'max_pos': 4.7},
-                       'BD10mL':    {'ID': 1.45,  'max_pos': 6.5},
-                       'BD30mL':    {'ID': 2.17,  'max_pos': 0},
-                       'BD50/60mL': {'ID': 2.67,  'max_pos': 0}}
+    # ID and volume for any syringes we might want to use
+    # in cm and mL respectively 
+    syringeTypeDict = {'BD1mL':     {'ID': 0.478, 'vol': 1}, 
+                       'BD5mL':     {'ID': 1.207, 'vol': 5},
+                       'BD10mL':    {'ID': 1.45,  'vol': 10},
+                       'BD30mL':    {'ID': 2.17,  'vol': 30},
+                       'BD50mL':    {'ID': 2.67,  'vol': 50}}
 
     def __init__(self, syringeType = 'BD10mL'):
         try:
             self.ID = self.syringeTypeDict[syringeType]['ID']
-            self.max_pos = self.syringeTypeDict[syringeType]['max_pos']
+            self.max_pos = self.syringeTypeDict[syringeType]['vol']/(math.pi * (self.ID/2)**2)
             self.syringeType = syringeType
         except KeyError:
             msg = f"invalid syringeType '{syringeType}'. valid syringes include {[i for i in self.syringeTypeDict]}"
