@@ -181,7 +181,7 @@ class RewardInterface(BaseInterface):
         """
         self.pumps[pump].calibrate()
 
-    def fill_lines(self, modules, prime_amount = 1, res_amount = None, blocking = False, timeout = 1):
+    def fill_lines(self, modules, prime_amount = 1, res_amount = None, blocking = False, timeout = -1):
         """
         fill the lines leading up to the specified reward ports
         with fluid

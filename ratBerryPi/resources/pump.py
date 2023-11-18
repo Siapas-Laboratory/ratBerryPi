@@ -255,17 +255,14 @@ class Pump(BaseResource):
     def __flush(self, channel):
         acquired = self.lock.acquire(False)
         if acquired:
-            self.lock.acquire()
             if self.verbose: self.logger.info("flushing started")
             _prev_stepType = self.stepType
             self.stepType = 'Full'
             while GPIO.input(channel)==GPIO.HIGH:
-                self.single_step(direction = 'forward')
+                self.single_step(direction = 'forward', force = True)
             self.stepType = _prev_stepType 
-            if self.position<0:
-                self.calibrate()
+            if self.position<0: self.calibrate()
             if self.verbose: self.logger.info("flushing done")
-            self.lock.release()
             
     def __reverse(self, channel):
         acquired = self.lock.acquire(False)
@@ -274,7 +271,7 @@ class Pump(BaseResource):
             _prev_stepType = self.stepType
             self.stepType = 'Full'
             while GPIO.input(channel)==GPIO.HIGH:
-                self.single_step(direction = 'backward')
+                self.single_step(direction = 'backward', force = True)
             self.stepType = _prev_stepType
             if self.verbose: self.logger.info("reversing done")
             self.lock.release()
