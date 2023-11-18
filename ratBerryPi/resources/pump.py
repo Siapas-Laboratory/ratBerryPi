@@ -263,6 +263,7 @@ class Pump(BaseResource):
             self.stepType = _prev_stepType 
             if self.position<0: self.calibrate()
             if self.verbose: self.logger.info("flushing done")
+            self.lock.release()
             
     def __reverse(self, channel):
         acquired = self.lock.acquire(False)
