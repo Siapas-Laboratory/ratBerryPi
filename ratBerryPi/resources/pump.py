@@ -20,10 +20,9 @@ import time
 import pickle
 from enum import Enum
 
-#TODO: replace 'forward' and backward with this
 class Direction(Enum):
-    FORWARD=1
-    BACKWARD=2
+    FORWARD=True
+    BACKWARD=False
 
 class EndTrackError(Exception):
     """reached end of track"""
@@ -97,7 +96,7 @@ class Pump(BaseResource):
         self.syringe = syringe
 
         self._dirPin = config_output(dirPin)
-        self.direction = 'forward'
+        self.direction = Direction.FORWARD
 
         self._stepPin = config_output(stepPin)
         self._modePins = (config_output(modePins[0]),
@@ -153,13 +152,11 @@ class Pump(BaseResource):
     
     @direction.setter
     def direction(self, direction):
-        if not isinstance(direction, str):
-            raise ValueError("direction must be of type str")
-        if not direction.lower() in ['forward', 'backward']:
-            raise ValueError("direction must be either 'forward' or 'backward'")
-        self._direction = direction.lower()
-        self._dirPin.value = direction.lower() == 'forward'
-        time.sleep(.01)
+        if not isinstance(direction, Direction):
+            raise ValueError("direction must be of type 'Direction'")
+        self._direction = direction
+        self._dirPin.value = direction.value
+        time.sleep(.01) # wait for register to actually update
 
     @property
     def syringe(self):
@@ -214,13 +211,13 @@ class Pump(BaseResource):
         mlPerThread = mlPerCm * self.pitch
         return  stepsPerThread/ mlPerThread
 
-    def single_step(self, direction:str = None, force:bool = False):
+    def single_step(self, direction:Direction = None, force:bool = False):
         """
         send a single pulse to step the pump's motor in a specified direction
 
         Args:
         -----
-        direction: str
+        direction: Direction
             direction to step the motor, either forward or backward
         force: bool
             flag to force the motor to step even if the carriage sled is near the end
@@ -232,8 +229,8 @@ class Pump(BaseResource):
             if direction:
                 if direction != self.direction:
                     self.direction = direction
-            too_close = self.at_min_pos and self.direction == 'forward'
-            too_far = self.at_max_pos and self.direction != 'forward'
+            too_close = self.at_min_pos and self.direction == Direction.FORWARD
+            too_far = self.at_max_pos and self.direction == Direction.BACKWARD
             if (too_close or too_far) and not force:
                 raise EndTrackError      
             if (not force) and (not self.enabled):
@@ -244,7 +241,7 @@ class Pump(BaseResource):
             self._stepPin.value = False
             time.sleep(self.stepDelay)
 
-            if self.direction == 'forward':
+            if self.direction == Direction.FORWARD:
                 self.position -= (self.pitch/self.steps_per_rot[self.stepType])
             else:
                 self.position += (self.pitch/self.steps_per_rot[self.stepType])
@@ -259,7 +256,7 @@ class Pump(BaseResource):
             _prev_stepType = self.stepType
             self.stepType = 'Full'
             while GPIO.input(channel)==GPIO.HIGH:
-                self.single_step(direction = 'forward', force = True)
+                self.single_step(direction = Direction.FORWARD, force = True)
             self.stepType = _prev_stepType 
             if self.position<0: self.calibrate()
             if self.verbose: self.logger.info("flushing done")
@@ -272,13 +269,13 @@ class Pump(BaseResource):
             _prev_stepType = self.stepType
             self.stepType = 'Full'
             while GPIO.input(channel)==GPIO.HIGH:
-                self.single_step(direction = 'backward', force = True)
+                self.single_step(direction = Direction.BACKWARD, force = True)
             self.stepType = _prev_stepType
             if self.verbose: self.logger.info("reversing done")
             self.lock.release()
     
-    def is_available(self, amount, direction = 'forward'):
-        if direction == 'forward':
+    def is_available(self, amount, direction = Direction.FORWARD):
+        if direction == Direction.FORWARD:
             return amount < self.vol_left
         else:
             return amount <= (math.pi * ((self.syringe.ID/2)**2) * self.syringe.max_pos) - self.vol_left
@@ -345,7 +342,7 @@ class Pump(BaseResource):
         if not self.at_max_pos:
             amount = (math.pi * ((self.syringe.ID/2)**2) * self.syringe.max_pos) - self.vol_left
             try:
-                self.move(amount, direction = 'backward',
+                self.move(amount, direction = Direction.BACKWARD,
                           blocking = blocking, timeout = timeout)
             except EndTrackError:
                 return
@@ -369,7 +366,7 @@ class Pump(BaseResource):
             pickle.dump(self.position, f)
         if self.thread:self.thread.stop()
 
-    def async_pump(self, amount, triggered, valve = None, direction = 'forward', 
+    def async_pump(self, amount, triggered, valve = None, direction = Direction.FORWARD, 
                    close_fill = False, trigger_source = None, post_delay = 1):
         
         self.thread = Pump.PumpThread(self, amount, triggered, valve, direction,
@@ -385,7 +382,7 @@ class Pump(BaseResource):
     
     class PumpThread(threading.Thread):
         def __init__(self, pump, amount, triggered, valve = None, 
-                    direction = 'forward', close_fill = False,
+                    direction = Direction.FORWARD, close_fill = False,
                     trigger_source = None, post_delay = 1):
             
             super(Pump.PumpThread, self).__init__()

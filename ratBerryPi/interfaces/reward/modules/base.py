@@ -1,4 +1,5 @@
 from ratBerryPi.resources import Pump, Valve, ResourceLocked
+from ratBerryPi.resources.pump import Direction
 import RPi.GPIO as GPIO
 import time
 
@@ -57,7 +58,7 @@ class BaseRewardModule:
                     # make sure the fill valve is closed if the pump has one
                     if hasattr(self.pump, 'fillValve'): self.pump.fillValve.close()
                     # deliver the reward
-                    self.pump.move(amount, force = force, direction = 'forward')
+                    self.pump.move(amount, force = force, direction = Direction.FORWARD)
                     # wait then close the valve
                     time.sleep(post_delay)
                     self.valve.close()
@@ -66,7 +67,7 @@ class BaseRewardModule:
 
         else: # spawn a thread to deliver reward asynchronously
             self.pump.async_pump(amount, triggered, close_fill = True, 
-                                 valve = self.valve, direction = 'forward',
+                                 valve = self.valve, direction = Direction.FORWARD,
                                  trigger_source = self, post_delay = post_delay)
 
     def fill_line(self, amount:float = None, refill:bool = True, post_delay:float = 1):
@@ -93,7 +94,7 @@ class BaseRewardModule:
                 else: # if the remaining/requested amount is available set dispense volume accordingly
                     dispense_vol = amount
                 self.valve.open()
-                self.pump.move(dispense_vol, direction = 'forward')
+                self.pump.move(dispense_vol, direction = Direction.FORWARD)
                 # wait then close the valve
                 time.sleep(post_delay)
                 self.valve.close()

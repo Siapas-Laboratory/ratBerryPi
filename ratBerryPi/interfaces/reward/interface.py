@@ -1,6 +1,6 @@
 from ratBerryPi.interfaces.base import BaseInterface
 from ratBerryPi.resources import Pump, Lickometer, AudioInterface, Speaker, LED, Valve, ResourceLocked
-from ratBerryPi.resources.pump import Syringe
+from ratBerryPi.resources.pump import Syringe, Direction
 from ratBerryPi.interfaces.reward.modules import *
 
 import RPi.GPIO as GPIO
@@ -265,7 +265,7 @@ class RewardInterface(BaseInterface):
                 logging.info(f"priming reservoir for {p.name}")
                 if hasattr(p, 'fillValve'):
                     p.fillValve.open()
-                p.move(amt, direction = 'forward')
+                p.move(amt, direction = Direction.FORWARD)
                 if hasattr(p, 'fillValve'):
                     p.fillValve.close()
 
@@ -363,7 +363,7 @@ class RewardInterface(BaseInterface):
                                 self.pumps[i].fillValve.open()
                             else:
                                 logging.warning(f"{i} has no specified fill valve")
-                            self.pumps[i].single_step(direction = 'backward')
+                            self.pumps[i].single_step(direction = Direction.BACKWARD)
                         except ResourceLocked:
                             pass
                     elif hasattr(self.pumps[i], 'fillValve'):

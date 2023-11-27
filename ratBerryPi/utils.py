@@ -5,7 +5,6 @@ from adafruit_mcp230xx.mcp23017 import MCP23017
 
 # Initialize the I2C bus:
 i2c = busio.I2C(board.SCL, board.SDA)
-mcp = MCP23017(i2c)  # MCP23017
 
 def config_output(pin):
     """
@@ -15,7 +14,15 @@ def config_output(pin):
     a GPIO pin or a string specigying a pin on the
     GPIO port expander bonnet
     """
+
     if type(pin) == str: # the pin is on the expander bonnet
+        pin = pin.split(':')
+        if len(pin) == 2:
+            addr = int(pin[0], 16)
+            pin = pin[-1]
+        else:
+            raise ValueError('invalid pin specified')
+        mcp = MCP23017(i2c, address = addr)  # MCP23017
         pin = int(pin[-1]) + 8*(pin[-2].lower() == 'b')
         p = mcp.get_pin(pin)
     else:
