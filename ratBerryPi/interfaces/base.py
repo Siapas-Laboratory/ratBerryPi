@@ -13,8 +13,10 @@ class BaseInterface:
         
         GPIO.setmode(GPIO.BCM)
         self.on = on if on else threading.Event()
-        with open(config_file, 'r') as f:
-            self.config = yaml.safe_load(f)
+        
+        if config_file:
+            with open(config_file, 'r') as f:
+                self.config = yaml.safe_load(f)
 
         self.recording = False
         self.data_dir = data_dir

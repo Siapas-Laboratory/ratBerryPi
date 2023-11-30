@@ -1,5 +1,6 @@
 from ratBerryPi.interfaces.base import BaseInterface
-from ratBerryPi.resources import Pump, Lickometer, AudioInterface, Speaker, LED, Valve, ResourceLocked
+from ratBerryPi.interfaces import AudioInterface
+from ratBerryPi.resources import Pump, Lickometer, LED, Valve, ResourceLocked
 from ratBerryPi.resources.pump import Syringe, Direction
 from ratBerryPi.interfaces.reward.modules import *
 
@@ -126,12 +127,13 @@ class RewardInterface(BaseInterface):
         # load any loose plugins not attached to a module
         if 'plugins' in self.config:
             for k, v in self.config['plugins'].items():
-                v['parent'] = self
                 plugin_type = v.pop('type')
                 if plugin_type == 'Speaker':
-                    v['audio_interface'] == self.audio_interface
-                constructor = globals()[plugin_type]
-                self.plugins[k] = constructor(k, **v)
+                    self.audio_interface.add_speaker(v['name'], v['SDPin'])
+                else:
+                    v['parent'] = self
+                    constructor = globals()[plugin_type]
+                    self.plugins[k] = constructor(k, **v)
 
         self.modules = {}
         if load_defaults:
@@ -168,7 +170,7 @@ class RewardInterface(BaseInterface):
                 if port_pins['lickPin']:
                     args['lickometer'] = Lickometer(f"{i}-lickometer", self, port_pins["lickPin"], self.on)
                 if port_pins['SDPin']:
-                    args['speaker'] = Speaker(f"{i}-speaker", self, self.audio_interface, port_pins["SDPin"])
+                    args['speaker'] = self.audio_interface.add_speaker(f"{i}-speaker", port_pins["SDPin"])
                 
                 self.modules[i] = DefaultModule(i, **args)
         
@@ -182,6 +184,7 @@ class RewardInterface(BaseInterface):
                 name of the pump to calibrate
         """
         self.pumps[pump].calibrate()
+
 
     def fill_lines(self, modules, prime_amount = 1, res_amount = None, blocking = False, timeout = -1):
         """
@@ -344,6 +347,10 @@ class RewardInterface(BaseInterface):
 
         self.modules[module].trigger_reward(amount, force = force, triggered = triggered, 
                                             sync = sync, post_delay = post_delay)
+
+    def refill_syringe(self, pump:str = None):
+        #TODO: implement this
+        raise NotImplemented
 
     def _fill_syringes(self):
         """
@@ -518,12 +525,9 @@ class RewardInterface(BaseInterface):
             else:
                 raise NoSpeaker
         elif speaker is not None:
-            if isinstance(self.plugins[speaker], Speaker):
-                self.plugins[speaker].play_tone(freq, dur, volume)
-            else:
-                raise NoSpeaker
+            self.audio_interface.play_tone(speaker, freq, dur, volume)
         else:
-            raise NoSpeaker
+            raise ValueError("Must Specify either 'module' or 'speaker'")
 
     def toggle_valve(self, module:str, open_valve:bool):
         """

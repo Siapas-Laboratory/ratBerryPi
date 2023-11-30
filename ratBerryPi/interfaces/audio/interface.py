@@ -1,4 +1,5 @@
 import numpy as np
+from ratBerryPi.interfaces.base import BaseInterface
 from ratBerryPi.resources.base import BaseResource
 from ratBerryPi.utils import config_output
 
@@ -11,14 +12,19 @@ class AudioInterface(BaseInterface):
         # to obey Nyquist sampling theorem. look into limits on the amplifier and
         # pyaudio
         import pyaudio as pa  # sudo apt-get install python{,3}-pyaudio
-        super(AudioInterface, self).__init__("audio_interface")
+        super(AudioInterface, self).__init__(None, None)
         self.session = pa.PyAudio()
         self.fs = fs
         self.stream = None
         self.speakers = {}
 
+
+    def start(self):
+        pass
+
     def add_speaker(self, name,  SDPin):
         self.speakers[name] = AudioInterface.Speaker(name, self, SDPin)
+        return self.speakers[name]
 
     def play_tone(self, speakers, freq, dur, volume=1, force = True):
 
@@ -32,10 +38,7 @@ class AudioInterface(BaseInterface):
                 else:
                     return
         for i in speakers:
-            try:
-                self.speakers[i].enable()     
-            except KeyError:
-                raise KeyError(f"speaker of name '{i}' not found in audio interface")     
+            self.speakers[i].enable()          
             
         n_samples = int(self.fs * dur)
         restframes = n_samples % self.fs
@@ -56,8 +59,8 @@ class AudioInterface(BaseInterface):
                         self.speakers[i].disable()
                     return (None, pa.paComplete)
             else:
-                for i in self.speakers:
-                    self.speakers[i].disable()
+                for i in self.SDPins:
+                    self.SDPins[i].value = False
                 return (None, pa.paComplete)
 
         self.stream = self.session.open(format = pa.paFloat32,
@@ -76,7 +79,6 @@ class AudioInterface(BaseInterface):
             super(Speaker, self).__init__(name, parent)
             self.SDPin = config_output(SDPin)
             self.SDPin.value = False
-            assert isinstance(parent, AudioInterface), "parent must be an instance of AudioInterface"
 
         @property
         def enabled(self):
@@ -87,7 +89,4 @@ class AudioInterface(BaseInterface):
 
         def disable(self):
             self.SDPin.value = False
-
-        def play_tone(self, freq, dur, volume=1, force = True):
-            self.parent.play_tone(self.name, freq, dur, volume, force)
 
