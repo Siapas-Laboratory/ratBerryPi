@@ -1,12 +1,3 @@
-
-#######################################
-# This code is influence by
-# https://makersportal.com/blog/raspberry-pi-stepper-motor-control-with-nema-17
-#
-# Desiderio Ascencio
-# Modified by: Nathaniel Nyema
-#######################################
-
 from ratBerryPi.resources.base import BaseResource, ResourceLocked
 from ratBerryPi.utils import config_output
 from ratBerryPi.resources.valve import Valve
@@ -35,20 +26,41 @@ class PumpNotEnabled(Exception):
 class Syringe:
     # ID and volume for any syringes we might want to use
     # in cm and mL respectively 
-    syringeTypeDict = {'BD1mL':     {'ID': 0.478, 'vol': 1}, 
-                       'BD5mL':     {'ID': 1.207, 'vol': 5},
-                       'BD10mL':    {'ID': 1.45,  'vol': 10},
-                       'BD30mL':    {'ID': 2.17,  'vol': 30},
-                       'BD50mL':    {'ID': 2.67,  'vol': 50}}
+    syringeTypeDict = {'BD1mL':     {'ID': 0.478, 'volume': 1}, 
+                       'BD5mL':     {'ID': 1.207, 'volume': 5},
+                       'BD10mL':    {'ID': 1.45,  'volume': 10},
+                       'BD30mL':    {'ID': 2.17,  'volume': 30},
+                       'BD50mL':    {'ID': 2.67,  'volume': 50}}
 
     def __init__(self, syringeType = 'BD10mL'):
-        try:
-            self.ID = self.syringeTypeDict[syringeType]['ID']
-            self.max_pos = self.syringeTypeDict[syringeType]['vol']/(math.pi * (self.ID/2)**2)
-            self.syringeType = syringeType
-        except KeyError:
+        self.syringeType = syringeType
+
+    @property
+    def syringeType(self):
+        return self._syringeType
+
+    @syringeType.setter
+    def syringeType(self, syringeType):
+        if not syringeType in self.syringeTypeDict:
             msg = f"invalid syringeType '{syringeType}'. valid syringes include {[i for i in self.syringeTypeDict]}"
             raise ValueError(msg)
+        self._syringeType = syringeType
+
+    @property
+    def ID(self):
+        return self.syringeTypeDict[self.syringeType]['ID']
+
+    @property
+    def volume(self):
+        return self.syringeTypeDict[self.syringeType]['volume']
+    
+    @property
+    def max_pos(self):
+        return self.volume/(math.pi * (self.ID/2)**2)
+    
+    @property
+    def mlPerCm(self):
+        return math.pi * ((self.ID/2)**2)
 
 
 class Pump(BaseResource):
@@ -114,6 +126,7 @@ class Pump(BaseResource):
         self.state_fpath = os.path.join(state_dir, f"{self.name}.pckl")
 
         if not os.path.exists(self.state_fpath):
+            print('creating')
             self.logger.warning(f'pump states file not found, creating and setting {self.name} position to 0')
             self.position = 0
             with open(self.state_fpath, 'wb') as f:
@@ -200,16 +213,16 @@ class Pump(BaseResource):
         else:
             raise ValueError(f"invalid step type. valid stepTypes include {[i for i in self.step_type_configs]}")
 
+    @property
+    def stepsPermL(self):
+        stepsPerThread = self.steps_per_rot[self.stepType]
+        mlPerThread = self.syringe.mlPerCm * self.pitch
+        return  stepsPerThread/ mlPerThread
+
     def calibrate(self, channel=None):
         self.position = 0
         self.track_end = True
 
-    def get_conversion(self, stepType = None):
-        stepType = stepType if stepType is not None else self.stepType
-        stepsPerThread = self.steps_per_rot[stepType]
-        mlPerCm = math.pi * ((self.syringe.ID/2)**2)
-        mlPerThread = mlPerCm * self.pitch
-        return  stepsPerThread/ mlPerThread
 
     def single_step(self, direction:Direction = None, force:bool = False):
         """
@@ -290,12 +303,12 @@ class Pump(BaseResource):
         amount: float
             desired fluid output in mL
         """
-        stepsPermL = self.get_conversion()
+        stepsPermL = self.stepsPermL
         n_steps = int(round(stepsPermL * amount))
         actual = n_steps/stepsPermL
         msg = f"{amount} mL requested; {actual} mL to be produced using stepType '{self.stepType}'; error = {amount - actual} mL"
         self.logger.debug(msg)
-        return n_steps, stepsPermL
+        return n_steps
 
     def move(self, amount, direction, check_availability = True, 
              blocking = False, timeout = -1):
@@ -309,7 +322,7 @@ class Pump(BaseResource):
         forward: bool
             whether or not to move the piston forward
         """
-        steps, stepsPermL = self.calculate_steps(amount)
+        steps = self.calculate_steps(amount)
         step_count = 0
 
         acquired = self.lock.acquire(blocking = blocking, 
@@ -327,7 +340,7 @@ class Pump(BaseResource):
                 try:
                     self.single_step()
                 except PumpNotEnabled as e:
-                    self.logger.warning(f"Pump turned off after {step_count} steps ({step_count/stepsPermL} mL)")
+                    self.logger.warning(f"Pump turned off after {step_count} steps ({step_count/self.stepsPermL} mL)")
                     self.lock.release()
                     raise e
                 step_count += 1
@@ -340,7 +353,7 @@ class Pump(BaseResource):
     
     def ret_to_max(self, blocking = False, timeout = -1):
         if not self.at_max_pos:
-            amount = (math.pi * ((self.syringe.ID/2)**2) * self.syringe.max_pos) - self.vol_left
+            amount = self.syringe.volume - self.vol_left
             try:
                 self.move(amount, direction = Direction.BACKWARD,
                           blocking = blocking, timeout = timeout)
@@ -441,9 +454,10 @@ class Pump(BaseResource):
                     if hasattr(self.pump, 'fillValve'): 
                         self.pump.fillValve.lock.release()
                     self.running = False
-                except EndTrackError:
-                    pass
-            self.success = True
+                    self.success = True
+                except PumpNotEnabled:
+                    self.success = False
+                    self.pump.logger.debug("thread stopped")
 
         def triggered_pump(self):
             # release the locks so the trigger can control them
@@ -453,9 +467,8 @@ class Pump(BaseResource):
 
             self.pump_trigger_thread = threading.Thread(target = self.trigger_pump)
             self.pump_trigger_thread.start()
-            steps, _ = self.pump.calculate_steps(self.amount)
+            steps = self.pump.calculate_steps(self.amount)
             step_count = 0
-            was_enabled = self.pump.enabled
             self.pump.enable() # disable the pump until we get a trigger
             os.nice(19) # give priority to this thread
             try:
@@ -478,8 +491,9 @@ class Pump(BaseResource):
                         self.pump.lock.release()
                         if hasattr(self.pump, 'fillValve'): 
                             self.pump.fillValve.lock.release()
-            except EndTrackError:
-                pass
+                self.success = True
+            except (EndTrackError, PumpNotEnabled):
+                self.success = False
             self.running = False
             self.pump_trigger_thread.join()
             if not was_enabled: self.pump.disable()
@@ -501,9 +515,7 @@ class Pump(BaseResource):
                 time.sleep(.001)
 
         def stop(self):
-            try:
-                self.pump.disable()
-            except PumpNotEnabled:
-                pass
             self.running = False
+            self.pump.disable()
             self.join()
+            self.success = False

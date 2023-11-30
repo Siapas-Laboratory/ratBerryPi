@@ -108,6 +108,7 @@ class RewardInterface(BaseInterface):
         super(RewardInterface, self).__init__(on, config_file)
 
         self.pumps = {}
+        self.needs_refilling = {}
         # load all pumps
         for i in self.config['pumps']: 
             if 'syringeType' in self.config['pumps'][i]:
@@ -117,6 +118,7 @@ class RewardInterface(BaseInterface):
             self.config['pumps'][i]['syringe'] = syringe
             self.config['pumps'][i]['modePins'] = tuple(self.config['pumps'][i]['modePins'])
             self.pumps[i] = Pump(i, **self.config['pumps'][i])
+            self.needs_refilling[i] = False
 
         self.plugins = {}
         self.audio_interface = AudioInterface()
@@ -353,7 +355,9 @@ class RewardInterface(BaseInterface):
         while self.on.is_set():
             if self.auto_fill:
                 for i in self.pumps:
-                    if not self.pumps[i].at_max_pos:
+                    if self.pumps[i].vol_left < .5 * self.pumps[i].syringe.volume:
+                        self.needs_refilling[i] = True
+                    if self.needs_refilling[i]:
                         if not self.pumps[i].enabled: 
                             self.pumps[i].enable()
                         try:
@@ -361,9 +365,12 @@ class RewardInterface(BaseInterface):
                             # instead we assume they are closed (as they should be)
                             if hasattr(self.pumps[i], 'fillValve'):
                                 self.pumps[i].fillValve.open()
+                                self.pumps[i].single_step(direction = Direction.BACKWARD)
+                                if self.pumps[i].at_max_pos:
+                                    self.pumps[i].move(.1 * self.pumps[i].syringe.mlPerCm, Direction.FORWARD)
+                                    self.needs_refilling[i] = False
                             else:
                                 logging.warning(f"{i} has no specified fill valve")
-                            self.pumps[i].single_step(direction = Direction.BACKWARD)
                         except ResourceLocked:
                             pass
                     elif hasattr(self.pumps[i], 'fillValve'):

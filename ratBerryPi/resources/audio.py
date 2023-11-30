@@ -1,10 +1,3 @@
-#######################################
-#
-# code influenced by https://stackoverflow.com/questions/974071/python-library-for-playing-fixed-frequency-sound
-# 
-# Desiderio Ascencio 
-#######################################
-
 import numpy as np
 from ratBerryPi.resources.base import BaseResource
 from ratBerryPi.utils import config_output

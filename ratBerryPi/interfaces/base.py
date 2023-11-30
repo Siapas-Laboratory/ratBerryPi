@@ -12,7 +12,7 @@ class BaseInterface:
                  data_dir = os.path.join(os.path.expanduser('~'), ".ratBerryPi", "data")):
         
         GPIO.setmode(GPIO.BCM)
-        self.on = on
+        self.on = on if on else threading.Event()
         with open(config_file, 'r') as f:
             self.config = yaml.safe_load(f)
 

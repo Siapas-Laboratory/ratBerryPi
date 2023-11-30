@@ -83,6 +83,7 @@ class BaseRewardModule:
                         self.pump.fillValve.open()
                         self.pump.ret_to_max()
                         # wait then close the fill valve
+                        self.pump.move(.1 * self.pump.syringe.mlPerCm, Direction.FORWARD)
                         time.sleep(post_delay)
                         self.pump.fillValve.close()
                 # if the remaining/requested amount is more then available

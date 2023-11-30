@@ -20,9 +20,12 @@ def config_output(pin):
         if len(pin) == 2:
             addr = int(pin[0], 16)
             pin = pin[-1]
+            mcp = MCP23017(i2c, address = addr)
+        elif len(pin) == 1:
+            pin = pin[-1]
+            mcp = MCP23017(i2c)
         else:
             raise ValueError('invalid pin specified')
-        mcp = MCP23017(i2c, address = addr)  # MCP23017
         pin = int(pin[-1]) + 8*(pin[-2].lower() == 'b')
         p = mcp.get_pin(pin)
     else:

@@ -7,7 +7,7 @@ from ratBerryPi.utils import config_output
 
 
 class Lickometer(BaseResource):
-    def __init__(self, name, parent, lickPin, on:threading.Event, burst_thresh = 0.5, update_interval = .01, outpin ="GPB7"):
+    def __init__(self, name, parent, lickPin, on:threading.Event, burst_thresh = 0.5, update_interval = .01):
 
         super(Lickometer, self).__init__(name, parent)
         self.name = name
@@ -20,25 +20,18 @@ class Lickometer(BaseResource):
         self.on = on
         self.update_interval = update_interval
         self.parent = parent
-        if outpin:
-            self.outpin = config_output(outpin)
-            self.outpin.value = False
 
         GPIO.setup(self.lickPin, GPIO.IN)
-        GPIO.add_event_detect(self.lickPin, GPIO.BOTH, callback=self.increment_licks)
+        GPIO.add_event_detect(self.lickPin, GPIO.RISING, callback=self.increment_licks)
 
         self.burst_thread = threading.Thread(target = self.monitor_bursts)
         self.burst_thread.start()
     
     def increment_licks(self, x):
-        if GPIO.input(x):
-            self.logger.info(f"{self.name}, lick")    
-            self.licks += 1
-            self.burst_lick +=1
-            self.last_lick = datetime.now()
-            self.outpin.value = True
-        else:
-            self.outpin.value = False
+        self.logger.info(f"{self.name}, lick")    
+        self.licks += 1
+        self.burst_lick +=1
+        self.last_lick = datetime.now()
 
     def reset_licks(self):
         self.licks = 0
