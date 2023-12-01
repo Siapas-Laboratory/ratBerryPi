@@ -153,7 +153,7 @@ class RewardInterface(BaseInterface):
     
     def start(self):
         super(RewardInterface, self).start()
-        # self.auto_fill_thread.start()    
+        self.auto_fill_thread.start()    
 
     def calibrate(self, pump):
         """
