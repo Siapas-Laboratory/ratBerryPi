@@ -2,17 +2,24 @@ from ratBerryPi.resources import Pump, Valve, ResourceLocked
 from ratBerryPi.resources.pump import Direction
 import RPi.GPIO as GPIO
 import time
+from abc import ABC, abstractmethod
+import typing
 
-class BaseRewardModule:
+class BaseRewardModule(ABC):
     """
     a base class for all reward modules
     any class defining a reward module should inherit from this class
     """
-    def __init__(self, name, pump:Pump, valve:Valve, dead_volume:float = 1):
+    def __init__(self, name, parent, pump:Pump, valvePin:typing.Union[int, str], dead_volume:float = 1):
+        self.parent = parent
         self.name = name
         self.pump = pump
-        self.valve = valve
+        self.valve = Valve(f"{self.name}-valve", self, valvePin)
         self.dead_volume = dead_volume
+
+    @abstractmethod
+    def load_from_config(self):
+        ...
 
     @property
     def pump_trigger(self):

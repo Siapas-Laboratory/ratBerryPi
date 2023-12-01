@@ -1,5 +1,5 @@
 import time
-from ratBerryPi.resources.base import BaseResource, ResourceLocked
+from .base import BaseResource, ResourceLocked
 from ratBerryPi.utils import config_output
 
 class Valve(BaseResource):

@@ -2,15 +2,13 @@ from datetime import datetime
 import RPi.GPIO as GPIO
 import threading
 import time
-from ratBerryPi.resources.base import BaseResource
-from ratBerryPi.utils import config_output
+from .base import BaseResource
 
 
 class Lickometer(BaseResource):
     def __init__(self, name, parent, lickPin, on:threading.Event, burst_thresh = 0.5, update_interval = .01):
 
         super(Lickometer, self).__init__(name, parent)
-        self.name = name
         self.lickPin = lickPin
         self.licks = 0
         self.in_burst = False
@@ -19,7 +17,6 @@ class Lickometer(BaseResource):
         self.burst_thresh = burst_thresh
         self.on = on
         self.update_interval = update_interval
-        self.parent = parent
 
         GPIO.setup(self.lickPin, GPIO.IN)
         GPIO.add_event_detect(self.lickPin, GPIO.RISING, callback=self.increment_licks)

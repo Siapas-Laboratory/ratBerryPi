@@ -3,7 +3,7 @@ from inspect import isclass
 from pkgutil import iter_modules
 from pathlib import Path
 from importlib import import_module
-from ratBerryPi.resources.base import BaseResource
+from .base import BaseResource
 
 
 # iterate through the modules in the current package

@@ -1,4 +1,4 @@
-from ratBerryPi.interfaces.base import BaseInterface
+from ..base import BaseInterface
 from pathlib import Path
 from ratBerryPi.resources import Valve
 import alicat

@@ -1,6 +1,6 @@
-from ratBerryPi.resources.base import BaseResource, ResourceLocked
+from .base import BaseResource, ResourceLocked
 from ratBerryPi.utils import config_output
-from ratBerryPi.resources.valve import Valve
+from .valve import Valve
 
 import RPi.GPIO as GPIO
 import time
@@ -263,29 +263,27 @@ class Pump(BaseResource):
             raise ResourceLocked("Pump In Use")
             
     def __flush(self, channel):
-        acquired = self.lock.acquire(False)
-        if acquired:
-            if self.verbose: self.logger.info("flushing started")
-            _prev_stepType = self.stepType
-            self.stepType = 'Full'
-            while GPIO.input(channel)==GPIO.HIGH:
-                self.single_step(direction = Direction.FORWARD, force = True)
-            self.stepType = _prev_stepType 
-            if self.position<0: self.calibrate()
-            if self.verbose: self.logger.info("flushing done")
-            self.lock.release()
+        self.lock.acquire()
+        if self.verbose: self.logger.info("flushing started")
+        _prev_stepType = self.stepType
+        self.stepType = 'Full'
+        while GPIO.input(channel)==GPIO.HIGH:
+            self.single_step(direction = Direction.FORWARD, force = True)
+        self.stepType = _prev_stepType 
+        if self.position<0: self.calibrate()
+        if self.verbose: self.logger.info("flushing done")
+        self.lock.release()
             
     def __reverse(self, channel):
-        acquired = self.lock.acquire(False)
-        if acquired:
-            if self.verbose: self.logger.info("reversing started")
-            _prev_stepType = self.stepType
-            self.stepType = 'Full'
-            while GPIO.input(channel)==GPIO.HIGH:
-                self.single_step(direction = Direction.BACKWARD, force = True)
-            self.stepType = _prev_stepType
-            if self.verbose: self.logger.info("reversing done")
-            self.lock.release()
+        self.lock.acquire()
+        if self.verbose: self.logger.info("reversing started")
+        _prev_stepType = self.stepType
+        self.stepType = 'Full'
+        while GPIO.input(channel)==GPIO.HIGH:
+            self.single_step(direction = Direction.BACKWARD, force = True)
+        self.stepType = _prev_stepType
+        if self.verbose: self.logger.info("reversing done")
+        self.lock.release()
     
     def is_available(self, amount, direction = Direction.FORWARD):
         if direction == Direction.FORWARD:
@@ -469,6 +467,7 @@ class Pump(BaseResource):
             self.pump_trigger_thread.start()
             steps = self.pump.calculate_steps(self.amount)
             step_count = 0
+            was_enabled = self.pump.enabled
             self.pump.enable() # disable the pump until we get a trigger
             os.nice(19) # give priority to this thread
             try:

@@ -1,7 +1,7 @@
-from ratBerryPi.interfaces.base import BaseInterface
-from ratBerryPi.interfaces import AudioInterface
+from ..base import BaseInterface
+from ..audio.interface import AudioInterface
 from ratBerryPi.resources import Pump, Lickometer, LED, Valve, ResourceLocked
-from ratBerryPi.resources.pump import Syringe, Direction
+from ratBerryPi.resources.pump import Syringe, Direction, EndTrackError
 from ratBerryPi.interfaces.reward.modules import *
 
 import RPi.GPIO as GPIO
@@ -89,7 +89,7 @@ class RewardInterface(BaseInterface):
 
     """
 
-    def __init__(self, on:threading.Event, config_file = Path(__file__).parent/"config.yaml", load_defaults:bool = True):
+    def __init__(self, on:threading.Event, config_file = Path(__file__).parent/"config.yaml"):
         """
         Constructs the reward interface from the config file
 
@@ -136,44 +136,24 @@ class RewardInterface(BaseInterface):
                     self.plugins[k] = constructor(k, **v)
 
         self.modules = {}
-        if load_defaults:
-            # TODO: it could be worth coming up with a more general framework for loading modules
-            # perhaps define an abstract method in the base RewardModule class that must be overwritten
-            # with a function for the module to load itself from entries in the config file
-            self.load_default_modules()
+        for i in self.config['modules']:
+            if 'port' in self.config['modules'][i]:
+                port = self.config['modules'][i]['port']
+                self.config['modules'][i].update(ETHERNET[port])
+            valvePin = self.config['modules'][i]['valvePin']
+            dead_volume = self.config['modules'][i].get('dead_volume',1)
+            constructor = globals()[self.config['modules'][i]['type']]
+            self.modules[i] = constructor(i, self, self.pumps[self.config['modules'][i]['pump']], 
+                                          valvePin, dead_volume)
+            self.modules[i].load_from_config(self.config['modules'][i])
 
+        self.valves_manually_toggled = False
         self.auto_fill = False
         self.auto_fill_thread = threading.Thread(target = self._fill_syringes)
     
     def start(self):
         super(RewardInterface, self).start()
-        self.auto_fill_thread.start()
-
-    def load_default_modules(self):
-
-        for i in self.config['modules']:
-            if self.config['modules'][i]['type'] == 'default':
-                pump = self.pumps[self.config['modules'][i]['pump']]
-                dead_volume = self.config['modules'][i].get('dead_volume', 1)
-                if 'port' in self.config['modules'][i]:
-                    port = self.config['modules'][i]['port']
-                    port_pins =  ETHERNET[port]
-                else:
-                    for j in ['valvePin', 'SDPin', 'lickPin', 'LEDPin']:
-                        port_pins[j] = self.config['modules'][i].get(j)
-                args = {'pump': pump, 'dead_volume': dead_volume}
-
-                if port_pins['valvePin']: 
-                    args['valve'] = Valve(f"{i}-valve", self, port_pins['valvePin'])
-                if port_pins['LEDPin']:
-                    args['led'] = LED(f"{i}-LED", self, port_pins["LEDPin"])
-                if port_pins['lickPin']:
-                    args['lickometer'] = Lickometer(f"{i}-lickometer", self, port_pins["lickPin"], self.on)
-                if port_pins['SDPin']:
-                    args['speaker'] = self.audio_interface.add_speaker(f"{i}-speaker", port_pins["SDPin"])
-                
-                self.modules[i] = DefaultModule(i, **args)
-        
+        # self.auto_fill_thread.start()    
 
     def calibrate(self, pump):
         """
@@ -348,9 +328,27 @@ class RewardInterface(BaseInterface):
         self.modules[module].trigger_reward(amount, force = force, triggered = triggered, 
                                             sync = sync, post_delay = post_delay)
 
-    def refill_syringe(self, pump:str = None):
-        #TODO: implement this
-        raise NotImplemented
+    def refill_syringe(self, pump:str = None, post_delay:float = 1.):
+        """
+
+        """
+
+        pump_reserved = self.pumps[pump].lock.acquire(False) 
+        fill_valve_reserved = self.pumps[pump].fillValve.lock.acquire(False) if hasattr(self.pumps[pump], 'fillValve') else True 
+        if pump_reserved and fill_valve_reserved:
+            try:
+                for i in self.modules:
+                    if i.pump.name == pump:
+                        self.modules[i].valve.close()
+                if hasattr(self.pumps[pump], 'fillValve'): self.pumps[pump].fillValve.open()
+                self.pumps[pump].ret_to_max()
+                self.pump.move(.1 * self.pump.syringe.mlPerCm, Direction.FORWARD)
+                time.sleep(post_delay)
+                self.pump.fillValve.close()
+            except BaseException as e:
+                self.pumps[pump].lock.release()
+                if hasattr(self.pumps[pump], 'fillValve'): self.pumps[pump].fillValve.lock.release()
+                raise e
 
     def _fill_syringes(self):
         """
@@ -362,14 +360,16 @@ class RewardInterface(BaseInterface):
         while self.on.is_set():
             if self.auto_fill:
                 for i in self.pumps:
-                    if self.pumps[i].vol_left < .5 * self.pumps[i].syringe.volume:
+                    if self.pumps[i].vol_left < .8 * self.pumps[i].syringe.volume:
                         self.needs_refilling[i] = True
                     if self.needs_refilling[i]:
                         if not self.pumps[i].enabled: 
                             self.pumps[i].enable()
                         try:
-                            # it takes long to check that all the valves are closed except the fill valve
-                            # instead we assume they are closed (as they should be)
+                            if self.valves_manually_toggled:
+                                for j in self.modules:
+                                    self.modules[j].valve.close()
+                                self.valves_manually_toggled = False
                             if hasattr(self.pumps[i], 'fillValve'):
                                 self.pumps[i].fillValve.open()
                                 self.pumps[i].single_step(direction = Direction.BACKWARD)
@@ -378,13 +378,13 @@ class RewardInterface(BaseInterface):
                                     self.needs_refilling[i] = False
                             else:
                                 logging.warning(f"{i} has no specified fill valve")
-                        except ResourceLocked:
+                        except (ResourceLocked, EndTrackError):
                             pass
                     elif hasattr(self.pumps[i], 'fillValve'):
                         self.pumps[i].fillValve.close()
             # this sleep is necessasry to avoid interfering
             # with other tasks that may want to use the pump
-            time.sleep(.0005)
+            time.sleep(.0001)
 
     def toggle_auto_fill(self, on:bool):
         """
@@ -401,12 +401,6 @@ class RewardInterface(BaseInterface):
                         self.pumps[i].fillValve.close()
                     except ResourceLocked:
                         pass
-        elif not self.auto_fill:
-            # need to make sure all modules' valves are closed before
-            # starting autofill since autofill doesn't check that all 
-            # non-fill-valves are closed when refilling (this would be slow).
-            for i in self.modules:
-                self.modules[i].valve.close()
         self.auto_fill = on
 
     def change_syringe(self, syringeType:str, all:bool = False, module:str = None, pump:str=None):
@@ -518,7 +512,7 @@ class RewardInterface(BaseInterface):
         """
         if module is not None:
             if hasattr(self.modules[module], 'speaker'):
-                if isinstance(self.modules[module].speaker, Speaker):
+                if isinstance(self.modules[module].speaker, AudioInterface.Speaker):
                     self.modules[module].speaker.play_tone(freq, dur, volume)
                 else:
                     raise NoSpeaker
@@ -549,7 +543,7 @@ class RewardInterface(BaseInterface):
         if hasattr(self.modules[module], "valve"):
             if open_valve:
                 self.modules[module].valve.open()
-                self.toggle_auto_fill(False)
+                self.valves_manually_toggled = True
             else:
                 self.modules[module].valve.close()
 

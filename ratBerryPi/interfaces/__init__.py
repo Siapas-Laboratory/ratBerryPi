@@ -3,7 +3,7 @@ from inspect import isclass
 from pathlib import Path
 import os
 from importlib import import_module
-from ratBerryPi.interfaces.base import BaseInterface
+from .base import BaseInterface
 
 # iterate through the modules in the current package
 package_dir = Path(__file__).resolve().parent

@@ -1,5 +1,5 @@
 import numpy as np
-from ratBerryPi.interfaces.base import BaseInterface
+from ..base import BaseInterface
 from ratBerryPi.resources.base import BaseResource
 from ratBerryPi.utils import config_output
 
@@ -76,7 +76,7 @@ class AudioInterface(BaseInterface):
 
     class Speaker(BaseResource):
         def __init__(self, name, parent, SDPin):
-            super(Speaker, self).__init__(name, parent)
+            super(AudioInterface.Speaker, self).__init__(name, parent)
             self.SDPin = config_output(SDPin)
             self.SDPin.value = False
 
