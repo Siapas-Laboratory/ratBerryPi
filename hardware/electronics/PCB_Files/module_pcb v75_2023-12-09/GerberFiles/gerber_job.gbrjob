@@ -1,0 +1,24 @@
+{
+    "Header": {
+        "Comment": "All values are metric (mm)",
+        "CreationDate": "2023-12-09T20:45:55Z",
+        "GenerationSoftware": {
+            "Application": "Fusion 360 Electronics",
+            "Vendor": "Autodesk",
+            "Version": "9.7.0"
+        },
+        "Part": "Single"
+    },
+    "Overall": {
+        "BoardThickness": 1.671119,
+        "LayerNumber": 2,
+        "Name": {
+            "ProjectId": "module_pcb v70"
+        },
+        "Owner": "Nathaniel Nyema <nnyema@caltech.edu>",
+        "Size": {
+            "X": 34.905,
+            "Y": 42.85
+        }
+    }
+}

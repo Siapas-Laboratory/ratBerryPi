@@ -31,10 +31,11 @@ class BaseInterface:
     def start(self):
         if not self.on.is_set(): self.on.set()
 
-    def record(self):
+    def record(self, data_dir = None):
+        data_dir = data_dir if data_dir else self.data_dir
         self.stop_recording()
         fname = datetime.strftime(datetime.now(), "%Y_%m_%d_%H_%M_%S.csv")
-        data_path= os.path.join(self.data_dir, fname)
+        data_path= os.path.join(data_dir, fname)
         self.log_fh = logging.FileHandler(data_path)
         self.log_fh.setLevel(logging.INFO)
         self.log_fh.setFormatter(self.formatter)

@@ -49,11 +49,11 @@ ETHERNET = {
         "lickPin": 21,
         "SDPin": 22,
         "valvePin": "GPB5"},
-    # "port7": {
-    #     "LEDPin": "GPB6",
-    #     "lickPin": 23,
-    #     "SDPin": 24,
-    #     "valvePin": "GPB7"}
+    "port7": {
+        "LEDPin": "GPB6",
+        "lickPin": 23,
+        "SDPin": 24,
+        "valvePin": "GPB7"}
 }
 
 class NoSpeaker(Exception):
@@ -166,7 +166,7 @@ class RewardInterface(BaseInterface):
         self.pumps[pump].calibrate()
 
 
-    def fill_lines(self, modules, prime_amount = 1, res_amount = None, blocking = False, timeout = -1):
+    def fill_lines(self, modules, prime_amount = 1, res_amount = None):
         """
         fill the lines leading up to the specified reward ports
         with fluid
@@ -228,21 +228,22 @@ class RewardInterface(BaseInterface):
         #     if not p.is_available(amt):
         #         raise Exception("Not enough fluid to prime the lines")
 
+        # pre-acquire locks for all resources and
         # make sure all valves are closed before starting
-
         lock_statuses = []
         for m in self.modules:
             if hasattr(m, 'valve'):
-                acquired = m.valve.lock.acquire(blocking, timeout)
+                acquired = m.valve.lock.acquire(False)
                 lock_statuses.append(acquired)
                 m.valve.close()
 
         # reserve all pumps
         for p in pumps: 
-            acquired = p.lock.acquire(blocking, timeout)
+            acquired = p.lock.acquire(False)
             lock_statuses.append(acquired)
             if hasattr(p, 'fillValve'):
-                p.fillValve.lock.acquire(blocking, timeout)      
+                acquired = p.fillValve.lock.acquire(False) 
+                lock_statuses.append(acquired)    
 
         if all(lock_statuses):
             # prime all reservoirs
@@ -384,6 +385,7 @@ class RewardInterface(BaseInterface):
                         self.pumps[i].fillValve.close()
             # this sleep is necessasry to avoid interfering
             # with other tasks that may want to use the pump
+            # without this sleep all other threads run slower
             time.sleep(.0001)
 
     def toggle_auto_fill(self, on:bool):
