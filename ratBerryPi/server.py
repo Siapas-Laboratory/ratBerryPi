@@ -52,12 +52,11 @@ class Server:
 
     def handle_client(self, conn):
         """
-        handle clients
+        loop for handling clients
 
         Args:
-        -----
-        conn: socket.socket
-            socket for sending and receiving data
+            conn: socket.socket
+                the socket that is listening to the client
         """
         host, port = conn.getpeername() 
         while self.on.is_set():
@@ -84,12 +83,13 @@ class Server:
     
     def handle_request(self, conn, data):
         """
-        function to handle requests sent to the server
+        handle requests from client
 
         Args:
-        -----
-        data: bytes
-            utf-8 encoded request sent to the server 
+            conn: socket.socket
+                the socket that is listening to the client
+            data: bytes
+                utf-8 encoded request sent to the server 
         """
 
         args = json.loads(data)
