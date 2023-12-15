@@ -1,7 +1,7 @@
 {
     "Header": {
         "Comment": "All values are metric (mm)",
-        "CreationDate": "2023-12-09T20:47:25Z",
+        "CreationDate": "2023-12-11T23:04:35Z",
         "GenerationSoftware": {
             "Application": "Fusion 360 Electronics",
             "Vendor": "Autodesk",
@@ -13,7 +13,7 @@
         "BoardThickness": 1.671119,
         "LayerNumber": 2,
         "Name": {
-            "ProjectId": "module_interface v103"
+            "ProjectId": "module_interface v106"
         },
         "Owner": "Nathaniel Nyema <nnyema@caltech.edu>",
         "Size": {
