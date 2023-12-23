@@ -12,53 +12,53 @@ modules:
     port: port1
     pump: pump1
 
-  module3:
-    type: DefaultModule
-    dead_volume: 15
-    port: port2
-    pump: pump1
+  # module3:
+  #   type: DefaultModule
+  #   dead_volume: 15
+  #   port: port2
+  #   pump: pump1
 
-  module4:
-    type: DefaultModule
-    dead_volume: 15
-    port: port3
-    pump: pump1
+  # module4:
+  #   type: DefaultModule
+  #   dead_volume: 15
+  #   port: port3
+  #   pump: pump1
 
-  module5:
-    type: DefaultModule
-    dead_volume: 15
-    port: port4
-    pump: pump1
+  # module5:
+  #   type: DefaultModule
+  #   dead_volume: 15
+  #   port: port4
+  #   pump: pump1
 
-  module6:
-    type: DefaultModule
-    dead_volume: 15
-    port: port5
-    pump: pump1
+  # module6:
+  #   type: DefaultModule
+  #   dead_volume: 15
+  #   port: port5
+  #   pump: pump1
 
-  module7:
-    type: DefaultModule
-    dead_volume: 15
-    port: port6
-    pump: pump1
+  # module7:
+  #   type: DefaultModule
+  #   dead_volume: 15
+  #   port: port6
+  #   pump: pump1
 
-  module8:
-    type: DefaultModule
-    dead_volume: 15
-    port: port7
-    pump: pump1
+  # module8:
+  #   type: DefaultModule
+  #   dead_volume: 15
+  #   port: port7
+  #   pump: pump1
 
 # pump config
 pumps:
   pump1:
-    fillValvePin: 7
-    stepPin: 8
+    fillValvePin: "GPB0"
+    stepPin: "GPB2"
     stepType: Half
     syringeType: BD10mL
     flushPin: 25
     revPin: 26
-    dirPin: 27
+    dirPin: "GPB1"
     modePins:
-      - 4
-      - 5
-      - 6
+      - "GPB5"
+      - "GPB4"
+      - "GPB3"

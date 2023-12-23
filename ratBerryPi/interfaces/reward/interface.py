@@ -15,45 +15,45 @@ from pathlib import Path
 
 ETHERNET = {
     "port0": {
-        "LEDPin": "GPA0",
+        "LEDPin": "GPA1",
         "lickPin": 9,
-        "SDPin": 10,
-        "valvePin": "GPA1"},
+        "SDPin": "GPA0",
+        "valvePin": "GPA2"},
     "port1": {
-        "LEDPin": "GPA2",
-        "lickPin": 11,
-        "SDPin": 12,
-        "valvePin": "GPA3"},
-    "port2": {
         "LEDPin": "GPA4",
-        "lickPin": 13,
-        "SDPin": 14,
+        "lickPin": 10,
+        "SDPin": "GPA3",
         "valvePin": "GPA5"},
-    "port3": {
-        "LEDPin": "GPA6",
-        "lickPin": 15,
-        "SDPin": 16,
-        "valvePin": "GPA7"},
-    "port4": {
-        "LEDPin": "GPB0",
-        "lickPin": 17,
-        "SDPin": 18,
-        "valvePin": "GPB1"},
-    "port5": {
-        "LEDPin": "GPB2",
-        "lickPin": 19,
-        "SDPin": 20,
-        "valvePin": "GPB3"},
-    "port6": {
-        "LEDPin": "GPB4",
-        "lickPin": 21,
-        "SDPin": 22,
-        "valvePin": "GPB5"},
-    "port7": {
-        "LEDPin": "GPB6",
-        "lickPin": 23,
-        "SDPin": 24,
-        "valvePin": "GPB7"}
+    # "port2": {
+    #     "LEDPin": "GPA4",
+    #     "lickPin": 13,
+    #     "SDPin": 14,
+    #     "valvePin": "GPA5"},
+    # "port3": {
+    #     "LEDPin": "GPA6",
+    #     "lickPin": 15,
+    #     "SDPin": 16,
+    #     "valvePin": "GPA7"},
+    # "port4": {
+    #     "LEDPin": "GPB0",
+    #     "lickPin": 17,
+    #     "SDPin": 18,
+    #     "valvePin": "GPB1"},
+    # "port5": {
+    #     "LEDPin": "GPB2",
+    #     "lickPin": 19,
+    #     "SDPin": 20,
+    #     "valvePin": "GPB3"},
+    # "port6": {
+    #     "LEDPin": "GPB4",
+    #     "lickPin": 21,
+    #     "SDPin": 22,
+    #     "valvePin": "GPB5"},
+    # "port7": {
+    #     "LEDPin": "GPB6",
+    #     "lickPin": 23,
+    #     "SDPin": 24,
+    #     "valvePin": "GPB7"}
 }
 
 class NoSpeaker(Exception):
@@ -166,7 +166,7 @@ class RewardInterface(BaseInterface):
         self.pumps[pump].calibrate()
 
 
-    def fill_lines(self, modules, prime_amount = 1, res_amount = None):
+    def fill_lines(self, modules = None, prime_amount = 1, res_amount = None):
         """
         fill the lines leading up to the specified reward ports
         with fluid
@@ -188,6 +188,8 @@ class RewardInterface(BaseInterface):
 
         """
 
+        if not modules:
+            modules = list(self.modules.keys())
         # temporarily turn off auto fill
         afill_was_on = self.auto_fill
         self.toggle_auto_fill(False)
