@@ -1,9 +1,6 @@
 # ratBerryPi
-An extendable Raspberry Pi based device for controlling multiple muli-functional reward modules. The device uses the open source [Poseidon Syringe Pump](https://pachterlab.github.io/poseidon/) to supply fluid as reward to any of multiple reward ports via a luer manifold and an array of media isolation solenoid valves. The manifold is connected to a reservoir which the device can be programmed to intermittently draw fluid from. 
+A Python library for controlling Raspberry Pi based devices for behavioral experiments either locally on a Pi or remotely.
 
-The modules themselves are each fitted with a lickometer, speaker and LED. Up to 8 such modules can be connected to the central interface via ethernet. While the system is optimized for the use of these modules, the code is flexible, such that users may design custom modules with additional or fewer components ("plugins") as needed (see Configuration).
-
-For hardware/circuit schematics and build instructions see the hardware folder.
 
 ## Software Installation - (Raspberry Pi)
 Follow these steps to setup a raspberry pi for use with ratBerryPi:
@@ -13,7 +10,7 @@ Follow these steps to setup a raspberry pi for use with ratBerryPi:
 ```
 sudo pip3 install adafruit-circuitpython-mcp230xx
 ```
-3. Run the followint to install some additional dependencies:
+3. Run the following to install some additional dependencies:
 ```
 sudo apt-get install libportaudio0 libportaudio2 libportaudiocpp0 portaudio19-dev python3-pandas
 sudo apt-get install python3-pyaudio
@@ -21,7 +18,6 @@ sudo apt-get install python3-pyaudio
 4. Clone this repository and navigate to it from terminal.
 5. Build and install the repository with the following commands
 ```
-python3 setup.py bdist_wheel sdist
 pip3 install .
 ```
 *NOTE: When setting up a new raspberry pi, make sure to set the default audio output interface to the headphone jack using the [raspi-config](https://www.raspberrypi.com/documentation/computers/configuration.html#changing-the-audio-output). You may not get any sound from the speakers otherwise.*
@@ -29,62 +25,70 @@ pip3 install .
 ## Software Installation - (Client Device)
 As detailed in the Usage section below, one mode of operation of this system is to configure the raspberry pi that is connected to the hardware to function as a server that clients may connect to in order to trigger rewards or cues. For this to work, the ratBerryPi python package must also be installed on the client device. To install ratBerryPi on a client device, simply follow steps 4 and 5 above. If installing for use with [pyBehavior](https://github.com/nathanielnyema/pyBehavior), be sure to have the pyBehavior environment activated while performing these steps.
 
+## Architecture
+RatBerryPi consists of 2 main types of components: interfaces and resources. We consider resources to be devices such as a syringe pump or solenoid valve which we may want to actuate. Interfaces are the central unit that coordinates use of these resources through high level functions. Below is a list of currently supported interfaces anresources (See the Developer Notes section for more information on creating new interfaces and resources):
+
+**Interfaces**
+- `RewardInterface` - This interface provides functions for controlling multiple muli-functional reward modules. The device uses the open source [Poseidon Syringe Pump](https://pachterlab.github.io/poseidon/) to supply fluid as reward to any of multiple reward ports via a luer manifold and an array of media isolation solenoid valves. The manifold is connected to a reservoir which the device can be programmed to intermittently draw fluid from. The modules themselves are each fitted with a lickometer, speaker and LED. Up to 8 such modules can be connected to the central interface via ethernet. While the system is optimized for the use of these modules, the code is flexible, such that users may design custom modules with additional or fewer components ("plugins") as needed (see Configuration).
+- `Audio` - This interface allows for the user to direct audio to one of many speakers. The interface assumes there are a set of GPIO pins associated to each speaker that it can toggle high to direct audio generated through the Pi audio jack to that speaker.
+- `Olfactometer` - ...
+
+**Resources**
+- `LED`
+- `Lickometer`
+- `Pump`
+- `Valve`
 
 ## Usage
-There are 2 main modes of operation for this platform. The Raspberry Pi can be configured as a server that clients on other machines may connect to in order to run commands as needed. Alternatively, one may write a program on the raspberry pi itself which creates an instance of the `RewardInterface` class defined in `reward.py` and invoke methods of this class to run a behavioral protocol. The help documentation for the `RewardInterface` class includes relevant information about it's exposed methods for this second use case. Here we will elaborate on the server-client mode of operation.
+There are 2 main modes of operation for this platform. The Raspberry Pi can be configured as a server that clients on other machines may connect to in order to run commands through a specified interface. Alternatively, one may write a program on the raspberry pi itself which creates an instance of an interface class and invokes methods of this class to run a behavioral protocol. The help documentation for the relevant interface classes includes relevant information about it's exposed methods for this second use case. Here we will elaborate on the server-client mode of operation.
 
 ### Server-Client Mode
-To start a server on the raspberry pi for  for clients to connect to, simply run the command `python -m ratBerryPi.server`. This will expose 2 ports on the raspberry pi for clients to connect to, one for running commands through the reward interface, and another for broadcasting information about the state of the device.  By default the former port will be port 5562 and the latter will be 5563, but this can be set as needed by passing the arguments `--port` and `--broadcast_port`. By design, only one client may connect to the non-broadcasting port at a time.
+To start a server on the raspberry pi to connect to, simply run the command `python -m ratBerryPi.server`. This will expose a port on the raspberry pi for clients to connect to for running commands through the reward interface and broadcasting information about the state of the device.  By default it will bind port 5562 but this can be set as needed by passing the arguments `--port`. If using an interface other than the reward interface. 
 
-On a client device, users may connect to the server from a python terminal by first creating an instance of the `Client` class defined in `client.py`, then calling its `connect` method. For example:
+On a client device, users may connect to the server from a python terminal by first creating an instance of the `Client` class defined in `client.py`. For example:
 
 ```
 from ratBerryPi.client import Client
 
 host = '123.456.789' # raspberry pi ip address
 port = 5562
-broadcast_port = 5563
 
-cl = Client(host, port, broadcast_port)
-cl.connect()
+cl = Client(host, port)
 ```
 
+Once you've created the client, 
 Once connected, the 2 most important methods of this class are `run_command` and `get`. 
 
-`run_command` provides an interface to run commands remotely through the `RewardInterface` class. It takes as input 2 positional arguments, the first of which is a string indicating the name of a method in the RewardInterface class to run. The second argument is a dictionary specifying keyword arguments for this function. 
+`run_command` provides an interface to run commands remotely through the interface running on the server. It takes as input 2 positional arguments, the first of which is a string indicating the name of a method in the interface class to run. The second argument is a dictionary specifying keyword arguments for this function. 
 
-`get` provides an interface to retrieve state information from the reward interface; it takes as input a dictionary specifying the request. This dictionary must have a field `prop` specifying the property to get. It should also specify one of the following entities which this property belongs to: `module`, `plugin`, or `pump`.  When specifying a module, the user may optionally also specify a plugin on that module to query. When only specifying `plugin`, this should refer to a plugin that is not attached to a module. An example call to `get` may look like this:
 
-```
-req = {
-   'module': 'module1',
-   'plugin': 'LED',
-   'prop': 'on'
-}
-cl.get(req)
-```
+`get` provides an interface to retrieve state information from the reward interface; it takes as input a string indicating the attribute of interface class you would like to get the value of. This string should be everything that would come after the period when directly accessing an instance of the interface class. for example, if we want the position of a pump named `pump1` when using the reward interface, the request would be `'pumps["pump1"].position'`.  
 
-where we are determining whether or not the LED attached to module1 is on. Another common example is the following:
 
-```
-req = {
-   'pump': 'pump1'
-   'prop': 'position'
-}
-cl.get(req)
-```
+Both `run_command` and `get` further take as input an optional keyword argument `channel` which allows the user to specify the name of a 'channel' for communicating with the server. These channels are simply an abstraction for a connection to the server and allow users to isolate certain types of requests to avoid cross talk. For example, I may want to create an app using the reward interface and want spawn a thread in the background to monitor the position of the pump so I can print it for the user to see. It would be useful in this case to create a new channel specifically dedicated to these requests. Behind the scenes the server spawns separates threads for handling requests made on different channels. To create a new channel simply use the method of the client class `new_channel` which takes as input one positional argument which is the name of the new channel.
 
-where we are getting the current position of the pump relative to the end of the track.
 
 For those interested, [pyBehavior](https://github.com/nathanielnyema/pyBehavior) provides a GUI for remotely controlling the ratBerryPi and exposes methods for defining behavioral protocols to run using the modules.
 
-## Operating the Syringe and Manifold
+## Developer Notes
+We encourage users to clone the repository and customize the code to their needs. In order to create a new interface simply sub-class the BaseInterface class under ratBerryPi/interfaces and define the class within a file you create in this same folder. Similarly, to define a new resource sub-class the BaseResource class in the ratBerryPi/resources folder and define the class in a file in the same folder. Note, in the interest of thread safety, the BaseResource class when initialized has an attribute `lock` which is a re-entrant lock (see [here](https://docs.python.org/3/library/threading.html#rlock-objects) for details). We recommend developers to use this lock as a way to reserve resources in case multiple clients try to access it. After making any changes you can reinstall the ratBerryPi by navigating to the root directory of the repo and running `pip3 install .`
+
+
+## Specific Notes about the Reward Interface
+### Practical Considerations when Operating the Syringe and Manifold
 For optimal performance, before triggering any rewards, all lines for reward delivery must be filled with the solution to be delivered to the reward ports. The key to doing this properly is make sure there are as few air bubbles in the lines as possible. We've optimized a procedure for automatically filling the lines which we strongly recommend users call before triggering any rewards. The procedure involves first priming all of the lines by sequentially filling all segments of the manifold leading up to the reward ports. It is important that this happens first because if we try to draw fluid from the reservoir without eliminating all air from the manifold leading up to the valves, we will introduce air bubbles that will be very difficult to eliminate. Once the lines are primed, we alternate between delivering fluid to the lines to fill them, and refilling the syringe with fluid from the reservoir.
 
 While this all occurs automatically once calling the function, users should keep in mind that this process can only work if the syringe used for filling the lines has at least as much volume as the dead volume leading up to the valves in the manifold. For efficiency, it may even be in the user's best interest to use a fairly large syringe (about 30 mL) to fill the lines and switch to a more precise syringe for the experiment itself.
 
-## Configuration (TODO: update this section)
-This package includes a default configuration file which reserves GPIO pins and pins on the GPIO expander to control up to 8 of our custom modules. For users that would like to create custom reward modules you fill need to create a custom config file and provide it's path as an argument when creating a RewardInterface or starting the server. When creating this file, the key fields to be specified are `modules`, `pumps`, and `plugins`.  Under `pumps`, the user must specify names for all pumps that will be controlled by the interface. Further, under each pump's name, one must specify the following fields, which mostly reference the pinout for the DRV8825, the driver for stepper motor actuating the pump.
+### Configuration (TODO: update this section)
+This package includes a default configuration file which reserves GPIO pins and pins on the GPIO expander to control up to 8 of our custom modules. For users that would like to create custom reward modules you will need to define the module under the `ratBerryPi/interfaces/reward/modules` folder by sub-classing the BaseRewardModule class (see `ratBerryPi/interfaces/reward/modules/default.py` for an example). Importantly, the user must define a method `load_from_config` in the sub-class which should take as input a dictionary with configuration parameters for the module (such as pin mappings) and instantiate any resources the module needs as necessary. This dictionary will come from the `config.yaml` file where it is represented as the sub-fields of a given module listed under the `modules` section. As such, these sub-fields in the config file must be specified as needed for the configuration of the module in your `load_from_config` method. Some other required sub-fields for each module are as follows:
+
+* `type` - the name of your custom reward module class
+* `pump` - the name of the pump feeding into this reward module class
+ * `valvePin`- a pin on the raspberry pi for controlling the valve on the manifold which routes reward to this module
+ * `dead_volume` *(optional)* - the dead volume of the line leading up to the module in mL.
+
+The other important fields of the config file are `pumps` and `plugins`.  Under `pumps`, the user must specify names for all pumps that will be controlled by the interface. Further, under each pump's name, one must specify the following fields, which mostly reference the pinout for the DRV8825, the driver for stepper motor actuating the pump.
 
 * `stepPin` - The pin on the raspberry pi connected to the STEP pin of the driver
 * `stepType` - The type of microstepping to use when stepping the motor. Either Full, Half, 1/4, 1/8, or 1/16.
@@ -106,12 +110,14 @@ Under `plugins` the user should specify unique names for each individual plugin 
 
  * `pump` - the name of the pump feeding into this reward module
  * `valvePin` *(optional)* - a pin on the raspberry pi for controlling the valve on the manifold which routes reward to this module
- * `plugins` - an enumerated list of all plugins attached to this module. the keys should be general names for what the plugin is to the given module. Generally, this will might be the plugin type. For example, we may attach lickometer1 to module1 by specifying the `plugins`` field of module1 as follows:
+ * `plugins` - an enumerated list of all plugins attached to this module. the keys should be general names for what the plugin is to the given module. Generally, this will might be the plugin type. For example, we may attach lickometer1 to module1 by specifying the `plugins` field of module1 as follows:
 
  ```
  plugins:
-    lickometer: lickometer1
+    lickometer1:
+         type: Lickometer
+         lickPin: 10
  ```
 
 
- The only constraint in configuring reward modules is that each module must specify a single pump that it is attached to and, optionally, a pin for controlling the valve on the manifold which feeds the port. The pump need not be unique to each module, but the valves should be unique. Indeed, in the design detailed here, all modules share a pump. Similarly, modules may share plugins as needed. 
+ The only constraint in configuring reward modules is that each module must specify a single pump that it is attached to and, optionally, a pin for controlling the valve on the manifold which feeds the port. The pump need not be unique to each module, but the valves should be unique. Indeed, in the design detailed here, all modules share a pump.

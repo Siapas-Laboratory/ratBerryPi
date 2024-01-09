@@ -6,7 +6,7 @@ from .base import BaseResource
 
 
 class Lickometer(BaseResource):
-    def __init__(self, name, parent, lickPin, on:threading.Event, burst_thresh = 0.5, update_interval = .01):
+    def __init__(self, name, parent, lickPin, burst_thresh = 0.5, update_interval = .01):
 
         super(Lickometer, self).__init__(name, parent)
         self.lickPin = lickPin
@@ -15,7 +15,11 @@ class Lickometer(BaseResource):
         self.burst_lick = 0
         self.last_lick = datetime.now()
         self.burst_thresh = burst_thresh
-        self.on = on
+        if parent:
+            self.on = self.parent.on
+        else:
+            self.on = threading.Event()
+            self.on.set()
         self.update_interval = update_interval
 
         GPIO.setup(self.lickPin, GPIO.IN, GPIO.PUD_DOWN)
