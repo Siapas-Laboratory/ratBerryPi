@@ -56,8 +56,7 @@ port = 5562
 cl = Client(host, port)
 ```
 
-Once you've created the client, 
-Once connected, the 2 most important methods of this class are `run_command` and `get`. 
+Once you've created the client, the 2 most important methods of this class are `run_command` and `get`. 
 
 `run_command` provides an interface to run commands remotely through the interface running on the server. It takes as input 2 positional arguments, the first of which is a string indicating the name of a method in the interface class to run. The second argument is a dictionary specifying keyword arguments for this function. 
 
@@ -65,7 +64,7 @@ Once connected, the 2 most important methods of this class are `run_command` and
 `get` provides an interface to retrieve state information from the reward interface; it takes as input a string indicating the attribute of interface class you would like to get the value of. This string should be everything that would come after the period when directly accessing an instance of the interface class. for example, if we want the position of a pump named `pump1` when using the reward interface, the request would be `'pumps["pump1"].position'`.  
 
 
-Both `run_command` and `get` further take as input an optional keyword argument `channel` which allows the user to specify the name of a 'channel' for communicating with the server. These channels are simply an abstraction for a connection to the server and allow users to isolate certain types of requests to avoid cross talk. For example, I may want to create an app using the reward interface and want spawn a thread in the background to monitor the position of the pump so I can print it for the user to see. It would be useful in this case to create a new channel specifically dedicated to these requests. Behind the scenes the server spawns separates threads for handling requests made on different channels. To create a new channel simply use the method of the client class `new_channel` which takes as input one positional argument which is the name of the new channel.
+Both `run_command` and `get` further take as input an optional keyword argument `channel` which allows the user to specify the name of a 'channel' for communicating with the server. These channels are simply an abstraction for a connection to the server and allow users to isolate certain types of requests to avoid cross talk. For example, I may want to create an app using the reward interface where it would be useful to spawn a thread in the background to continuously monitor the position of the pump so I can print it for the user to see. It would be useful in this case to create a new channel specifically dedicated to these requests. Behind the scenes the server keeps these channels isolated by spawning separate threads for handling requests made on different channels. To create a new channel simply use the method of the client class `new_channel` which takes as input one positional argument which is the name of the new channel.
 
 
 For those interested, [pyBehavior](https://github.com/nathanielnyema/pyBehavior) provides a GUI for remotely controlling the ratBerryPi and exposes methods for defining behavioral protocols to run using the modules.
@@ -80,7 +79,7 @@ For optimal performance, before triggering any rewards, all lines for reward del
 
 While this all occurs automatically once calling the function, users should keep in mind that this process can only work if the syringe used for filling the lines has at least as much volume as the dead volume leading up to the valves in the manifold. For efficiency, it may even be in the user's best interest to use a fairly large syringe (about 30 mL) to fill the lines and switch to a more precise syringe for the experiment itself.
 
-### Configuration (TODO: update this section)
+### Configuration
 This package includes a default configuration file which reserves GPIO pins and pins on the GPIO expander to control up to 8 of our custom modules. For users that would like to create custom reward modules you will need to define the module under the `ratBerryPi/interfaces/reward/modules` folder by sub-classing the BaseRewardModule class (see `ratBerryPi/interfaces/reward/modules/default.py` for an example). Importantly, the user must define a method `load_from_config` in the sub-class which should take as input a dictionary with configuration parameters for the module (such as pin mappings) and instantiate any resources the module needs as necessary. This dictionary will come from the `config.yaml` file where it is represented as the sub-fields of a given module listed under the `modules` section. As such, these sub-fields in the config file must be specified as needed for the configuration of the module in your `load_from_config` method. Some other required sub-fields for each module are as follows:
 
 * `type` - the name of your custom reward module class
