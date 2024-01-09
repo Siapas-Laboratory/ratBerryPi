@@ -79,7 +79,7 @@ class Pump(BaseResource):
                       "1/16": 3200}
     
     def __init__(self, name, stepPin, flushPin, revPin, modePins, dirPin, fillValvePin = None, 
-                 endPin = None, syringe = Syringe(syringeType='BD5mL'), stepDelay = .0005,
+                 enPin = None, endPin = None, syringe = Syringe(syringeType='BD5mL'), stepDelay = .0005,
                  stepType = "Half", pitch = 0.08,  reset = False, verbose = True):
         
         """
@@ -106,6 +106,10 @@ class Pump(BaseResource):
         """
         super(Pump, self).__init__(name, None)
         self.syringe = syringe
+
+        if enPin:
+            self.enPin = config_output(enPin)
+            self.enPin.value = False
 
         self._dirPin = config_output(dirPin)
         self.direction = Direction.FORWARD

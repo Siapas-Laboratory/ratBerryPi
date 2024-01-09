@@ -5,9 +5,6 @@ from ratBerryPi.resources.pump import Syringe, Direction, EndTrackError
 from ratBerryPi.interfaces.reward.modules import *
 
 import RPi.GPIO as GPIO
-import yaml
-from datetime import datetime
-import os
 import threading
 import time
 import logging
@@ -15,45 +12,45 @@ from pathlib import Path
 
 ETHERNET = {
     "port0": {
-        "LEDPin": "GPA1",
-        "lickPin": 9,
-        "SDPin": "GPA0",
-        "valvePin": "GPA2"},
+        "LEDPin": "0x21:GPB0",
+        "lickPin": 17,
+        "SDPin":  "0x21:GPA0",
+        "valvePin": "GPB0"},
     "port1": {
-        "LEDPin": "GPA4",
-        "lickPin": 10,
-        "SDPin": "GPA3",
-        "valvePin": "GPA5"},
-    # "port2": {
-    #     "LEDPin": "GPA4",
-    #     "lickPin": 13,
-    #     "SDPin": 14,
-    #     "valvePin": "GPA5"},
-    # "port3": {
-    #     "LEDPin": "GPA6",
-    #     "lickPin": 15,
-    #     "SDPin": 16,
-    #     "valvePin": "GPA7"},
-    # "port4": {
-    #     "LEDPin": "GPB0",
-    #     "lickPin": 17,
-    #     "SDPin": 18,
-    #     "valvePin": "GPB1"},
-    # "port5": {
-    #     "LEDPin": "GPB2",
-    #     "lickPin": 19,
-    #     "SDPin": 20,
-    #     "valvePin": "GPB3"},
-    # "port6": {
-    #     "LEDPin": "GPB4",
-    #     "lickPin": 21,
-    #     "SDPin": 22,
-    #     "valvePin": "GPB5"},
-    # "port7": {
-    #     "LEDPin": "GPB6",
-    #     "lickPin": 23,
-    #     "SDPin": 24,
-    #     "valvePin": "GPB7"}
+        "LEDPin": "0x21:GPB1",
+        "lickPin": 27,
+        "SDPin":  "0x21:GPA1",
+        "valvePin": "GPB1"},
+    "port2": {
+        "LEDPin": "0x21:GPB2",
+        "lickPin": 22,
+        "SDPin": "0x21:GPA2",
+        "valvePin": "GPB2"},
+    "port3": {
+        "LEDPin": "0x21:GPB3",
+        "lickPin": 5,
+        "SDPin": "0x21:GPA3",
+        "valvePin": "GPB3"},
+    "port4": {
+        "LEDPin": "0x21:GPB4",
+        "lickPin": 6,
+        "SDPin": "0x21:GPA4",
+        "valvePin": "GPB4"},
+    "port5": {
+        "LEDPin": "0x21:GPB5",
+        "lickPin": 26,
+        "SDPin": "0x21:GPA5",
+        "valvePin": "GPB5"},
+    "port6": {
+        "LEDPin": "0x21:GPB6",
+        "lickPin": 23,
+        "SDPin": "0x21:GPA6",
+        "valvePin": "GPB6"},
+    "port7": {
+        "LEDPin": "0x21:GPB7",
+        "lickPin": 24,
+        "SDPin": "0x21:GPA7",
+        "valvePin": "GPB7"}
 }
 
 class NoSpeaker(Exception):
