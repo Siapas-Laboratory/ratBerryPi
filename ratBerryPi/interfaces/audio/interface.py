@@ -2,7 +2,7 @@ import numpy as np
 from ..base import BaseInterface
 from ratBerryPi.resources.base import BaseResource
 from ratBerryPi.utils import config_output
-
+import pyaudio as pa
 
 
 
@@ -11,7 +11,6 @@ class AudioInterface(BaseInterface):
         ## NOTE: for higher frequency sounds need a higher sampling rate
         # to obey Nyquist sampling theorem. look into limits on the amplifier and
         # pyaudio
-        import pyaudio as pa  # sudo apt-get install python{,3}-pyaudio
         super(AudioInterface, self).__init__(None, None)
         self.session = pa.PyAudio()
         self.fs = fs
@@ -89,4 +88,7 @@ class AudioInterface(BaseInterface):
 
         def disable(self):
             self.SDPin.value = False
+
+        def play_tone(self, freq, dur, volume=1, force = True):
+            self.parent.play_tone([self.name], freq, dur, volume, force)
 

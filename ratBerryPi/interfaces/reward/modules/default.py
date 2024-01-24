@@ -25,6 +25,6 @@ class DefaultModule(BaseRewardModule):
         return self.lickometer.in_burst and (self.lickometer.burst_lick>self.reward_thresh)
 
     def load_from_config(self, config):
-        self.lickometer =  Lickometer(f"{self.name}-lickometer", self, config['lickPin'], self.parent.on)
+        self.lickometer =  Lickometer(f"{self.name}-lickometer", self.parent, config['lickPin'])
         self.speaker = self.parent.audio_interface.add_speaker(f"{self.name}-speaker", config["SDPin"])
-        self.LED = LED(f"{self.name}-LED", self, config["LEDPin"])
+        self.LED = LED(f"{self.name}-LED", self.parent, config["LEDPin"])
