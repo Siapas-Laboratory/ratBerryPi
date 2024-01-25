@@ -160,6 +160,9 @@ class Pump(BaseResource):
 
         if fillValvePin is not None:
             self.fillValve = Valve(f'{self.name}-fillValve', self, fillValvePin)
+            self.hasFillValve = True
+        else:
+            self.hasFillValve = False
 
         self.thread = None
 
@@ -249,8 +252,10 @@ class Pump(BaseResource):
             too_close = self.at_min_pos and self.direction == Direction.FORWARD
             too_far = self.at_max_pos and self.direction == Direction.BACKWARD
             if (too_close or too_far) and not force:
+                self.lock.release()
                 raise EndTrackError      
             if (not force) and (not self.enabled):
+                self.lock.release()
                 raise PumpNotEnabled 
 
             self._stepPin.value = True
@@ -267,27 +272,29 @@ class Pump(BaseResource):
             raise ResourceLocked("Pump In Use")
             
     def __flush(self, channel):
-        self.lock.acquire()
-        if self.verbose: self.logger.info("flushing started")
-        _prev_stepType = self.stepType
-        self.stepType = 'Full'
-        while GPIO.input(channel)==GPIO.HIGH:
-            self.single_step(direction = Direction.FORWARD, force = True)
-        self.stepType = _prev_stepType 
-        if self.position<0: self.calibrate()
-        if self.verbose: self.logger.info("flushing done")
-        self.lock.release()
+        acquired = self.lock.acquire(False)
+        if acquired:
+            if self.verbose: self.logger.info("flushing started")
+            _prev_stepType = self.stepType
+            self.stepType = 'Full'
+            while GPIO.input(channel)==GPIO.HIGH:
+                self.single_step(direction = Direction.FORWARD, force = True)
+            self.stepType = _prev_stepType 
+            if self.position<0: self.calibrate()
+            if self.verbose: self.logger.info("flushing done")
+            self.lock.release()
             
     def __reverse(self, channel):
-        self.lock.acquire()
-        if self.verbose: self.logger.info("reversing started")
-        _prev_stepType = self.stepType
-        self.stepType = 'Full'
-        while GPIO.input(channel)==GPIO.HIGH:
-            self.single_step(direction = Direction.BACKWARD, force = True)
-        self.stepType = _prev_stepType
-        if self.verbose: self.logger.info("reversing done")
-        self.lock.release()
+        acquired = self.lock.acquire(False)
+        if acquired:
+            if self.verbose: self.logger.info("reversing started")
+            _prev_stepType = self.stepType
+            self.stepType = 'Full'
+            while GPIO.input(channel)==GPIO.HIGH:
+                self.single_step(direction = Direction.BACKWARD, force = True)
+            self.stepType = _prev_stepType
+            if self.verbose: self.logger.info("reversing done")
+            self.lock.release()
     
     def is_available(self, amount, direction = Direction.FORWARD):
         if direction == Direction.FORWARD:
@@ -424,9 +431,9 @@ class Pump(BaseResource):
 
         def run(self):
             #pre-reserve resources so we can raise an error it they are in use
-            pump_reserved = self.pump.lock.acquire(False)
-            valve_reserved = self.valve.lock.acquire(False) if self.valve else True
-            fill_valve_reserved = self.pump.fillValve.lock.acquire(False) if hasattr(self.pump, "fillValve") else True
+            pump_reserved = self.pump.lock.acquire(True, .01)
+            valve_reserved = self.valve.lock.acquire(True, .01) if self.valve else True
+            fill_valve_reserved = self.pump.fillValve.lock.acquire(True, .01) if self.pump.hasFillValve else True
 
             if not (pump_reserved and valve_reserved and fill_valve_reserved):
                 self.running = False
@@ -444,7 +451,14 @@ class Pump(BaseResource):
                 self.triggered_pump()
             else:
                 try:
-                    if self.close_fill and hasattr(self.pump, "fillValve"):
+                    if (self.direction == Direction.FORWARD) and (self.pump.direction == Direction.BACKWARD) and self.pump.hasFillValve:
+                        if self.valve: self.valve.close()
+                        fill_was_open = self.pump.fillValve.is_open
+                        self.pump.fillValve.open()
+                        self.pump.move(.05*self.pump.syringe.mlPerCm, Direction.FORWARD)
+                        if self.close_fill or fill_was_open:
+                            self.pump.fillValve.close()
+                    elif self.close_fill and self.pump.hasFillValve:
                         self.pump.fillValve.close()
                     if self.valve: self.valve.open()
                     self.pump.move(self.amount, self.direction, check_availability = False)
@@ -453,19 +467,25 @@ class Pump(BaseResource):
                         self.valve.close()
                         self.valve.lock.release()
                     self.pump.lock.release()
-                    if hasattr(self.pump, 'fillValve'): 
+                    if self.pump.hasFillValve: 
                         self.pump.fillValve.lock.release()
                     self.running = False
                     self.success = True
                 except PumpNotEnabled:
                     self.success = False
-                    self.pump.logger.debug("thread stopped")
+                    self.pump.lock.release()
+                    if self.pump.hasFillValve: 
+                        self.pump.fillValve.lock.release()
+                    if self.valve: 
+                        self.valve.lock.release()
+
+                    
 
         def triggered_pump(self):
             # release the locks so the trigger can control them
             self.pump.lock.release()
             if self.valve: self.valve.lock.release()
-            if hasattr(self.pump, 'fillValve'): self.pump.fillValve.lock.release()
+            if self.pump.hasFillValve: self.pump.fillValve.lock.release()
 
             self.pump_trigger_thread = threading.Thread(target = self.trigger_pump)
             self.pump_trigger_thread.start()
@@ -480,10 +500,18 @@ class Pump(BaseResource):
                         self.pump.lock.acquire()
                         if self.valve: 
                             self.valve.lock.acquire()
-                            self.valve.open()
-                        if hasattr(self.pump, 'fillValve'): 
+                        if self.pump.hasFillValve: 
                             self.pump.fillValve.lock.acquire()
+
+                        if (self.direction == Direction.FORWARD) and (self.pump.direction == Direction.BACKWARD) and self.valve and self.pump.hasFillValve:
+                            self.valve.close()
+                            self.pump.fillValve.open()
+                            self.pump.move(.05*self.pump.syringe.mlPerCm, Direction.FORWARD)
                             self.pump.fillValve.close()
+
+                        if self.valve:
+                            self.valve.open()
+
                         while self.trigger_val and (step_count<steps):
                             self.pump.single_step(direction = self.direction)
                             step_count += 1
@@ -492,11 +520,16 @@ class Pump(BaseResource):
                             self.valve.close()
                             self.valve.lock.release()
                         self.pump.lock.release()
-                        if hasattr(self.pump, 'fillValve'): 
+                        if self.pump.hasFillValve: 
                             self.pump.fillValve.lock.release()
                 self.success = True
             except (EndTrackError, PumpNotEnabled):
                 self.success = False
+                self.pump.lock.release()
+                if self.pump.hasFillValve: 
+                    self.pump.fillValve.lock.release()
+                if self.valve: 
+                    self.valve.lock.release()
             self.running = False
             self.pump_trigger_thread.join()
             if not was_enabled: self.pump.disable()
@@ -522,3 +555,4 @@ class Pump(BaseResource):
             self.pump.disable()
             self.join()
             self.success = False
+            self.pump.logger.debug("thread stopped")

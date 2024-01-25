@@ -45,6 +45,7 @@ class BaseRewardModule(ABC):
             amount of time in seconds to wait after reward delivery to ensure the entire reward amount
             is has been delivered. setting this value too small will result in less reward being delievered
             than requested
+            TODO: i need to test this value out to see how small i can make it so it doesn't interfere with the speed of the task
         """
         
         if force and self.pump.thread: 
@@ -61,9 +62,13 @@ class BaseRewardModule(ABC):
             else:
                 acquired = self.acquire_locks()
                 if acquired:
+                    if self.pump.direction == Direction.BACKWARD and self.pump.hasFillValve:
+                        self.valve.close()
+                        self.fillValve.open()
+                        self.pump.move(.05 * self.pump.mlPerCm, Direction.FORWARD)
                     self.valve.open() # if make sure the valve is open before delivering reward
                     # make sure the fill valve is closed if the pump has one
-                    if hasattr(self.pump, 'fillValve'): self.pump.fillValve.close()
+                    if self.pump.hasFillValve: self.pump.fillValve.close()
                     # deliver the reward
                     self.pump.move(amount, force = force, direction = Direction.FORWARD)
                     # wait then close the valve
@@ -84,7 +89,7 @@ class BaseRewardModule(ABC):
         if acquired:
             while amount>0:
                 self.valve.close()
-                if refill and hasattr(self.pump, 'fillValve'):
+                if refill and self.pump.hasFillValve:
                     # if the syringe is not full refill it
                     if not self.pump.at_max_pos:
                         self.pump.fillValve.open()
@@ -97,7 +102,7 @@ class BaseRewardModule(ABC):
                 if not self.pump.is_available(amount):
                     # set the amount to be dispensed in the current iteration as the volume in the syringe
                     dispense_vol = self.pump.vol_left - .1 # for safety discount .1 mL so we don't come close to the end
-                    if not hasattr(self.pump, 'fillValve'):
+                    if not self.pump.hasFillValve:
                         raise ValueError("the requested amount is greater than the volume left in the syringe and no fill valve has been specified to refill intermittently ")
                 else: # if the remaining/requested amount is available set dispense volume accordingly
                     dispense_vol = amount
@@ -124,7 +129,7 @@ class BaseRewardModule(ABC):
         """
         pump_reserved = self.pump.lock.acquire(False) 
         valve_reserved = self.valve.lock.acquire(False)
-        fill_valve_reserved = self.pump.fillValve.lock.acquire(False) if hasattr(self.pump, 'fillValve') else True 
+        fill_valve_reserved = self.pump.fillValve.lock.acquire(False) if self.pump.hasFillValve else True 
         return pump_reserved and valve_reserved and fill_valve_reserved
     
     def release_locks(self):
@@ -133,7 +138,7 @@ class BaseRewardModule(ABC):
         """
 
         self.valve.lock.release()
-        if hasattr(self.pump, 'fillValve'):
+        if self.pump.hasFillValve:
             self.pump.fillValve.lock.release()
         self.pump.lock.release()
 

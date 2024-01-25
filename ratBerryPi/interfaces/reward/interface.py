@@ -106,7 +106,7 @@ class RewardInterface(BaseInterface):
         super(RewardInterface, self).__init__(on, config_file)
 
         self.pumps = {}
-        self.needs_refilling = {}
+        self.needs_refilling = []
         # load all pumps
         for i in self.config['pumps']: 
             if 'syringeType' in self.config['pumps'][i]:
@@ -116,7 +116,6 @@ class RewardInterface(BaseInterface):
             self.config['pumps'][i]['syringe'] = syringe
             self.config['pumps'][i]['modePins'] = tuple(self.config['pumps'][i]['modePins'])
             self.pumps[i] = Pump(i, **self.config['pumps'][i])
-            self.needs_refilling[i] = False
 
         self.plugins = {}
         self.audio_interface = AudioInterface()
@@ -147,10 +146,12 @@ class RewardInterface(BaseInterface):
         self.valves_manually_toggled = False
         self.auto_fill = False
         self.auto_fill_thread = threading.Thread(target = self._fill_syringes)
+        self.refill_check_thread = threading.Thread(target = self._check_for_refills)
     
     def start(self):
         super(RewardInterface, self).start()
-        self.auto_fill_thread.start()    
+        self.refill_check_thread.start() 
+        self.auto_fill_thread.start()
 
     def calibrate(self, pump):
         """
@@ -240,7 +241,7 @@ class RewardInterface(BaseInterface):
         for p in pumps: 
             acquired = p.lock.acquire(False)
             lock_statuses.append(acquired)
-            if hasattr(p, 'fillValve'):
+            if p.hasFillValve:
                 acquired = p.fillValve.lock.acquire(False) 
                 lock_statuses.append(acquired)    
 
@@ -248,10 +249,10 @@ class RewardInterface(BaseInterface):
             # prime all reservoirs
             for p, amt in res_amounts.items():
                 logging.info(f"priming reservoir for {p.name}")
-                if hasattr(p, 'fillValve'):
+                if p.hasFillValve:
                     p.fillValve.open()
                 p.move(amt, direction = Direction.FORWARD)
-                if hasattr(p, 'fillValve'):
+                if p.hasFillValve:
                     p.fillValve.close()
 
             # prime all lines
@@ -262,7 +263,7 @@ class RewardInterface(BaseInterface):
             # refill the syringes
             for p in pumps:
                 logging.info(f'refilling syringe on {p.name} with the amount used to prime the lines')
-                if hasattr(p, 'fillValve'):
+                if p.hasFillValve:
                     p.fillValve.open()
                     p.ret_to_max()
                     p.fillValve.close()
@@ -276,7 +277,7 @@ class RewardInterface(BaseInterface):
             # refill the syringes
             for p in pumps:
                 logging.info(f'refilling syringe on {p.name}')
-                if hasattr(p, 'fillValve'):
+                if p.hasFillValve:
                     p.fillValve.open()
                     p.ret_to_max()
                     p.fillValve.close()
@@ -334,21 +335,29 @@ class RewardInterface(BaseInterface):
         """
 
         pump_reserved = self.pumps[pump].lock.acquire(False) 
-        fill_valve_reserved = self.pumps[pump].fillValve.lock.acquire(False) if hasattr(self.pumps[pump], 'fillValve') else True 
+        fill_valve_reserved = self.pumps[pump].fillValve.lock.acquire(False) if self.pumps[pump].hasFillValve else True 
         if pump_reserved and fill_valve_reserved:
             try:
                 for i in self.modules:
                     if i.pump.name == pump:
                         self.modules[i].valve.close()
-                if hasattr(self.pumps[pump], 'fillValve'): self.pumps[pump].fillValve.open()
+                if self.pumps[pump].hasFillValve: self.pumps[pump].fillValve.open()
                 self.pumps[pump].ret_to_max()
-                self.pump.move(.1 * self.pump.syringe.mlPerCm, Direction.FORWARD)
+                self.pump.move(.05 * self.pump.syringe.mlPerCm, Direction.FORWARD)
                 time.sleep(post_delay)
                 self.pump.fillValve.close()
             except BaseException as e:
                 self.pumps[pump].lock.release()
-                if hasattr(self.pumps[pump], 'fillValve'): self.pumps[pump].fillValve.lock.release()
+                if self.pumps[pump].hasFillValve: self.pumps[pump].fillValve.lock.release()
                 raise e
+    def _check_for_refills(self):
+        while self.on.is_set():
+            for i in self.pumps:
+                if (i not in self.needs_refilling) and (self.pumps[i].vol_left < .9 * self.pumps[i].syringe.volume) and self.pumps[i].hasFillValve:
+                    self.needs_refilling.append(i)
+
+            time.sleep(.0001)
+                    
 
     def _fill_syringes(self):
         """
@@ -359,29 +368,22 @@ class RewardInterface(BaseInterface):
 
         while self.on.is_set():
             if self.auto_fill:
-                for i in self.pumps:
-                    if self.pumps[i].vol_left < .8 * self.pumps[i].syringe.volume:
-                        self.needs_refilling[i] = True
-                    if self.needs_refilling[i]:
-                        if not self.pumps[i].enabled: 
-                            self.pumps[i].enable()
-                        try:
-                            if self.valves_manually_toggled:
-                                for j in self.modules:
-                                    self.modules[j].valve.close()
-                                self.valves_manually_toggled = False
-                            if hasattr(self.pumps[i], 'fillValve'):
-                                self.pumps[i].fillValve.open()
-                                self.pumps[i].single_step(direction = Direction.BACKWARD)
-                                if self.pumps[i].at_max_pos:
-                                    self.pumps[i].move(.1 * self.pumps[i].syringe.mlPerCm, Direction.FORWARD)
-                                    self.needs_refilling[i] = False
-                            else:
-                                logging.warning(f"{i} has no specified fill valve")
-                        except (ResourceLocked, EndTrackError):
-                            pass
-                    elif hasattr(self.pumps[i], 'fillValve'):
-                        self.pumps[i].fillValve.close()
+                if self.valves_manually_toggled:
+                    for j in self.modules:
+                        self.modules[j].valve.close()
+                    self.valves_manually_toggled = False
+                for i in self.needs_refilling:
+                    if not self.pumps[i].enabled: 
+                        self.pumps[i].enable()
+                    try:
+                        self.pumps[i].fillValve.open()
+                        self.pumps[i].single_step(direction = Direction.BACKWARD)
+                        if self.pumps[i].at_max_pos:
+                            self.pumps[i].move(.05 * self.pumps[i].syringe.mlPerCm, Direction.FORWARD)
+                            self.needs_refilling.remove(i)
+                            self.pumps[i].fillValve.close()
+                    except (ResourceLocked, EndTrackError) as e:
+                        pass
             # this sleep is necessasry to avoid interfering
             # with other tasks that may want to use the pump
             # without this sleep all other threads run slower
@@ -397,7 +399,7 @@ class RewardInterface(BaseInterface):
         """
         if not on:
             for i in self.pumps:
-                if hasattr(self.pumps[i], 'fillValve'):
+                if self.pumps[i].hasFillValve:
                     try:
                         self.pumps[i].fillValve.close()
                     except ResourceLocked:
