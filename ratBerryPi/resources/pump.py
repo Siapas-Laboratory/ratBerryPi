@@ -348,11 +348,12 @@ class Pump(BaseResource):
             was_enabled = self.enabled
             self.enable()
             ts = []
+            t1 = datetime.now()
             while (step_count<steps):
                 try:
-                    _t1 = datetime.now()
-                    ts.append((t1 - _t1).total_seconds())
-                    t1 = _t1
+                    t2= t1
+                    t1 = datetime.now()
+                    ts.append((t1 - t2).total_seconds())
                     self.single_step()
                 except PumpNotEnabled as e:
                     self.logger.warning(f"Pump turned off after {step_count} steps ({step_count/self.stepsPermL} mL)")
