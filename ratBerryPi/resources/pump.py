@@ -10,6 +10,8 @@ import os
 import time
 import pickle
 from enum import Enum
+from datetime import datetime
+import statistics as stats
 
 class Direction(Enum):
     FORWARD=True
@@ -345,15 +347,19 @@ class Pump(BaseResource):
                     raise EndTrackError
             was_enabled = self.enabled
             self.enable()
+            ts = []
             while (step_count<steps):
                 try:
+                    _t1 = datetime.now()
+                    ts.append((t1 - _t1).total_seconds())
+                    t1 = _t1
                     self.single_step()
                 except PumpNotEnabled as e:
                     self.logger.warning(f"Pump turned off after {step_count} steps ({step_count/self.stepsPermL} mL)")
                     self.lock.release()
                     raise e
                 step_count += 1
-            
+            self.logger.debug(f"mean step_delay = {stats.mean(ts[1:])}")
             self.lock.release()
             if not was_enabled: self.disable()
         else:
