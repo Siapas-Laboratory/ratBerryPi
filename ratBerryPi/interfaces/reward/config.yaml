@@ -54,7 +54,7 @@ pumps:
     enPin: "GPA0"
     fillValvePin: "GPA6"
     stepPin: "GPA4"
-    stepType: Half
+    stepType: Full
     syringeType: BD10mL
     flushPin: 25
     revPin: 16

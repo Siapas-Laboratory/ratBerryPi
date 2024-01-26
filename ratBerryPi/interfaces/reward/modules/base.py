@@ -82,6 +82,25 @@ class BaseRewardModule(ABC):
                                  valve = self.valve, direction = Direction.FORWARD,
                                  trigger_source = self, post_delay = post_delay)
 
+    def empty_line(self, amount:float = None, post_delay:float = 1):
+
+        assert self.pump.hasFillValve, "must have a fill valve to empty a line"
+        if amount is None: amount = self.dead_volume
+        acquired = self.acquire_locks()
+        if acquired:
+            while amount>0:
+                self.pump.fillValve.close()
+                self.valve.open()
+                if not self.pump.at_max_pos: self.pump.ret_to_max()
+                self.valve.close()
+                self.pump.fillValve.open()
+                _amt = max(self.pump.vol_left - 0.01 * self.pump.syringe.volume, 0)
+                self.pump.move(_amt, Direction.FORWARD)
+                amount -= _amt
+            self.pump.fillValve.close()
+            self.release_locks()
+
+
     def fill_line(self, amount:float = None, refill:bool = True, post_delay:float = 1):
         
         if amount is None: amount = self.dead_volume

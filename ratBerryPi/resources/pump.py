@@ -10,8 +10,8 @@ import os
 import time
 import pickle
 from enum import Enum
-from datetime import datetime
-import statistics as stats
+from datetime import datetime, timedelta
+import numpy as np
 
 class Direction(Enum):
     FORWARD=True
@@ -23,7 +23,6 @@ class EndTrackError(Exception):
 
 class PumpNotEnabled(Exception):
     pass
-
 
 class Syringe:
     # ID and volume for any syringes we might want to use
@@ -81,8 +80,8 @@ class Pump(BaseResource):
                       "1/16": 3200}
     
     def __init__(self, name, stepPin, flushPin, revPin, modePins, dirPin, fillValvePin = None, 
-                 enPin = None, endPin = None, syringe = Syringe(syringeType='BD5mL'), stepDelay = .0005,
-                 stepType = "Half", pitch = 0.08,  reset = False, verbose = True):
+                 enPin = None, endPin = None, syringe = Syringe(syringeType='BD5mL'), stepDelay = .0001,
+                 stepType = "Half", pitch = 0.08,  reset = False, verbose = True, parent = None):
         
         """
         this is a class that allows for the control of a syringe
@@ -106,7 +105,7 @@ class Pump(BaseResource):
             tolerance: float
                 the allowable error in the amount of fluid delivered in mL
         """
-        super(Pump, self).__init__(name, None)
+        super(Pump, self).__init__(name, parent)
         self.syringe = syringe
 
         if enPin:
@@ -167,6 +166,10 @@ class Pump(BaseResource):
             self.hasFillValve = False
 
         self.thread = None
+        self.pos_thread = threading.Thread(target = self._log_position)
+        self.pos_thread.start()
+
+
 
     @property
     def direction(self):
@@ -189,19 +192,14 @@ class Pump(BaseResource):
         assert isinstance(syringe, Syringe), 'syringe must be an instance of Syringe'
         self._syringe = syringe
     
+
     @property
-    def position(self):
-        return self._position
-    
-    @position.setter
-    def position(self, position):
-        if hasattr(self, '_position'):
-            if abs(round(position,1) - round(self.position,1)) > 0:
-                with open(self.state_fpath, 'wb') as f:
-                    pickle.dump(self.position, f)
-        self.at_min_pos = position <= 0
-        self.at_max_pos = position >= self.syringe.max_pos
-        self._position = position
+    def at_min_pos(self):
+        return self.position <= 0
+
+    @property
+    def at_max_pos(self):
+        return self.position >= self.syringe.max_pos
 
     @property
     def vol_left(self):
@@ -227,13 +225,26 @@ class Pump(BaseResource):
         stepsPerThread = self.steps_per_rot[self.stepType]
         mlPerThread = self.syringe.mlPerCm * self.pitch
         return  stepsPerThread/ mlPerThread
+    
+    @property
+    def displacement_per_step(self):
+        return self.pitch/self.steps_per_rot[self.stepType]
+
+    def _log_position(self):
+        os.nice(19)
+        while not self.parent.on.is_set(): time.sleep(.001)
+        while self.parent.on.is_set():
+            with open(self.state_fpath, 'wb') as f:
+                    pickle.dump(self.position, f)
+            time.sleep(.001)
+
 
     def calibrate(self, channel=None):
         self.position = 0
         self.track_end = True
 
 
-    def single_step(self, direction:Direction = None, force:bool = False):
+    def single_step(self, direction:Direction = None, force:bool = False, pre_checked = False):
         """
         send a single pulse to step the pump's motor in a specified direction
 
@@ -248,27 +259,39 @@ class Pump(BaseResource):
 
         acquired = self.lock.acquire(False)
         if acquired:
-            if direction:
-                if direction != self.direction:
-                    self.direction = direction
-            too_close = self.at_min_pos and self.direction == Direction.FORWARD
-            too_far = self.at_max_pos and self.direction == Direction.BACKWARD
-            if (too_close or too_far) and not force:
-                self.lock.release()
-                raise EndTrackError      
+            if not pre_checked:
+                if direction:
+                    if direction != self.direction:
+                        self.direction = direction
+                if not force:
+                    if direction == Direction.FORWARD:
+                        if self.at_min_pos:
+                            self.lock.release()
+                            raise EndTrackError
+                    elif direction == Direction.BACKWARD:
+                        if self.at_max_pos:
+                            self.lock.release()
+                            raise EndTrackError
+     
             if (not force) and (not self.enabled):
                 self.lock.release()
                 raise PumpNotEnabled 
 
+            target_t = self.stepDelay/2
             self._stepPin.value = True
-            time.sleep(self.stepDelay)
+            t1 = datetime.now()
+            t2 = datetime.now()
+            while (t2 - t1).total_seconds() < target_t:
+                t2 = datetime.now()
             self._stepPin.value = False
-            time.sleep(self.stepDelay)
+            t3 = datetime.now()
+            while (t3 - t1).total_seconds() < self.stepDelay:
+                t3 = datetime.now()
 
             if self.direction == Direction.FORWARD:
-                self.position -= (self.pitch/self.steps_per_rot[self.stepType])
+                self.position -= self.displacement_per_step
             else:
-                self.position += (self.pitch/self.steps_per_rot[self.stepType])
+                self.position += self.displacement_per_step
             self.lock.release()
         else:
             raise ResourceLocked("Pump In Use")
@@ -333,38 +356,35 @@ class Pump(BaseResource):
         forward: bool
             whether or not to move the piston forward
         """
-        steps = self.calculate_steps(amount)
-        step_count = 0
+        if amount >0:
+            steps = self.calculate_steps(amount)
+            step_count = 0
 
-        acquired = self.lock.acquire(blocking = blocking, 
-                                     timeout = timeout)
-        if acquired:
-            if direction:
-                if direction != self.direction:
-                    self.direction = direction
-            if check_availability:
-                if not self.is_available(amount, direction):
-                    raise EndTrackError
-            was_enabled = self.enabled
-            self.enable()
-            ts = []
-            t1 = datetime.now()
-            while (step_count<steps):
-                try:
-                    t2= t1
-                    t1 = datetime.now()
-                    ts.append((t1 - t2).total_seconds())
-                    self.single_step()
-                except PumpNotEnabled as e:
-                    self.logger.warning(f"Pump turned off after {step_count} steps ({step_count/self.stepsPermL} mL)")
-                    self.lock.release()
-                    raise e
-                step_count += 1
-            self.logger.debug(f"mean step_delay = {stats.mean(ts[1:])}")
-            self.lock.release()
-            if not was_enabled: self.disable()
-        else:
-            raise ResourceLocked("Pump In Use")
+            acquired = self.lock.acquire(blocking = blocking, 
+                                        timeout = timeout)
+            if acquired:
+                if direction:
+                    if direction != self.direction:
+                        self.direction = direction
+                if check_availability:
+                    if not self.is_available(amount, direction):
+                        raise EndTrackError
+                was_enabled = self.enabled
+                self.enable()
+                t1 = datetime.now()
+                while (step_count<steps):
+                    try:
+                        self.single_step(pre_checked = check_availability)
+                    except PumpNotEnabled as e:
+                        self.logger.warning(f"Pump turned off after {step_count} steps ({step_count/self.stepsPermL} mL)")
+                        self.lock.release()
+                        raise e
+                    step_count += 1
+                self.logger.debug(f"mean step_delay = {(datetime.now() - t1).total_seconds()/steps}")
+                self.lock.release()
+                if not was_enabled: self.disable()
+            else:
+                raise ResourceLocked("Pump In Use")
 
     
     def ret_to_max(self, blocking = False, timeout = -1):
@@ -500,7 +520,6 @@ class Pump(BaseResource):
             step_count = 0
             was_enabled = self.pump.enabled
             self.pump.enable() # disable the pump until we get a trigger
-            os.nice(19) # give priority to this thread
             try:
                 while (step_count<steps) and self.running:
                     if self.trigger_val:
@@ -542,6 +561,7 @@ class Pump(BaseResource):
             if not was_enabled: self.pump.disable()
 
         def trigger_pump(self):
+            os.nice(19)
             prev_trigger_value = False
             while self.running:
                 current_trigger_value = self.trigger_source.pump_trigger

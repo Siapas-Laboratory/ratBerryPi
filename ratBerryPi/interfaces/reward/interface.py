@@ -9,6 +9,7 @@ import threading
 import time
 import logging
 from pathlib import Path
+import os
 
 ETHERNET = {
     "port0": {
@@ -115,6 +116,7 @@ class RewardInterface(BaseInterface):
                 syringe = Syringe()
             self.config['pumps'][i]['syringe'] = syringe
             self.config['pumps'][i]['modePins'] = tuple(self.config['pumps'][i]['modePins'])
+            self.config['pumps'][i]['parent'] = self
             self.pumps[i] = Pump(i, **self.config['pumps'][i])
 
         self.plugins = {}
@@ -163,8 +165,94 @@ class RewardInterface(BaseInterface):
         """
         self.pumps[pump].calibrate()
 
+    def push_to_reservoir(self, pump, amount):
+        """
+        push a specified amount of fluid to the reservoir
+        useful when changing syringes to get any air bubbles
+        out
+        """
+        pump = self.pumps[pump]
+        if pump.hasFillValve:
+            fill_lock_acquired = pump.fillValve.lock.acquire(False)
+            pump_lock_acquired = pump.lock.acquire(False)
+            if fill_lock_acquired and pump_lock_acquired:
+                for i in self.modules:
+                    if self.modules[i].pump == pump:
+                        self.modules[i].valve.close()
+                pump.fillValve.open()
+                pump.move(amount, Direction.FORWARD)
+                pump.fillValve.close()
+                pump.fillValve.lock.release()
+                pump.lock.release()
 
-    def fill_lines(self, modules = None, prime_amount = 1, res_amount = None):
+    def empty_lines(self, modules = None):
+        """
+        empty the lines by drawing the dead volumes worth of
+        fluid from each line hookede up to each specified module
+        and push it to the reservoir.
+
+        CAUTION: make sure the reservoir is empty before running this function
+
+        Args:
+            modules: list
+                a list of all modules whose lines should be filled
+            res_amount: int, dict
+                either a single value specifying the amount of fluid
+                to fill the lines leading up to all reservoirs with 
+                or a dictionary specifying how much fluid to fill each line
+                leading up to each reservoir. keys should be pump
+                names and values should be amounts in mL
+        
+        """
+
+        if not modules: modules = list(self.modules.keys())
+        # temporarily turn off auto fill
+        afill_was_on = self.auto_fill
+        self.toggle_auto_fill(False)
+
+        # get all unique pumps
+        modules = list([self.modules[i] for i in modules])
+        pumps = list(set([m.pump for m in modules]))
+        assert all([p.hasFillValve for p in pumps]), "all pumps must have fill valves to run empty_lines"
+
+
+        # pre-acquire locks for all resources and
+        # make sure all valves are closed before starting
+        lock_statuses = []
+        for m in self.modules:
+            acquired = self.modules[m].valve.lock.acquire(False)
+            lock_statuses.append(acquired)
+            self.modules[m].valve.close()
+
+        # reserve all pumps
+        for p in pumps: 
+            acquired = p.lock.acquire(False)
+            lock_statuses.append(acquired)
+            acquired = p.fillValve.lock.acquire(False) 
+            lock_statuses.append(acquired)    
+
+        if all(lock_statuses):
+            # empty syringe into reservoir
+            for p in pumps:
+                logging.debug(f'emptying syringe for pump {p.name}')
+                p.fillValve.open()
+                p.move(max(p.vol_left - .01 * p.syringe.volume, 0), Direction.FORWARD)
+                p.fillValve.close()
+            
+            # empty each line
+            for m in modules:
+                logging.debug(f'emptying line {m.name}')
+                m.empty_line()
+            
+            # release the locks
+            for m in modules: m.valve.lock.release()
+            for p in pumps:
+                p.lock.release()
+                p.fillValve.lock.release()
+        
+        self.toggle_auto_fill(afill_was_on) # turn autofill back on if it was on
+
+    def fill_lines(self, modules = None, prime_amount = 2, res_amount = None):
         """
         fill the lines leading up to the specified reward ports
         with fluid
@@ -197,7 +285,8 @@ class RewardInterface(BaseInterface):
         pumps = list(set([m.pump for m in modules]))
 
         if type(prime_amount) == int or float:
-            prime_amounts = {i: prime_amount for i in modules}
+            # NOTE: we always prime all lines
+            prime_amounts = {i: prime_amount for i in self.modules}
         elif isinstance(prime_amount, dict):
             _modules = set([self.modules[i] for i in prime_amount])
             if not len(set(modules).intersection(_modules)) == len(modules):
@@ -207,35 +296,31 @@ class RewardInterface(BaseInterface):
             raise TypeError(f"invalid input of type {type(prime_amount)} for argument 'prime_amount'")
 
         if res_amount is None:
-            res_amounts = {i: prime_amount for i in pumps}
+            res_amounts = {i: prime_amount for i in pumps if i.hasFillValve}
         elif type(res_amount) == int or float:
-            res_amounts = {i: res_amount for i in pumps}
+            res_amounts = {i: res_amount for i in pumps if i.hasFillValve}
         elif isinstance(res_amount, dict):
-            _pumps = set([self.pumps[i] for i in res_amount])
-            if not len(set(pumps).intersection(_pumps)) == len(pumps):
-                raise ValueError("the keys of 'res_amount' should correspond to all pumps connected to the specified modules")
             res_amounts = res_amount
         else:
             raise TypeError(f"invalid input of type {type(res_amount)} for argument 'res_amount'")
         
         # TODO: this portion needs to be tested
-        # # check if there is enough fluid in the syringes to prime the lines
-        # for p in pumps:
-        #     amt = res_amounts[p]
-        #     for m,v in prime_amounts.items():
-        #         if m.pump == p:
-        #             amt += v
-        #     if not p.is_available(amt):
-        #         raise Exception("Not enough fluid to prime the lines")
+        # check if there is enough fluid in the syringes to prime the lines
+        for p in pumps:
+            amt = res_amounts[p]
+            for m,v in prime_amounts.items():
+                if m.pump == p:
+                    amt += v
+            if not p.is_available(amt):
+                raise Exception("Not enough fluid to prime the lines")
 
         # pre-acquire locks for all resources and
         # make sure all valves are closed before starting
         lock_statuses = []
         for m in self.modules:
-            if hasattr(m, 'valve'):
-                acquired = m.valve.lock.acquire(False)
-                lock_statuses.append(acquired)
-                m.valve.close()
+            acquired = self.modules[m].valve.lock.acquire(False)
+            lock_statuses.append(acquired)
+            self.modules[m].valve.close()
 
         # reserve all pumps
         for p in pumps: 
@@ -248,11 +333,10 @@ class RewardInterface(BaseInterface):
         if all(lock_statuses):
             # prime all reservoirs
             for p, amt in res_amounts.items():
-                logging.info(f"priming reservoir for {p.name}")
                 if p.hasFillValve:
+                    logging.info(f"priming reservoir for {p.name}")
                     p.fillValve.open()
-                p.move(amt, direction = Direction.FORWARD)
-                if p.hasFillValve:
+                    p.move(amt, direction = Direction.FORWARD)
                     p.fillValve.close()
 
             # prime all lines
@@ -273,6 +357,7 @@ class RewardInterface(BaseInterface):
             for m in modules:
                 logging.info(f'filling line for {m.name}')
                 m.fill_line()
+                m.valve.lock.release()
 
             # refill the syringes
             for p in pumps:
@@ -282,6 +367,7 @@ class RewardInterface(BaseInterface):
                     p.ret_to_max()
                     p.fillValve.close()
                     time.sleep(.1)
+                    p.fillValve.lock.release()
                 p.lock.release()
 
         self.toggle_auto_fill(afill_was_on) # turn autofill back on if it was on
@@ -350,13 +436,14 @@ class RewardInterface(BaseInterface):
                 self.pumps[pump].lock.release()
                 if self.pumps[pump].hasFillValve: self.pumps[pump].fillValve.lock.release()
                 raise e
+    
     def _check_for_refills(self):
+        os.nice(19)
         while self.on.is_set():
             for i in self.pumps:
-                if (i not in self.needs_refilling) and (self.pumps[i].vol_left < .9 * self.pumps[i].syringe.volume) and self.pumps[i].hasFillValve:
+                if (i not in self.needs_refilling) and (self.pumps[i].vol_left < .95 * self.pumps[i].syringe.volume) and self.pumps[i].hasFillValve:
                     self.needs_refilling.append(i)
-
-            time.sleep(.0001)
+            time.sleep(.1)
                     
 
     def _fill_syringes(self):
@@ -543,12 +630,12 @@ class RewardInterface(BaseInterface):
             open_valve: bool
                 whether or not to open the valve
         """
-        if hasattr(self.modules[module], "valve"):
-            if open_valve:
-                self.modules[module].valve.open()
-                self.valves_manually_toggled = True
-            else:
-                self.modules[module].valve.close()
+
+        if open_valve:
+            self.modules[module].valve.open()
+            self.valves_manually_toggled = True
+        else:
+            self.modules[module].valve.close()
 
     def stop(self):
         if self.on.is_set(): self.on.clear()
