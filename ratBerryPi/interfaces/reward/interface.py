@@ -286,12 +286,12 @@ class RewardInterface(BaseInterface):
 
         if type(prime_amount) == int or float:
             # NOTE: we always prime all lines
-            prime_amounts = {i: prime_amount for i in self.modules}
+            prime_amounts = {self.modules[i]: prime_amount for i in self.modules}
         elif isinstance(prime_amount, dict):
             _modules = set([self.modules[i] for i in prime_amount])
             if not len(set(modules).intersection(_modules)) == len(modules):
                 raise ValueError("the keys of 'prime_amount' should be the same as the specified modules")
-            prime_amounts = prime_amount
+            prime_amounts = {self.modules[k]: v for k,v in prime_amount}
         else:
             raise TypeError(f"invalid input of type {type(prime_amount)} for argument 'prime_amount'")
 
@@ -373,7 +373,7 @@ class RewardInterface(BaseInterface):
         self.toggle_auto_fill(afill_was_on) # turn autofill back on if it was on
         
 
-    def record(self, reset = True):
+    def record(self, reset = True, data_dir = None):
         """
         start a log of all events that occur on the interface,
         including any lick events or cue triggers
@@ -384,10 +384,10 @@ class RewardInterface(BaseInterface):
                 lickometers before recording
         """
         if reset: self.reset_all_licks()
-        super(RewardInterface, self).start()
+        super(RewardInterface, self).record(data_dir)
 
 
-    def trigger_reward(self, module, amount:float, force:bool = False, triggered:bool = False, sync:bool = False, post_delay:float = 2):
+    def trigger_reward(self, module, amount:float, force:bool = False, triggered:bool = False, sync:bool = False):
         """
         trigger reward delivery on a provided reward module
 
@@ -405,17 +405,13 @@ class RewardInterface(BaseInterface):
             sync: bool
                 flag to deliver reward synchronously. if set to true this function is blocking
                 NOTE: triggered reward delivery is not supported when delivering reward synchronously
-            post_delay: float
-                amount of time in seconds to wait after reward delivery to ensure the entire reward amount
-                is has been delivered. setting this value too small will result in less reward being delievered
-                than requested
 
         """
 
         self.modules[module].trigger_reward(amount, force = force, triggered = triggered, 
-                                            sync = sync, post_delay = post_delay)
+                                            sync = sync)
 
-    def refill_syringe(self, pump:str = None, post_delay:float = 1.):
+    def refill_syringe(self, pump:str = None):
         """
 
         """
@@ -430,7 +426,7 @@ class RewardInterface(BaseInterface):
                 if self.pumps[pump].hasFillValve: self.pumps[pump].fillValve.open()
                 self.pumps[pump].ret_to_max()
                 self.pump.move(.05 * self.pump.syringe.mlPerCm, Direction.FORWARD)
-                time.sleep(post_delay)
+                time.sleep(1)
                 self.pump.fillValve.close()
             except BaseException as e:
                 self.pumps[pump].lock.release()
@@ -492,6 +488,22 @@ class RewardInterface(BaseInterface):
                     except ResourceLocked:
                         pass
         self.auto_fill = on
+
+    def update_post_delay(self, post_delay:float, module:str = None):
+        """
+        update the post reward delay of a given module or all modules
+
+        Args:
+            post_delay: float
+                desired post-reward delay
+            module: str
+                the module to update. if none, update all modules
+        """
+        if module:
+            self.modules[module].post_delay = post_delay
+        else:
+            for m in self.modules:
+                self.modules[m].post_delay = post_delay
 
     def change_syringe(self, syringeType:str, all:bool = False, module:str = None, pump:str=None):
         """

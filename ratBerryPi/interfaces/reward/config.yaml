@@ -2,51 +2,51 @@
 modules:
   module1:
     type: DefaultModule
-    dead_volume: 15
+    dead_volume: 10
     port: port0
     pump: pump1
 
   module2:
     type: DefaultModule
-    dead_volume: 15
+    dead_volume: 10
     port: port1
     pump: pump1
 
   module3:
     type: DefaultModule
-    dead_volume: 15
+    dead_volume: 10
     port: port2
     pump: pump1
 
   module4:
     type: DefaultModule
-    dead_volume: 15
+    dead_volume: 10
     port: port3
     pump: pump1
 
   module5:
     type: DefaultModule
-    dead_volume: 15
+    dead_volume: 10
     port: port4
     pump: pump1
 
-  module6:
-    type: DefaultModule
-    dead_volume: 15
-    port: port5
-    pump: pump1
+  # module6:
+  #   type: DefaultModule
+  #   dead_volume: 15
+  #   port: port5
+  #   pump: pump1
 
-  module7:
-    type: DefaultModule
-    dead_volume: 15
-    port: port6
-    pump: pump1
+  # module7:
+  #   type: DefaultModule
+  #   dead_volume: 15
+  #   port: port6
+  #   pump: pump1
 
-  module8:
-    type: DefaultModule
-    dead_volume: 15
-    port: port7
-    pump: pump1
+  # module8:
+  #   type: DefaultModule
+  #   dead_volume: 15
+  #   port: port7
+  #   pump: pump1
 
 # pump config
 pumps:
@@ -55,7 +55,7 @@ pumps:
     fillValvePin: "GPA6"
     stepPin: "GPA4"
     stepType: Full
-    syringeType: BD10mL
+    syringeType: BD30mL
     flushPin: 25
     revPin: 16
     dirPin: "GPA5"

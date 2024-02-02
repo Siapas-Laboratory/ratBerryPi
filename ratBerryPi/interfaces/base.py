@@ -33,10 +33,11 @@ class BaseInterface:
 
     def record(self, data_dir = None):
         data_dir = data_dir if data_dir else self.data_dir
+        os.makedirs(data_dir, exist_ok = True)
         self.stop_recording()
-        fname = datetime.strftime(datetime.now(), "%Y_%m_%d_%H_%M_%S.csv")
-        data_path= os.path.join(data_dir, fname)
-        self.log_fh = logging.FileHandler(data_path)
+        log_fname = datetime.strftime(datetime.now(), "%Y_%m_%d_%H_%M_%S.csv")
+        self.data_path = os.path.join(data_dir, log_fname)
+        self.log_fh = logging.FileHandler(self.data_path)
         self.log_fh.setLevel(logging.INFO)
         self.log_fh.setFormatter(self.formatter)
         self.logger.addHandler(self.log_fh)

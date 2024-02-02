@@ -358,33 +358,34 @@ class Pump(BaseResource):
         """
         if amount >0:
             steps = self.calculate_steps(amount)
-            step_count = 0
+            if steps>0:
+                step_count = 0
 
-            acquired = self.lock.acquire(blocking = blocking, 
-                                        timeout = timeout)
-            if acquired:
-                if direction:
-                    if direction != self.direction:
-                        self.direction = direction
-                if check_availability:
-                    if not self.is_available(amount, direction):
-                        raise EndTrackError
-                was_enabled = self.enabled
-                self.enable()
-                t1 = datetime.now()
-                while (step_count<steps):
-                    try:
-                        self.single_step(pre_checked = check_availability)
-                    except PumpNotEnabled as e:
-                        self.logger.warning(f"Pump turned off after {step_count} steps ({step_count/self.stepsPermL} mL)")
-                        self.lock.release()
-                        raise e
-                    step_count += 1
-                self.logger.debug(f"mean step_delay = {(datetime.now() - t1).total_seconds()/steps}")
-                self.lock.release()
-                if not was_enabled: self.disable()
-            else:
-                raise ResourceLocked("Pump In Use")
+                acquired = self.lock.acquire(blocking = blocking, 
+                                            timeout = timeout)
+                if acquired:
+                    if direction:
+                        if direction != self.direction:
+                            self.direction = direction
+                    if check_availability:
+                        if not self.is_available(amount, direction):
+                            raise EndTrackError
+                    was_enabled = self.enabled
+                    self.enable()
+                    t1 = datetime.now()
+                    while (step_count<steps):
+                        try:
+                            self.single_step(pre_checked = check_availability)
+                        except PumpNotEnabled as e:
+                            self.logger.warning(f"Pump turned off after {step_count} steps ({step_count/self.stepsPermL} mL)")
+                            self.lock.release()
+                            raise e
+                        step_count += 1
+                    self.logger.debug(f"mean step_delay = {(datetime.now() - t1).total_seconds()/steps}")
+                    self.lock.release()
+                    if not was_enabled: self.disable()
+                else:
+                    raise ResourceLocked("Pump In Use")
 
     
     def ret_to_max(self, blocking = False, timeout = -1):
