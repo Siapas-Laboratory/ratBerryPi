@@ -7,7 +7,7 @@ import pyaudio as pa
 
 
 class AudioInterface(BaseInterface):
-    def __init__(self, fs = 22050):
+    def __init__(self, fs = 100_000):
         ## NOTE: for higher frequency sounds need a higher sampling rate
         # to obey Nyquist sampling theorem. look into limits on the amplifier and
         # pyaudio

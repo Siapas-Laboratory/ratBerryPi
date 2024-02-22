@@ -17,6 +17,10 @@ class BaseInterface:
         if config_file:
             with open(config_file, 'r') as f:
                 self.config = yaml.safe_load(f)
+            if 'clockPin' in self.config:
+                self.clockPin = self.config['clockPin']
+                GPIO.setup(self.clockPin, GPIO.IN, GPIO.PUD_OFF)
+                GPIO.add_event_detect(self.clockPin, GPIO.RISING, callback=self.log_clk_signal)
 
         self.recording = False
         self.data_dir = data_dir
@@ -27,6 +31,9 @@ class BaseInterface:
         # create formatter
         self.formatter = logging.Formatter('%(asctime)s.%(msecs)03d, %(levelname)s, %(message)s',
                                            "%Y-%m-%d %H:%M:%S")
+
+    def log_clk_signal(self, x):
+        self.logger.info("clock")
 
     def start(self):
         if not self.on.is_set(): self.on.set()

@@ -12,10 +12,18 @@ import pickle
 from enum import Enum
 from datetime import datetime, timedelta
 import numpy as np
+from abc import ABC, abstractmethod
+
 
 class Direction(Enum):
     FORWARD=True
     BACKWARD=False
+
+class TriggerMode(Enum):
+    NO_TRIGGER = 0
+    SINGLE_TRIGGER = 1
+    CONTINUOUS_TRIGGER = 2
+    
 
 class EndTrackError(Exception):
     """reached end of track"""
@@ -299,7 +307,9 @@ class Pump(BaseResource):
     def __flush(self, channel):
         acquired = self.lock.acquire(False)
         if acquired:
-            if self.verbose: self.logger.info("flushing started")
+            if self.verbose: 
+                print("flushing")
+                self.logger.info("flushing started")
             _prev_stepType = self.stepType
             self.stepType = 'Full'
             while GPIO.input(channel)==GPIO.HIGH:
@@ -312,7 +322,9 @@ class Pump(BaseResource):
     def __reverse(self, channel):
         acquired = self.lock.acquire(False)
         if acquired:
-            if self.verbose: self.logger.info("reversing started")
+            if self.verbose: 
+                print("reversing started")
+                self.logger.info("reversing started")
             _prev_stepType = self.stepType
             self.stepType = 'Full'
             while GPIO.input(channel)==GPIO.HIGH:
@@ -416,11 +428,11 @@ class Pump(BaseResource):
             pickle.dump(self.position, f)
         if self.thread:self.thread.stop()
 
-    def async_pump(self, amount, triggered, valve = None, direction = Direction.FORWARD, 
-                   close_fill = False, trigger_source = None, post_delay = 1):
+    def async_pump(self, amount, trigger_mode, valve = None, direction = Direction.FORWARD, 
+                   close_fill = False, trigger = None, post_delay = 1):
         
-        self.thread = Pump.PumpThread(self, amount, triggered, valve, direction,
-                                           close_fill, trigger_source, post_delay)
+        self.thread = Pump.PumpThread(self, amount, trigger_mode, valve, direction,
+                                           close_fill, trigger, post_delay)
         self.thread.start()
         # wait to check if the thread started successfully
         time.sleep(.1)
@@ -431,30 +443,28 @@ class Pump(BaseResource):
                 print(self.thread.err)
     
     class PumpThread(threading.Thread):
-        def __init__(self, pump, amount, triggered, valve = None, 
+        def __init__(self, pump, amount, trigger_mode, valve = None, 
                     direction = Direction.FORWARD, close_fill = False,
-                    trigger_source = None, post_delay = 1):
+                    trigger = None, post_delay = 1):
             
             super(Pump.PumpThread, self).__init__()
-            self.trigger_source = trigger_source
+            self.trigger = trigger
             self.valve = valve
             self.pump = pump
             self.amount = amount
             self.running = False
             self.success = False
             self.direction = direction
-            self.triggered = triggered
+            self.trigger_mode = trigger_mode
             self.post_delay = post_delay
             self.close_fill = close_fill
             self.err = None
 
-            if self.triggered:
-                assert self.trigger_source, 'must specify trigger_source for triggered mode'
-                try:
-                    _ = self.trigger_source.pump_trigger
-                    self.trigger_val = False
-                except (AttributeError, NotImplementedError):
-                    raise AttributeError('must specify property pump_trigger in trigger_source for triggered mode')
+            if self.trigger_mode:
+                assert self.trigger, 'must specify trigger for triggered mode'
+                assert isinstance(self.trigger, PumpTrigger), "trigger muse be a subclass of PumpTrigger"
+                if self.trigger_mode == TriggerMode.SINGLE_TRIGGER:
+                    self.trigger.reset()
                 
 
         def run(self):
@@ -469,13 +479,13 @@ class Pump(BaseResource):
                 return
             
             # pre-emptively check availability
-            if not self.triggered and (not self.pump.is_available(self.amount, self.direction)):
+            if self.trigger_mode != TriggerMode.CONTINUOUS_TRIGGER and (not self.pump.is_available(self.amount, self.direction)):
                 self.running = False
                 self.err = ValueError("the requested amount is more than is available in the syringe")
                 return
             
             self.running = True
-            if self.triggered: 
+            if self.trigger_mode == TriggerMode.CONTINUOUS_TRIGGER: 
                 self.triggered_pump()
             else:
                 try:
@@ -488,6 +498,10 @@ class Pump(BaseResource):
                             self.pump.fillValve.close()
                     elif self.close_fill and self.pump.hasFillValve:
                         self.pump.fillValve.close()
+
+                    if self.trigger_mode == TriggerMode.SINGLE_TRIGGER:
+                        while not self.trigger.armed:
+                            time.sleep(.001)
                     if self.valve: self.valve.open()
                     self.pump.move(self.amount, self.direction, check_availability = False)
                     if self.valve:
@@ -507,6 +521,10 @@ class Pump(BaseResource):
                     if self.valve: 
                         self.valve.lock.release()
 
+
+        def single_trigger_pump(self):
+            self.pump_trigger_thread = threading.Thread(target = self.trigger_pump)
+            self.pump_trigger_thread.start()
                     
 
         def triggered_pump(self):
@@ -565,7 +583,7 @@ class Pump(BaseResource):
             os.nice(19)
             prev_trigger_value = False
             while self.running:
-                current_trigger_value = self.trigger_source.pump_trigger
+                current_trigger_value = self.trigger.armed
                 if prev_trigger_value != current_trigger_value:
                     if current_trigger_value:
                         if self.pump.verbose: 
@@ -584,3 +602,15 @@ class Pump(BaseResource):
             self.join()
             self.success = False
             self.pump.logger.debug("thread stopped")
+
+class PumpTrigger(ABC):
+    def __init__(self, parent = None):
+        self.parent = parent
+
+    @property
+    @abstractmethod
+    def armed(self):
+        ...
+    
+    def reset(self):
+        raise NotImplementedError()

@@ -1,3 +1,5 @@
+clockPin: 14
+
 # module config
 modules:
   module1:

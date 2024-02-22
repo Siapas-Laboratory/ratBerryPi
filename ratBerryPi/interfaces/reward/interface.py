@@ -1,7 +1,7 @@
 from ..base import BaseInterface
 from ..audio.interface import AudioInterface
 from ratBerryPi.resources import Pump, Lickometer, LED, Valve, ResourceLocked
-from ratBerryPi.resources.pump import Syringe, Direction, EndTrackError
+from ratBerryPi.resources.pump import Syringe, Direction, EndTrackError, TriggerMode
 from ratBerryPi.interfaces.reward.modules import *
 
 import RPi.GPIO as GPIO
@@ -387,7 +387,7 @@ class RewardInterface(BaseInterface):
         super(RewardInterface, self).record(data_dir)
 
 
-    def trigger_reward(self, module, amount:float, force:bool = False, triggered:bool = False, sync:bool = False):
+    def trigger_reward(self, module, amount:float, force:bool = False, trigger_mode:TriggerMode = TriggerMode.NO_TRIGGER, sync:bool = False):
         """
         trigger reward delivery on a provided reward module
 
@@ -407,9 +407,9 @@ class RewardInterface(BaseInterface):
                 NOTE: triggered reward delivery is not supported when delivering reward synchronously
 
         """
-
-        self.modules[module].trigger_reward(amount, force = force, triggered = triggered, 
-                                            sync = sync)
+        if isinstance(trigger_mode, str):
+            trigger_mode = TriggerMode[trigger_mode]
+        self.modules[module].trigger_reward(amount, force = force, trigger_mode = trigger_mode, sync = sync)
 
     def refill_syringe(self, pump:str = None):
         """

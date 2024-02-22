@@ -22,10 +22,7 @@ class BaseRewardModule(ABC):
     def load_from_config(self):
         ...
 
-    @property
-    def pump_trigger(self):
-        raise NotImplementedError("The pump_trigger property must be specified for lick triggered reward delivery")
-
+    @abstractmethod
     def trigger_reward(self, amount:float, force:bool = False, triggered = False, 
                        sync = False, post_delay = 1):
         """
@@ -37,46 +34,13 @@ class BaseRewardModule(ABC):
             the total amount of reward to be delivered in mLs
         force: bool
             flag to force reward delivery even if the pump is in use
-        triggered: bool
-            flag to deliver reward in triggered mode
+        trigger_mode: TriggerMode
+            mode for triggering reward (TriggerMode.NO_TRIGGER, TriggerMode.SINGLE_TRIGGER, TriggerMode.CONTINUOUS_TRIGGER )
         sync: bool
             flag to deliver reward synchronously. if set to true this function is blocking
             NOTE: triggered reward delivery is not supported when delivering reward synchronously
-        """
-        
-        if force and self.pump.thread: 
-            # if forcing stop any running reward delivery threads
-            if self.pump.thread.running:
-                self.pump.thread.stop()
-        elif self.pump.thread:
-            if self.pump.thread.running:
-                raise ResourceLocked("Pump In Use")
-
-        if sync:
-            if triggered:
-                raise ValueError("cannot deliver lick-triggered reward synchronously")
-            else:
-                acquired = self.acquire_locks()
-                if acquired:
-                    if self.pump.direction == Direction.BACKWARD and self.pump.hasFillValve:
-                        self.valve.close()
-                        self.fillValve.open()
-                        self.pump.move(.05 * self.pump.mlPerCm, Direction.FORWARD)
-                    self.valve.open() # if make sure the valve is open before delivering reward
-                    # make sure the fill valve is closed if the pump has one
-                    if self.pump.hasFillValve: self.pump.fillValve.close()
-                    # deliver the reward
-                    self.pump.move(amount, force = force, direction = Direction.FORWARD)
-                    # wait then close the valve
-                    time.sleep(self.post_delay)
-                    self.valve.close()
-                    # release the locks
-                    self.release_locks()
-
-        else: # spawn a thread to deliver reward asynchronously
-            self.pump.async_pump(amount, triggered, close_fill = True, 
-                                 valve = self.valve, direction = Direction.FORWARD,
-                                 trigger_source = self, post_delay = self.post_delay)
+        """  
+        ...
 
     def empty_line(self, amount:float = None):
 
