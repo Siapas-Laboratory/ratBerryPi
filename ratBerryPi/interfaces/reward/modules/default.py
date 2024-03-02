@@ -8,7 +8,7 @@ import time
 class ContinuousLickTrigger(PumpTrigger):
     @property
     def armed(self):
-        return self.parent.lickometer.in_burst and (self.parent.lickometer.burst_lick>self.reward_thresh)
+        return self.parent.lickometer.in_burst and (self.parent.lickometer.burst_lick>self.parent.reward_thresh)
     
 class ResetableLickTrigger(PumpTrigger):
     def __init__(self, parent):
@@ -40,7 +40,7 @@ class DefaultModule(BaseRewardModule):
         self.reward_thresh = reward_thresh
     
     def trigger_reward(self, amount:float, force:bool = False, trigger_mode = TriggerMode.NO_TRIGGER, 
-                       sync = False, post_delay = 1):
+                       sync = False, post_delay = 1, wait:bool = False):
         """
         trigger reward delivery
 
@@ -50,8 +50,8 @@ class DefaultModule(BaseRewardModule):
             the total amount of reward to be delivered in mLs
         force: bool
             flag to force reward delivery even if the pump is in use
-        triggered: bool
-            flag to deliver reward in triggered mode
+        trigger_mode: TriggerMode
+            mode for triggering reward (TriggerMode.NO_TRIGGER, TriggerMode.SINGLE_TRIGGER, TriggerMode.CONTINUOUS_TRIGGER )
         sync: bool
             flag to deliver reward synchronously. if set to true this function is blocking
             NOTE: triggered reward delivery is not supported when delivering reward synchronously
@@ -61,6 +61,9 @@ class DefaultModule(BaseRewardModule):
             # if forcing stop any running reward delivery threads
             if self.pump.thread.running:
                 self.pump.thread.stop()
+        elif wait and self.pump.thread:
+            if self.pump.thread.running:
+                self.pump.thread.join()
         elif self.pump.thread:
             if self.pump.thread.running:
                 raise ResourceLocked("Pump In Use")
@@ -73,12 +76,8 @@ class DefaultModule(BaseRewardModule):
                 if acquired:
                     if trigger_mode == TriggerMode.SINGLE_TRIGGER:
                         self.reset_lick_trigger.reset()
-
-                    if self.pump.direction == Direction.BACKWARD and self.pump.hasFillValve:
-                        self.valve.close()
-                        self.fillValve.open()
-                        self.pump.move(.05 * self.pump.mlPerCm, Direction.FORWARD)
-
+                    
+                    self.prep_pump()
                     if trigger_mode == TriggerMode.SINGLE_TRIGGER:
                         while not self.reset_lick_trigger.armed:
                             time.sleep(.001)
@@ -87,7 +86,7 @@ class DefaultModule(BaseRewardModule):
                     # make sure the fill valve is closed if the pump has one
                     if self.pump.hasFillValve: self.pump.fillValve.close()
                     # deliver the reward
-                    self.pump.move(amount, force = force, direction = Direction.FORWARD)
+                    self.pump.move(amount, direction = Direction.FORWARD)
                     # wait then close the valve
                     time.sleep(self.post_delay)
                     self.valve.close()

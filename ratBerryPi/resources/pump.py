@@ -125,8 +125,8 @@ class Pump(BaseResource):
 
         self._stepPin = config_output(stepPin)
         self._modePins = (config_output(modePins[0]),
-                         config_output(modePins[1]),
-                         config_output(modePins[2]))
+                          config_output(modePins[1]),
+                          config_output(modePins[2]))
         self.stepType = stepType
         
         self.stepDelay = stepDelay
@@ -139,7 +139,6 @@ class Pump(BaseResource):
         self.state_fpath = os.path.join(state_dir, f"{self.name}.pckl")
 
         if not os.path.exists(self.state_fpath):
-            print('creating')
             self.logger.warning(f'pump states file not found, creating and setting {self.name} position to 0')
             self.position = 0
             with open(self.state_fpath, 'wb') as f:
@@ -308,7 +307,6 @@ class Pump(BaseResource):
         acquired = self.lock.acquire(False)
         if acquired:
             if self.verbose: 
-                print("flushing")
                 self.logger.info("flushing started")
             _prev_stepType = self.stepType
             self.stepType = 'Full'
@@ -323,7 +321,6 @@ class Pump(BaseResource):
         acquired = self.lock.acquire(False)
         if acquired:
             if self.verbose: 
-                print("reversing started")
                 self.logger.info("reversing started")
             _prev_stepType = self.stepType
             self.stepType = 'Full'
@@ -446,7 +443,8 @@ class Pump(BaseResource):
         def __init__(self, pump, amount, trigger_mode, valve = None, 
                     direction = Direction.FORWARD, close_fill = False,
                     trigger = None, post_delay = 1):
-            
+            #TODO: need to set a property that we can read to indicate
+            # whether or not we are currently delivering reward
             super(Pump.PumpThread, self).__init__()
             self.trigger = trigger
             self.valve = valve
@@ -468,6 +466,8 @@ class Pump(BaseResource):
                 
 
         def run(self):
+            if self.trigger_mode == TriggerMode.SINGLE_TRIGGER:
+                self.trigger.reset()
             #pre-reserve resources so we can raise an error it they are in use
             pump_reserved = self.pump.lock.acquire(True, .01)
             valve_reserved = self.valve.lock.acquire(True, .01) if self.valve else True
@@ -500,8 +500,9 @@ class Pump(BaseResource):
                         self.pump.fillValve.close()
 
                     if self.trigger_mode == TriggerMode.SINGLE_TRIGGER:
-                        while not self.trigger.armed:
+                        while self.running and not self.trigger.armed:
                             time.sleep(.001)
+                    if not self.running: return
                     if self.valve: self.valve.open()
                     self.pump.move(self.amount, self.direction, check_availability = False)
                     if self.valve:

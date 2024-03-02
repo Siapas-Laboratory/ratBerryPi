@@ -387,7 +387,9 @@ class RewardInterface(BaseInterface):
         super(RewardInterface, self).record(data_dir)
 
 
-    def trigger_reward(self, module, amount:float, force:bool = False, trigger_mode:TriggerMode = TriggerMode.NO_TRIGGER, sync:bool = False):
+    def trigger_reward(self, module, amount:float, force:bool = False, 
+                       trigger_mode:TriggerMode = TriggerMode.NO_TRIGGER, 
+                       sync:bool = False, wait:bool = False):
         """
         trigger reward delivery on a provided reward module
 
@@ -408,8 +410,57 @@ class RewardInterface(BaseInterface):
 
         """
         if isinstance(trigger_mode, str):
-            trigger_mode = TriggerMode[trigger_mode]
-        self.modules[module].trigger_reward(amount, force = force, trigger_mode = trigger_mode, sync = sync)
+            try: trigger_mode = TriggerMode[trigger_mode]
+            except KeyError: raise ValueError(f"unrecognized trigger_mode {trigger_mode}")
+        elif not isinstance(trigger_mode, TriggerMode):
+            raise ValueError(f"invalid argument type {type(trigger_mode)} provided for argument trigger_mode")
+        self.modules[module].trigger_reward(amount, force = force, wait = wait, trigger_mode = trigger_mode, sync = sync)
+
+    def set_reward_thresh(self, module, val:int):
+        
+        try:
+            if not hasattr(self.modules[module], "reward_thresh"):
+                raise AttributeError("module has no attribute reward_thresh")
+            self.modules[module].reward_thresh = val
+            self.logger.debug(f"set module {module} reward threshold to {val}")
+        except KeyError:
+            raise ValueError("unrecognized module")
+
+
+    def trigger_reward_multiple(self, modules:list, amount:float, force:bool = False,
+                                trigger_mode:TriggerMode = TriggerMode.SINGLE_TRIGGER, 
+                                trigger_name:str = "reset_lick_trigger"):
+
+    
+        if isinstance(trigger_mode, str):
+            try: trigger_mode = TriggerMode[trigger_mode]
+            except KeyError: raise ValueError(f"unrecognized trigger_mode {trigger_mode}")
+        elif not isinstance(trigger_mode, TriggerMode):
+            raise ValueError(f"invalid argument type {type(trigger_mode)} provided for argument trigger_mode")
+        if trigger_mode == TriggerMode.CONTINUOUS_TRIGGER:
+            raise NotImplemented
+        elif trigger_mode == TriggerMode.NO_TRIGGER:
+            raise ValueError("cannot deliver reward to multiple modules simmultaneously")
+        elif trigger_mode == TriggerMode.SINGLE_TRIGGER:
+            if not all([self.modules[m].pump.is_available(amount) for m in modules]):
+                raise ValueError("the requested amount is more than is available in the syringe")
+            acquired = [self.modules[m].acquire_locks() for m in modules]
+            if all(acquired):
+                for m in modules: 
+                    self.modules[m].prep_pump()
+                    getattr(self.modules[m], trigger_name).reset()
+                armed = False
+                mod = None
+                while self.on.is_set() and not armed:
+                    for m in modules:
+                        if getattr(self.modules[m], trigger_name).armed:
+                            armed = True
+                            mod = m
+                self.trigger_reward(mod, amount, sync = True)
+                return mod
+            else:
+                raise ResourceLocked
+
 
     def refill_syringe(self, pump:str = None):
         """

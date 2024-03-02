@@ -24,7 +24,7 @@ class BaseRewardModule(ABC):
 
     @abstractmethod
     def trigger_reward(self, amount:float, force:bool = False, triggered = False, 
-                       sync = False, post_delay = 1):
+                       sync = False, post_delay = 1, wait:bool = False):
         """
         trigger reward delivery
 
@@ -41,6 +41,12 @@ class BaseRewardModule(ABC):
             NOTE: triggered reward delivery is not supported when delivering reward synchronously
         """  
         ...
+    
+    def prep_pump(self):
+        if self.pump.direction == Direction.BACKWARD and self.pump.hasFillValve:
+            self.valve.close()
+            self.fillValve.open()
+            self.pump.move(.05 * self.pump.mlPerCm, Direction.FORWARD)
 
     def empty_line(self, amount:float = None):
 
