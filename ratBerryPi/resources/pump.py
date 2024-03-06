@@ -13,6 +13,7 @@ from enum import Enum
 from datetime import datetime, timedelta
 import numpy as np
 from abc import ABC, abstractmethod
+from PyQt5.QtCore import pyqtSignal, QObject
 
 
 class Direction(Enum):
@@ -71,6 +72,8 @@ class Syringe:
     def mlPerCm(self):
         return math.pi * ((self.ID/2)**2)
 
+class PositionUpdater(QObject):
+    pos_updated = pyqtSignal(int)
 
 class Pump(BaseResource):
 
@@ -175,6 +178,7 @@ class Pump(BaseResource):
         self.thread = None
         self.pos_thread = threading.Thread(target = self._log_position)
         self.pos_thread.start()
+        self.pos_updater = PositionUpdater()
 
 
 
@@ -299,6 +303,7 @@ class Pump(BaseResource):
                 self.position -= self.displacement_per_step
             else:
                 self.position += self.displacement_per_step
+            self.pos_updater.pos_updated.emit(self.position)
             self.lock.release()
         else:
             raise ResourceLocked("Pump In Use")

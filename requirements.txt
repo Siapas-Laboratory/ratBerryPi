@@ -1,5 +1,0 @@
-RPi.GPIO
-pyaudio
-pandas # we can get rid of this requirement with some modifications
-adafruit-blinka
-adafruit_mcp230xx

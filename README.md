@@ -3,23 +3,34 @@ A Python library for controlling Raspberry Pi based devices for behavioral exper
 
 
 ## Software Installation - (Raspberry Pi)
-Follow these steps to setup a raspberry pi for use with ratBerryPi:
+Clone this repository then follow these steps to setup a raspberry pi for use with ratBerryPi:
 
-1. First install the [adafruit-blinka library](https://learn.adafruit.com/circuitpython-on-raspberrypi-linux/installing-circuitpython-on-raspberry-pi). This may require a reboot once completed. 
-2. Run the following to install the module for interfacing with the GPIO expander bonnet: 
+1. If you haven't already, install miniforge3 as described here
+
+2. If you already have a conda environment you would like to use activate it. If not create one and activate it by running:
+
 ```
-sudo pip3 install adafruit-circuitpython-mcp230xx
+conda env create -n ratBerryPi
+conda activate ratBerryPi
 ```
-3. Run the following to install some additional dependencies:
+
+3. Run the following to configure the pi for use with the adafruit-blinka library (copied from [here](https://learn.adafruit.com/circuitpython-on-raspberrypi-linux/installing-circuitpython-on-raspberry-pi)):
+
 ```
-sudo apt-get install libportaudio0 libportaudio2 libportaudiocpp0 portaudio19-dev python3-pandas
-sudo apt-get install python3-pyaudio
+cd ~
+pip3 install --upgrade adafruit-python-shell
+wget https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/master/raspi-blinka.py
+sudo -E env PATH=$PATH python3 raspi-blinka.py
 ```
-4. Clone this repository and navigate to it from terminal.
-5. Build and install the repository with the following commands
+
+
+4. After the reboot, navigate to this directory, re-activate the conda environment and run the following to finish the installation:
+
 ```
+conda install portaudio
 pip3 install .
 ```
+
 *NOTE: When setting up a new raspberry pi, make sure to set the default audio output interface to the headphone jack using the [raspi-config](https://www.raspberrypi.com/documentation/computers/configuration.html#changing-the-audio-output). You may not get any sound from the speakers otherwise.*
 
 ## Software Installation - (Client Device)

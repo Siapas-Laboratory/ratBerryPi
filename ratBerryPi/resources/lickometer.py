@@ -3,7 +3,11 @@ import RPi.GPIO as GPIO
 import threading
 import time
 from .base import BaseResource
+from PyQt5.QtCore import pyqtSignal, QObject
 
+
+class LickNotifier(QObject):
+    new_lick = pyqtSignal(bool)
 
 class Lickometer(BaseResource):
     def __init__(self, name, parent, lickPin, burst_thresh = 0.5, update_interval = .01):
@@ -15,6 +19,9 @@ class Lickometer(BaseResource):
         self.burst_lick = 0
         self.last_lick = datetime.now()
         self.burst_thresh = burst_thresh
+        self.lick_notifier = LickNotifier()
+
+
         if parent:
             self.on = self.parent.on
         else:
@@ -29,10 +36,11 @@ class Lickometer(BaseResource):
         self.burst_thread.start()
     
     def increment_licks(self, x):
-        self.logger.info(f"{self.name}, lick")    
+        self.logger.info(f"{self.name}, lick") 
         self.licks += 1
         self.burst_lick +=1
         self.last_lick = datetime.now()
+        self.lick_notifier.new_lick.emit(self.licks) 
 
     def reset_licks(self):
         self.licks = 0
