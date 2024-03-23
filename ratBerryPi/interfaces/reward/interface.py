@@ -1,7 +1,7 @@
 from ..base import BaseInterface
 from ..audio.interface import AudioInterface
 from ratBerryPi.resources import Pump, Lickometer, LED, Valve, ResourceLocked
-from ratBerryPi.resources.pump import Syringe, Direction, EndTrackError, TriggerMode
+from ratBerryPi.resources.pump import Syringe, Direction, EndTrackError, PumpNotEnabled
 from ratBerryPi.interfaces.reward.modules import *
 
 import RPi.GPIO as GPIO
@@ -77,7 +77,7 @@ class RewardInterface(BaseInterface):
     calibrate(pump)
     fill_lines(amounts)
     record(reset = True)
-    trigger_reward(module, amount, force = False, triggered = False)
+    trigger_reward(module, amount, force = False, enqueue = False)
     toggle_auto_fill(on)
     change_syringe(syringeType, all = False, module = None, pump=None)
     reset_licks(module = None, lickometer = None)
@@ -92,15 +92,11 @@ class RewardInterface(BaseInterface):
         Constructs the reward interface from the config file
 
         Args:
-            burst_thresh: float
-                a threshold to be set on the inter-lick intervals
-                for detecting lick bursts. this should be specified
-                in units of seconds.
-            reward_thresh: int
-                the number of licks within a lick burst before the animal
-                starts receiving reward when using the lick-triggered reward mode
-            load_defaults: bool
-                flag to automatically load all default modules
+            on: threading.Event
+                threading event used to gracefully stop any threads started
+                by this class
+            config_file: 
+                path to config file for configuring the interface
         
         """
 
@@ -142,13 +138,13 @@ class RewardInterface(BaseInterface):
             dead_volume = self.config['modules'][i].get('dead_volume',1)
             constructor = globals()[self.config['modules'][i]['type']]
             self.modules[i] = constructor(i, self, self.pumps[self.config['modules'][i]['pump']], 
-                                          valvePin, dead_volume)
-            self.modules[i].load_from_config(self.config['modules'][i])
+                                          valvePin, dead_volume, config = self.config['modules'][i])
 
         self.valves_manually_toggled = False
         self.auto_fill = False
         self.auto_fill_thread = threading.Thread(target = self._fill_syringes)
         self.refill_check_thread = threading.Thread(target = self._check_for_refills)
+        self.reward_threads = {p: None for p in self.pumps}
     
     def start(self):
         super(RewardInterface, self).start()
@@ -373,7 +369,7 @@ class RewardInterface(BaseInterface):
         self.toggle_auto_fill(afill_was_on) # turn autofill back on if it was on
         
 
-    def record(self, reset = True, data_dir = None):
+    def record(self, reset:bool = True, data_dir = None):
         """
         start a log of all events that occur on the interface,
         including any lick events or cue triggers
@@ -388,8 +384,7 @@ class RewardInterface(BaseInterface):
 
 
     def trigger_reward(self, module, amount:float, force:bool = False, 
-                       trigger_mode:TriggerMode = TriggerMode.NO_TRIGGER, 
-                       sync:bool = False, wait:bool = False):
+                       sync:bool = False, enqueue:bool = False):
         """
         trigger reward delivery on a provided reward module
 
@@ -402,65 +397,41 @@ class RewardInterface(BaseInterface):
                 whether or not to force reward delivery even if the pump is in use.
                 Note, this will not force reward delivery if the pump carriage sled
                 is at the end of the track
-            triggered: bool
-                whether or not to deliver the reward in a lick-triggered manner.
             sync: bool
                 flag to deliver reward synchronously. if set to true this function is blocking
                 NOTE: triggered reward delivery is not supported when delivering reward synchronously
 
         """
-        if isinstance(trigger_mode, str):
-            try: trigger_mode = TriggerMode[trigger_mode]
-            except KeyError: raise ValueError(f"unrecognized trigger_mode {trigger_mode}")
-        elif not isinstance(trigger_mode, TriggerMode):
-            raise ValueError(f"invalid argument type {type(trigger_mode)} provided for argument trigger_mode")
-        self.modules[module].trigger_reward(amount, force = force, wait = wait, trigger_mode = trigger_mode, sync = sync)
 
-    def set_reward_thresh(self, module, val:int):
-        
-        try:
-            if not hasattr(self.modules[module], "reward_thresh"):
-                raise AttributeError("module has no attribute reward_thresh")
-            self.modules[module].reward_thresh = val
-            self.logger.debug(f"set module {module} reward threshold to {val}")
-        except KeyError:
-            raise ValueError("unrecognized module")
+        pump = self.modules[module].pump.name
+        enqueued = False
 
+        if amount > 0:
+            if self.reward_threads[pump]:
+                if self.reward_threads[pump].running:
+                    if force:
+                        self.reward_threads[pump].stop()
+                    elif enqueue:
+                        self.reward_threads[pump].enqueue(self.modules[module], amount)
+                        enqueued = True
+                    else:
+                        raise ResourceLocked("Pump In Use")
+            if sync:
+                self.modules[module].trigger_reward(amount)
+            elif not enqueued:
+                req = RewardInterface.RewardRequest(self.modules[module], amount)
+                self.reward_threads[module] = RewardInterface.RewardThread(req)
+                self.reward_threads[module].start()
 
-    def trigger_reward_multiple(self, modules:list, amount:float, force:bool = False,
-                                trigger_mode:TriggerMode = TriggerMode.SINGLE_TRIGGER, 
-                                trigger_name:str = "reset_lick_trigger"):
-
-    
-        if isinstance(trigger_mode, str):
-            try: trigger_mode = TriggerMode[trigger_mode]
-            except KeyError: raise ValueError(f"unrecognized trigger_mode {trigger_mode}")
-        elif not isinstance(trigger_mode, TriggerMode):
-            raise ValueError(f"invalid argument type {type(trigger_mode)} provided for argument trigger_mode")
-        if trigger_mode == TriggerMode.CONTINUOUS_TRIGGER:
-            raise NotImplemented
-        elif trigger_mode == TriggerMode.NO_TRIGGER:
-            raise ValueError("cannot deliver reward to multiple modules simmultaneously")
-        elif trigger_mode == TriggerMode.SINGLE_TRIGGER:
-            if not all([self.modules[m].pump.is_available(amount) for m in modules]):
-                raise ValueError("the requested amount is more than is available in the syringe")
-            acquired = [self.modules[m].acquire_locks() for m in modules]
-            if all(acquired):
-                for m in modules: 
-                    self.modules[m].prep_pump()
-                    getattr(self.modules[m], trigger_name).reset()
-                armed = False
-                mod = None
-                while self.on.is_set() and not armed:
-                    for m in modules:
-                        if getattr(self.modules[m], trigger_name).armed:
-                            armed = True
-                            mod = m
-                self.trigger_reward(mod, amount, sync = True)
-                return mod
-            else:
-                raise ResourceLocked
-
+                # wait to check if the thread started successfully
+                time.sleep(.1)
+                if (not self.reward_threads[module].running) and (not self.reward_threads[module].success):
+                    try:
+                        raise self.reward_threads[module].err
+                    except:
+                        print(self.reward_threads[module].err)
+        else:
+            self.logger.info("delivered 0 mL reward")
 
     def refill_syringe(self, pump:str = None):
         """
@@ -704,3 +675,88 @@ class RewardInterface(BaseInterface):
         if self.on.is_set(): self.on.clear()
         self.auto_fill_thread.join()
         GPIO.cleanup()
+
+
+    class RewardRequest:
+        def __init__(self, module:BaseRewardModule, amount:float):
+            self.module = module
+            self.amount = amount
+
+    class RewardThread(threading.Thread):
+        def __init__(self, init_request):
+            #TODO: need to set a property that we can read to indicate
+            # whether or not we are currently delivering reward
+            super(RewardInterface.RewardThread, self).__init__()
+            assert isinstance(init_request, RewardInterface.RewardRequest)
+            self.tasks = [init_request]
+            if not self.tasks[0].module.pump.is_available(self.tasks[0].amount, Direction.FORWARD):
+                raise ValueError("the requested amount is more than is available in the syringe")
+            self.running = False
+            self.success = False
+                
+
+        def run(self):
+            acquired = self.tasks[0].module.acquire_locks()
+            if not acquired:
+                self.err = ResourceLocked("failed to acquire locks")
+                return
+            self.running = True
+            try:
+                while len(self.tasks) > 0:
+                    task = self.tasks.pop(0)
+                    self.current_module = task.module
+                    amount = task.amount
+
+                    # prep the pump
+                    self.current_module.prep_pump()
+                    self.current_module.valve.open() # make sure the valve is open before delivering reward
+                    # make sure the fill valve is closed if the pump has one
+                    if self.current_module.pump.hasFillValve: 
+                        self.current_module.pump.fillValve.close()
+                    
+                    # deliver the reward
+                    self.current_module.pump.move(amount, direction = Direction.FORWARD)
+
+                    if len(self.tasks) > 0:
+                        if not self.tasks[0].module == self.current_module:
+                            close_valve = True
+                        else:
+                            close_valve = False
+                    else:
+                        close_valve = True
+
+                    if close_valve:
+                        # wait then close the valve
+                        time.sleep(self.current_module.post_delay)
+                        self.current_module.valve.close()
+                        self.current_module.valve.lock.release()
+                
+                # release the locks
+                self.current_module.pump.lock.release()
+                if self.current_module.pump.hasFillValve:
+                    self.current_module.pump.fillValve.lock.release()
+
+                self.running = False
+                self.success = True
+
+            except PumpNotEnabled:
+                self.err = PumpNotEnabled()
+                self.running = False
+                self.current_module.pump.lock.release()
+                self.current_module.valve.lock.release()
+                if self.current_module.pump.hasFillValve: 
+                    self.current_module.pump.fillValve.lock.release()
+                
+
+        def enqueue(self, module:BaseRewardModule, amount: float):
+            request = RewardInterface.RewardRequest(module, amount)
+            acquired = request.module.valve.lock.acquire(False)
+            if not acquired: raise ResourceLocked()
+            self.tasks.append()
+        
+        def stop(self):
+            self.running = False
+            self.pump.disable()
+            self.join()
+            self.success = False
+            self.pump.logger.debug("thread stopped")

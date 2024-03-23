@@ -15,6 +15,6 @@ setup(
         'adafruit-blinka',
         'adafruit-circuitpython-mcp230xx',
         'alicat',
-        'PyQt5'
+        # 'PyQt5'
     ]
 )

@@ -10,21 +10,21 @@ class BaseRewardModule(ABC):
     a base class for all reward modules
     any class defining a reward module should inherit from this class
     """
-    def __init__(self, name, parent, pump:Pump, valvePin:typing.Union[int, str], dead_volume:float = 1, post_delay = 0.5):
+    def __init__(self, name, parent, pump:Pump, valvePin:typing.Union[int, str], 
+                 dead_volume:float = 1, post_delay:float = 0.5, config:dict = {}):
         self.parent = parent
         self.name = name
         self.pump = pump
         self.post_delay = post_delay
         self.valve = Valve(f"{self.name}-valve", self, valvePin)
         self.dead_volume = dead_volume
+        self.load_from_config(config)
 
     @abstractmethod
-    def load_from_config(self):
+    def load_from_config(self, config: dict):
         ...
 
-    @abstractmethod
-    def trigger_reward(self, amount:float, force:bool = False, triggered = False, 
-                       sync = False, post_delay = 1, wait:bool = False):
+    def trigger_reward(self, amount:float, post_delay:float = None) -> None:
         """
         trigger reward delivery
 
@@ -32,21 +32,37 @@ class BaseRewardModule(ABC):
         -----
         amount: float
             the total amount of reward to be delivered in mLs
-        force: bool
-            flag to force reward delivery even if the pump is in use
-        trigger_mode: TriggerMode
-            mode for triggering reward (TriggerMode.NO_TRIGGER, TriggerMode.SINGLE_TRIGGER, TriggerMode.CONTINUOUS_TRIGGER )
-        sync: bool
-            flag to deliver reward synchronously. if set to true this function is blocking
-            NOTE: triggered reward delivery is not supported when delivering reward synchronously
-        """  
-        ...
-    
+        post_delay: float
+            amount of time after pump actuation to wait before closing the valve 
+            [default = self.post_delay]
+        """
+
+        if not post_delay:
+            post_delay = self.post_delay
+        
+        if not amount > 0:
+            acquired = self.acquire_locks()
+            if acquired:
+                # prep the pump    
+                self.prep_pump()
+                self.valve.open() # if make sure the valve is open before delivering reward
+                # make sure the fill valve is closed if the pump has one
+                if self.pump.hasFillValve: self.pump.fillValve.close()
+                # deliver the reward
+                self.pump.move(amount, direction = Direction.FORWARD)
+                # wait then close the valve
+                time.sleep(post_delay)
+                self.valve.close()
+                # release the locks
+                self.release_locks()
+        else:
+            self.logger.info("delivered 0 mL reward")
+
     def prep_pump(self):
         if self.pump.direction == Direction.BACKWARD and self.pump.hasFillValve:
             self.valve.close()
-            self.fillValve.open()
-            self.pump.move(.05 * self.pump.mlPerCm, Direction.FORWARD)
+            self.pump.fillValve.open()
+            self.pump.move(.05 * self.pump.syringe.mlPerCm, Direction.FORWARD)
 
     def empty_line(self, amount:float = None):
 
