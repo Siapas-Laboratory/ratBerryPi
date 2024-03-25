@@ -142,6 +142,7 @@ class RewardInterface(BaseInterface):
 
         self.valves_manually_toggled = False
         self.auto_fill = False
+        self.auto_fill_frac_thresh = 0.95
         self.auto_fill_thread = threading.Thread(target = self._fill_syringes)
         self.refill_check_thread = threading.Thread(target = self._check_for_refills)
         self.reward_threads = {p: None for p in self.pumps}
@@ -151,7 +152,7 @@ class RewardInterface(BaseInterface):
         self.refill_check_thread.start() 
         self.auto_fill_thread.start()
 
-    def calibrate(self, pump):
+    def calibrate(self, pump:str):
         """
         Set the position of a provided pump to 0
 
@@ -159,14 +160,16 @@ class RewardInterface(BaseInterface):
             pump: str
                 name of the pump to calibrate
         """
+
         self.pumps[pump].calibrate()
 
-    def push_to_reservoir(self, pump, amount):
+    def push_to_reservoir(self, pump:str, amount:float):
         """
         push a specified amount of fluid to the reservoir
         useful when changing syringes to get any air bubbles
         out
         """
+
         pump = self.pumps[pump]
         if pump.hasFillValve:
             fill_lock_acquired = pump.fillValve.lock.acquire(False)
@@ -393,14 +396,17 @@ class RewardInterface(BaseInterface):
                 name of the module to trigger reward delivery on
             amount: float
                 amount of reward in mL to be delivered at the reward port
-            force: bool
+            force: bool (optional)
                 whether or not to force reward delivery even if the pump is in use.
                 Note, this will not force reward delivery if the pump carriage sled
                 is at the end of the track
-            sync: bool
+            sync: bool (optional)
                 flag to deliver reward synchronously. if set to true this function is blocking
                 NOTE: triggered reward delivery is not supported when delivering reward synchronously
-
+            enqueue: bool (optional)
+                if there is currently a reward thread running that is using this module's pump, 
+                when set to True, this argument allows the user to enqueue this reward 
+                delivery until after the currently running task is finished
         """
 
         pump = self.modules[module].pump.name
@@ -433,7 +439,7 @@ class RewardInterface(BaseInterface):
         else:
             self.logger.info("delivered 0 mL reward")
 
-    def refill_syringe(self, pump:str = None):
+    def refill_syringe(self, pump:str = None) -> None:
         """
 
         """
@@ -455,16 +461,31 @@ class RewardInterface(BaseInterface):
                 if self.pumps[pump].hasFillValve: self.pumps[pump].fillValve.lock.release()
                 raise e
     
-    def _check_for_refills(self):
+    def _check_for_refills(self) -> None:
         os.nice(19)
         while self.on.is_set():
             for i in self.pumps:
-                if (i not in self.needs_refilling) and (self.pumps[i].vol_left < .95 * self.pumps[i].syringe.volume) and self.pumps[i].hasFillValve:
+                if (self.pumps[i].vol_left < (self.auto_fill_frac_thresh * self.pumps[i].syringe.volume) and 
+                    self.pumps[i].hasFillValve and 
+                    (i not in self.needs_refilling)):
                     self.needs_refilling.append(i)
             time.sleep(.1)
-                    
+    
+    def set_auto_fill_frac_thresh(self, value:float) -> None:
+        """
+        set the threshold fraction of the syringe volume
+        at which to trigger a refill
 
-    def _fill_syringes(self):
+        Args:
+            value: float (optional)
+                new threshold value
+        """
+
+        if value >= 1 or value <=0:
+            raise ValueError("threshold fraction must be between 0 and 1")
+        self.auto_fill_frac_thresh = value
+
+    def _fill_syringes(self) -> None:
         """
         Asynchronously fill all syringes whenever the pumps 
         are not in use. This method is not meant to be called
