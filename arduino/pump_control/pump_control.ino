@@ -1,5 +1,6 @@
 #include <AccelStepper.h>
 #include <math.h>
+#include <EEPROM.h>
 
 // Define stepper motor connections and steps per revolution
 #define BAUD_RATE 230400  // the rate at which data is read
@@ -10,6 +11,7 @@
 #define DIR_PIN 6
 #define FLUSH 8
 #define REV 9
+#define POS_SAVE_IDX 0
 
 // Create stepper motor object
 AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
@@ -43,14 +45,20 @@ const float pitch = 0.08;
 int curr_microstep_lvl;
 
 int direction = 1;
-float position = 0; // position of the piston in cm
+float position; // position of the piston in cm
 float cmPerStep;
 float distance;
 bool running_manual = false;
 
+unsigned long t;
+int log_interval = 50;
+
 void setup() {
 
+
   Serial.begin(BAUD_RATE);
+
+  EEPROM.get(POS_SAVE_IDX, position);
 
   // Set microstep pins
   pinMode(M0, OUTPUT);
@@ -65,12 +73,14 @@ void setup() {
 
   pinMode(FLUSH, INPUT);
   pinMode(REV, INPUT);
+
+  t = millis();
 }
 
 void loop() {
   bool to_flush = digitalRead(FLUSH);
   bool to_rev = digitalRead(REV);
-  if (!stepper.isRunning() && (to_flush || to_rev)){
+  if (stepper.isRunning()==0 && (to_flush || to_rev)){
     if (to_rev) {direction = -1;}
     else {direction = 1;}
     stepper.move(direction * 10000);
@@ -80,12 +90,22 @@ void loop() {
     stepper.stop();
     running_manual = false;
   }
-  if (stepper.isRunning()){
+  if (stepper.isRunning()==1){
     stepper.run();
-    position += direction * cmPerStep;
+    position = -stepper.currentPosition() * cmPerStep;
+  }
+  else {
+    EEPROM.put(POS_SAVE_IDX, position);
   }
   getDataFromPC();
-  Serial.println(position);
+  if ((millis() - t) >= log_interval){
+    Serial.print(position);
+    Serial.print(",");
+    Serial.print(stepper.isRunning());
+    Serial.print(",");
+    Serial.println(direction);
+    t = millis();
+  }
 }
 
 void set_microstep_lvl(int microstep_lvl){
@@ -107,7 +127,11 @@ float get_cmPerStep(){
 }
 
 void calibrate(){
-  position = 0;
+  float prev_speed = stepper.maxSpeed();
+  stepper.setCurrentPosition(0);
+  stepper.setMaxSpeed(prev_speed);
+  position = -stepper.currentPosition() * cmPerStep;
+  EEPROM.put(POS_SAVE_IDX, position);
 }
 
 
@@ -189,6 +213,7 @@ void parseData() {
 // input we would add a condition if (strcmp(mode, "TEST") == 0 {...}
 void executeThisFunction() {
 
+//  Serial.println(mode);
   if (strcmp(mode, "STOP") == 0) {
     stepper.stop();
     running_manual = false;
@@ -199,16 +224,19 @@ void executeThisFunction() {
   }
 
   else if (strcmp(mode, "RUN") == 0) {
+//    Serial.println("running");
     // Check if any stepper is currently running and do not allow execution if that is the case
     if (running_manual){
+//      Serial.println("stopping");
       stepper.stop();
       running_manual = false;
     }
-    if (!stepper.isRunning()) {
+    if (stepper.isRunning() == 0) {
       direction = 1;
       if (strcmp(dir, "B") == 0) {
         direction = -1;
       }
+//      Serial.println("starting");
       stepper.move(direction * int(round(distance/cmPerStep)));
     }
   }

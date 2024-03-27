@@ -53,15 +53,20 @@ modules:
 # pump config
 pumps:
   pump1:
-    enPin: "GPA0"
-    fillValvePin: "GPA6"
-    stepPin: "GPA4"
-    stepType: Full
+    type: ArduinoPump
     syringeType: BD30mL
-    flushPin: 25
-    revPin: 16
-    dirPin: "GPA5"
-    modePins:
-      - "GPA1"
-      - "GPA2"
-      - "GPA3"
+    port: /dev/ttyACM0
+    fillValvePin: "GPA6"
+  # pump1:
+  #   enPin: "GPA0"
+  #   fillValvePin: "GPA6"
+  #   stepPin: "GPA4"
+  #   stepType: Full
+  #   syringeType: BD30mL
+  #   flushPin: 25
+  #   revPin: 16
+  #   dirPin: "GPA5"
+  #   modePins:
+  #     - "GPA1"
+  #     - "GPA2"
+  #     - "GPA3"

@@ -18,8 +18,8 @@ from queue import Queue, Empty
 
 
 class Direction(Enum):
-    FORWARD=True
-    BACKWARD=False
+    FORWARD="F"
+    BACKWARD="B"
     
 
 class EndTrackError(Exception):
@@ -29,6 +29,10 @@ class EndTrackError(Exception):
 class PumpNotEnabled(Exception):
     pass
 
+class IncompleteDelivery(Exception):
+    """could not reach goal"""
+    pass
+    
 class Syringe:
     # ID and volume for any syringes we might want to use
     # in cm and mL respectively 
@@ -69,7 +73,7 @@ class Syringe:
         return math.pi * ((self.ID/2)**2)
 
 class PositionUpdater(QObject):
-    pos_updated = pyqtSignal(int)
+    pos_updated = pyqtSignal(float)
 
 class Pump(BaseResource):
 
@@ -130,7 +134,7 @@ class Pump(BaseResource):
         
         self.stepDelay = stepDelay
         self.pitch = pitch
-        self.enabled = False
+        self.enable()
         self.in_use = False
         self.verbose = verbose
         state_dir = os.path.join(os.path.expanduser('~'), ".ratBerryPi", "pump_states")
@@ -372,6 +376,7 @@ class Pump(BaseResource):
 
                 acquired = self.lock.acquire(blocking = blocking, 
                                             timeout = timeout)
+                self.enable()
                 if acquired:
                     if direction:
                         if direction != self.direction:
@@ -388,7 +393,7 @@ class Pump(BaseResource):
                         except PumpNotEnabled as e:
                             self.logger.warning(f"Pump turned off after {step_count} steps ({step_count/self.stepsPermL} mL)")
                             self.lock.release()
-                            raise e
+                            raise IncompleteDelivery
                         step_count += 1
                     self.logger.debug(f"mean step_delay = {(datetime.now() - t1).total_seconds()/steps}")
                     self.lock.release()
@@ -409,10 +414,22 @@ class Pump(BaseResource):
             raise EndTrackError
 
     def enable(self):
+        """
+        enable the pump
+        """
         self.enabled = True
 
     def disable(self):
+        """
+        disable the pump
+        """
         self.enabled = False
+
+    def stop(self):
+        """
+        alias for disable
+        """
+        self.disable()
 
     def change_syringe(self, syringeType):
         """

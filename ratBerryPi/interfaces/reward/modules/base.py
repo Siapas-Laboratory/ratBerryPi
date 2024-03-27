@@ -101,6 +101,7 @@ class BaseRewardModule(ABC):
                         self.pump.fillValve.close()
                 # if the remaining/requested amount is more then available
                 if not self.pump.is_available(amount):
+                    self.parent.logger.debug(amount)
                     # set the amount to be dispensed in the current iteration as the volume in the syringe
                     dispense_vol = self.pump.vol_left - .1 # for safety discount .1 mL so we don't come close to the end
                     if not self.pump.hasFillValve:
