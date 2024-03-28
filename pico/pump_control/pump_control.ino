@@ -1,17 +1,15 @@
 #include <AccelStepper.h>
 #include <math.h>
-#include <EEPROM.h>
 
 // Define stepper motor connections and steps per revolution
 #define BAUD_RATE 230400  // the rate at which data is read
 #define M0 2
 #define M1 3
-#define M2 4
-#define STEP_PIN 5
-#define DIR_PIN 6
-#define FLUSH 8
-#define REV 9
-#define POS_SAVE_IDX 0
+#define M2 6
+#define STEP_PIN 7
+#define DIR_PIN 8
+#define FLUSH 9
+#define REV 10
 
 // Create stepper motor object
 AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
@@ -57,15 +55,14 @@ void setup() {
 
 
   Serial.begin(BAUD_RATE);
-
-  EEPROM.get(POS_SAVE_IDX, position);
+  position = 0;
 
   // Set microstep pins
   pinMode(M0, OUTPUT);
   pinMode(M1, OUTPUT);
   pinMode(M2, OUTPUT);
 
-  set_microstep_lvl("Full");
+  set_microstep_lvl(0);
 
   // Set initial speed and acceleration
   stepper.setMaxSpeed(1000); // Adjust the speed according to your requirement
@@ -93,9 +90,6 @@ void loop() {
   if (stepper.isRunning()==1){
     stepper.run();
     position = -stepper.currentPosition() * cmPerStep;
-  }
-  else {
-    EEPROM.put(POS_SAVE_IDX, position);
   }
   getDataFromPC();
   if ((millis() - t) >= log_interval){
@@ -131,7 +125,6 @@ void calibrate(){
   stepper.setCurrentPosition(0);
   stepper.setMaxSpeed(prev_speed);
   position = -stepper.currentPosition() * cmPerStep;
-  EEPROM.put(POS_SAVE_IDX, position);
 }
 
 
@@ -213,7 +206,6 @@ void parseData() {
 // input we would add a condition if (strcmp(mode, "TEST") == 0 {...}
 void executeThisFunction() {
 
-//  Serial.println(mode);
   if (strcmp(mode, "STOP") == 0) {
     stepper.stop();
     running_manual = false;
@@ -224,10 +216,8 @@ void executeThisFunction() {
   }
 
   else if (strcmp(mode, "RUN") == 0) {
-//    Serial.println("running");
     // Check if any stepper is currently running and do not allow execution if that is the case
     if (running_manual){
-//      Serial.println("stopping");
       stepper.stop();
       running_manual = false;
     }
@@ -236,14 +226,12 @@ void executeThisFunction() {
       if (strcmp(dir, "B") == 0) {
         direction = -1;
       }
-//      Serial.println("starting");
       stepper.move(direction * int(round(distance/cmPerStep)));
     }
   }
   else if (strcmp(mode, "CALIBRATE") == 0) {
     calibrate();
   }
-
 }
 
 void udpateSettings() {
