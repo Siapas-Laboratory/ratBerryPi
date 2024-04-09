@@ -21,16 +21,17 @@ class Lickometer(BaseResource):
         self.burst_thresh = burst_thresh
         self.lick_notifier = LickNotifier()
 
-
         if parent:
             self.on = self.parent.on
         else:
             self.on = threading.Event()
             self.on.set()
+
         self.update_interval = update_interval
 
-        GPIO.setup(self.lickPin, GPIO.IN, GPIO.PUD_OFF)
-        GPIO.add_event_detect(self.lickPin, GPIO.RISING, callback=self.increment_licks)
+        if isinstance(self.lickPin, int):
+            GPIO.setup(self.lickPin, GPIO.IN, GPIO.PUD_OFF)
+            GPIO.add_event_detect(self.lickPin, GPIO.RISING, callback=self.increment_licks)
 
         self.burst_thread = threading.Thread(target = self.monitor_bursts)
         self.burst_thread.start()

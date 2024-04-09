@@ -53,7 +53,7 @@ modules:
 # pump config
 pumps:
   pump1:
-    type: ArduinoPump
+    type: PicoPump
     syringeType: BD30mL
     port: /dev/ttyACM0
     fillValvePin: "GPA6"

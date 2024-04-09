@@ -1,8 +1,9 @@
 from ..base import BaseInterface
 from ..audio.interface import AudioInterface
-from ratBerryPi.resources import Pump, Lickometer, LED, Valve, ResourceLocked, ArduinoPump
+from ratBerryPi.resources import Pump, Lickometer, LED, Valve, ResourceLocked, PicoPump
 from ratBerryPi.resources.pump import Syringe, Direction, EndTrackError, PumpNotEnabled, IncompleteDelivery
 from ratBerryPi.interfaces.reward.modules import *
+from ..lickometer_bus.interface import LickometerBus
 
 import RPi.GPIO as GPIO
 import threading
@@ -13,45 +14,53 @@ import os
 
 ETHERNET = {
     "port0": {
-        "LEDPin": "0x21:GPB0",
-        "lickPin": 17,
-        "SDPin":  "0x21:GPA0",
-        "valvePin": "GPB0"},
+        "LEDPin": "0x21:GPA0",
+        "lickPin": "0x21:GPB0",
+        "lickBusPin": 17,
+        "SDPin":  "GPB0",
+        "valvePin": "GPA0"},
     "port1": {
-        "LEDPin": "0x21:GPB1",
-        "lickPin": 27,
-        "SDPin":  "0x21:GPA1",
-        "valvePin": "GPB1"},
+        "LEDPin": "0x21:GPA1",
+        "lickPin":"0x21:GPB1",
+        "lickBusPin": 17,
+        "SDPin":  "GPB1",
+        "valvePin": "GPA1"},
     "port2": {
-        "LEDPin": "0x21:GPB2",
-        "lickPin": 22,
-        "SDPin": "0x21:GPA2",
-        "valvePin": "GPB2"},
+        "LEDPin": "0x21:GPA2",
+        "lickPin": "0x21:GPB2",
+        "lickBusPin": 17,
+        "SDPin": "GPB2",
+        "valvePin": "GPA2"},
     "port3": {
-        "LEDPin": "0x21:GPB3",
-        "lickPin": 5,
-        "SDPin": "0x21:GPA3",
-        "valvePin": "GPB3"},
+        "LEDPin": "0x21:GPA3",
+        "lickPin": "0x21:GPB3",
+        "lickBusPin": 17,
+        "SDPin": "GPB3",
+        "valvePin": "GPA3"},
     "port4": {
-        "LEDPin": "0x21:GPB4",
-        "lickPin": 6,
-        "SDPin": "0x21:GPA4",
-        "valvePin": "GPB4"},
+        "LEDPin": "0x21:GPA4",
+        "lickPin": "0x21:GPB4",
+        "lickBusPin": 17,
+        "SDPin": "GPB4",
+        "valvePin": "GPA4"},
     "port5": {
-        "LEDPin": "0x21:GPB5",
-        "lickPin": 26,
-        "SDPin": "0x21:GPA5",
-        "valvePin": "GPB5"},
+        "LEDPin": "0x21:GPA5",
+        "lickPin": "0x21:GPB5",
+        "lickBusPin": 17,
+        "SDPin": "GPB5",
+        "valvePin": "GPA5"},
     "port6": {
-        "LEDPin": "0x21:GPB6",
-        "lickPin": 23,
-        "SDPin": "0x21:GPA6",
-        "valvePin": "GPB6"},
+        "LEDPin": "0x21:GPA6",
+        "lickPin": "0x21:GPB6",
+        "lickIntPin": 17,
+        "SDPin": "GPB6",
+        "valvePin": "GPA6"},
     "port7": {
-        "LEDPin": "0x21:GPB7",
-        "lickPin": 24,
-        "SDPin": "0x21:GPA7",
-        "valvePin": "GPB7"}
+        "LEDPin": "0x21:GPA7",
+        "lickPin": "0x21:GPB7",
+        "lickBusPin": 17,
+        "SDPin": "GPB7",
+        "valvePin": "GPA7"}
 }
 
 class NoSpeaker(Exception):
@@ -112,8 +121,8 @@ class RewardInterface(BaseInterface):
             else:
                 self.config['pumps'][i]['syringe'] = Syringe()
             ptype = self.config['pumps'][i].pop('type')
-            if ptype == 'ArduinoPump':
-                self.pumps[i] = ArduinoPump(i, **self.config['pumps'][i])
+            if ptype == 'PicoPump':
+                self.pumps[i] = PicoPump(i, **self.config['pumps'][i])
             else:
                 self.config['pumps'][i]['modePins'] = tuple(self.config['pumps'][i]['modePins'])
                 self.pumps[i] = Pump(i, **self.config['pumps'][i])
@@ -133,10 +142,14 @@ class RewardInterface(BaseInterface):
                     self.plugins[k] = constructor(k, **v)
 
         self.modules = {}
+        self.lick_busses = {}
         for i in self.config['modules']:
             if 'port' in self.config['modules'][i]:
                 port = self.config['modules'][i]['port']
                 self.config['modules'][i].update(ETHERNET[port])
+            lick_bus_pin = self.config['modules'][i].get("lickBusPin")
+            if lick_bus_pin and lick_bus_pin not in self.lick_busses:
+                self.lick_busses[lick_bus_pin] = LickometerBus(self.on, lick_bus_pin)
             valvePin = self.config['modules'][i]['valvePin']
             dead_volume = self.config['modules'][i].get('dead_volume',1)
             constructor = globals()[self.config['modules'][i]['type']]

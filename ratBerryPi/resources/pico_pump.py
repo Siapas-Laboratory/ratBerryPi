@@ -20,7 +20,7 @@ import serial
 
 
 
-class ArduinoPump(BaseResource):
+class PicoPump(BaseResource):
 
     step_types = ['Full', 'Half', '1/4', '1/8', '1/16', '1/32']
 
@@ -39,7 +39,7 @@ class ArduinoPump(BaseResource):
         -----
         """
 
-        super(ArduinoPump, self).__init__(name, parent)
+        super(PicoPump, self).__init__(name, parent)
         self.syringe = syringe
         if fillValvePin is not None:
             self.fillValve = Valve(f'{self.name}-fillValve', self, fillValvePin)
