@@ -7,7 +7,7 @@ class BaseResource:
         self.parent = parent
         self.lock = threading.RLock()
         # use the interface level logger
-        self.logger = logging.getLogger('ratBerryPi.interfaces.base')
+        self.logger = logging.getLogger('ratBerryPi.interface')
 
 class ResourceLocked(BaseException):
     def __init__(self, msg):

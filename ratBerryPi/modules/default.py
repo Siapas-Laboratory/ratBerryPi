@@ -1,6 +1,6 @@
 from ratBerryPi.resources import Pump, Lickometer, LED, Valve
 from ratBerryPi.resources.pump import Direction
-from ratBerryPi.interfaces.reward.modules.base import BaseRewardModule
+from ratBerryPi.modules.base import BaseRewardModule
 import typing
 import time
 

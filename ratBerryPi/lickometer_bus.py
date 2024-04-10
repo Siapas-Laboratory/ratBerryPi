@@ -1,5 +1,3 @@
-from ..base import BaseInterface
-from ratBerryPi.resources.base import BaseResource
 from ratBerryPi.resources.lickometer import Lickometer
 import threading
 import RPi.GPIO as GPIO
@@ -11,13 +9,12 @@ import time
 
 
 
-class LickometerBus(BaseInterface):
+class LickometerBus:
     GPIO_NAMES = [f"GPA{i}" for i in range(8)] + [f"GPB{i}" for i in range(8)]
 
-    def __init__(self, on:threading.Event, bus_pin:int, lick_pins:dict = {}):
+    def __init__(self, bus_pin:int, on:threading.Event = None, lick_pins:dict = {}):
 
-        super(LickometerBus, self).__init__(on, None)
-
+        self.on = on if on else threading.Event()
         self.addr = None
         self.lickometers = {}
         self.pin_map = [None for _ in range(16)]

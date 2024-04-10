@@ -14,7 +14,5 @@ setup(
         'pyaudio',
         'adafruit-blinka',
         'adafruit-circuitpython-mcp230xx',
-        'alicat',
-        # 'PyQt5'
     ]
 )

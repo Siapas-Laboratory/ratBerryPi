@@ -3,7 +3,7 @@ from inspect import isclass
 from pkgutil import iter_modules
 from pathlib import Path
 from importlib import import_module
-from ratBerryPi.interfaces.reward.modules.base import BaseRewardModule
+from ratBerryPi.modules.base import BaseRewardModule
 
 # iterate through the modules in the current package
 package_dir = Path(__file__).resolve().parent

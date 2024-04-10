@@ -1,4 +1,4 @@
-from ratBerryPi.interfaces import *
+from ratBerryPi.interface import RewardInterface
 
 import socket
 import threading
@@ -11,14 +11,11 @@ import os
 
 
 class Server:
-    def __init__(self, port:int, interface_cls:BaseInterface):
+    def __init__(self, port:int):
 
         self.port = port
         self.on = threading.Event()
-
-        # create an instance of the reward interface
-        assert issubclass(interface_cls, BaseInterface), "interface must be a subclass of BaseInterface"
-        self.interface = interface_cls(self.on)
+        self.interface = RewardInterface(self.on)
 
 
     def start(self):
@@ -129,8 +126,6 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-p","--port", default = 5562)
-    parser.add_argument("-i","--interface_type", default = "RewardInterface")
-
     args = parser.parse_args()
 
     log_dir = os.path.join(os.path.expanduser('~'), ".ratBerryPi", "logs")
@@ -139,6 +134,5 @@ if __name__ == '__main__':
                         filename=os.path.join(log_dir, f"{datetime.now().strftime('%m-%d-%Y-%H-%M-%S.log')}"))
     logging.getLogger().addHandler(logging.StreamHandler())
 
-    interface_cls = globals()[args.interface_type]
-    server = Server(args.port, interface_cls)
+    server = Server(args.port)
     server.start()

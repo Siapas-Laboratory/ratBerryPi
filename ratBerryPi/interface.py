@@ -1,9 +1,8 @@
-from ..base import BaseInterface
-from ..audio.interface import AudioInterface
+from ratBerryPi.audio import AudioInterface
 from ratBerryPi.resources import Pump, Lickometer, LED, Valve, ResourceLocked, PicoPump
 from ratBerryPi.resources.pump import Syringe, Direction, EndTrackError, PumpNotEnabled, IncompleteDelivery
-from ratBerryPi.interfaces.reward.modules import *
-from ..lickometer_bus.interface import LickometerBus
+from ratBerryPi.modules import *
+from ratBerryPi.lickometer_bus import LickometerBus
 
 import RPi.GPIO as GPIO
 import threading
@@ -11,6 +10,9 @@ import time
 import logging
 from pathlib import Path
 import os
+import yaml
+from datetime import datetime
+
 
 ETHERNET = {
     "port0": {
@@ -75,7 +77,7 @@ class NoLickometer(Exception):
 class NoFillValve(Exception):
     pass
 
-class RewardInterface(BaseInterface):
+class RewardInterface:
     """
     An interface for controlling the reward modules
 
@@ -96,7 +98,8 @@ class RewardInterface(BaseInterface):
 
     """
 
-    def __init__(self, on:threading.Event, config_file = Path(__file__).parent/"config.yaml"):
+    def __init__(self, on:threading.Event, config_file = Path(__file__).parent/"config.yaml",
+                 data_dir = os.path.join(os.path.expanduser('~'), ".ratBerryPi", "data")):
         """
         Constructs the reward interface from the config file
 
@@ -109,10 +112,32 @@ class RewardInterface(BaseInterface):
         
         """
 
-        super(RewardInterface, self).__init__(on, config_file)
+        GPIO.setmode(GPIO.BCM)
+        self.on = on if on else threading.Event()
+
+        with open(config_file, 'r') as f:
+            self.config = yaml.safe_load(f)
+
+        if 'clockPin' in self.config:
+            self.clockPin = self.config['clockPin']
+            GPIO.setup(self.clockPin, GPIO.IN, GPIO.PUD_OFF)
+            GPIO.add_event_detect(self.clockPin, GPIO.RISING, callback=self.log_clk_signal)
+
+        # setup logging
+        self.logger = logging.getLogger(__name__)
+        self.recording = False
+        self.data_dir = data_dir
+
+        # placeholder for file handler
+        self.log_fh = None
+        # create formatter
+        self.formatter = logging.Formatter('%(asctime)s.%(msecs)03d, %(levelname)s, %(message)s',
+                                           "%Y-%m-%d %H:%M:%S")
+
 
         self.pumps = {}
         self.needs_refilling = []
+
         # load all pumps
         for i in self.config['pumps']:
             self.config['pumps'][i]['parent'] = self
@@ -149,7 +174,7 @@ class RewardInterface(BaseInterface):
                 self.config['modules'][i].update(ETHERNET[port])
             lick_bus_pin = self.config['modules'][i].get("lickBusPin")
             if lick_bus_pin and lick_bus_pin not in self.lick_busses:
-                self.lick_busses[lick_bus_pin] = LickometerBus(self.on, lick_bus_pin)
+                self.lick_busses[lick_bus_pin] = LickometerBus(lick_bus_pin, self.on)
             valvePin = self.config['modules'][i]['valvePin']
             dead_volume = self.config['modules'][i].get('dead_volume',1)
             constructor = globals()[self.config['modules'][i]['type']]
@@ -162,12 +187,36 @@ class RewardInterface(BaseInterface):
         self.auto_fill_thread = threading.Thread(target = self._fill_syringes)
         self.refill_check_thread = threading.Thread(target = self._check_for_refills)
         self.pump_threads = {p: None for p in self.pumps}
-    
+
+    def log_clk_signal(self, x):
+        self.logger.info("clock")
+
     def start(self):
-        super(RewardInterface, self).start()
+        if not self.on.is_set(): self.on.set()
         self.refill_check_thread.start() 
         self.auto_fill_thread.start()
 
+    def record(self, reset:bool = True, data_dir = None):
+
+        if reset: self.reset_all_licks()
+        data_dir = data_dir if data_dir else self.data_dir
+        os.makedirs(data_dir, exist_ok = True)
+        self.stop_recording()
+        log_fname = datetime.strftime(datetime.now(), "%Y_%m_%d_%H_%M_%S.csv")
+        self.data_path = os.path.join(data_dir, log_fname)
+        self.log_fh = logging.FileHandler(self.data_path)
+        self.log_fh.setLevel(logging.INFO)
+        self.log_fh.setFormatter(self.formatter)
+        self.logger.addHandler(self.log_fh)
+
+    def stop_recording(self):
+        if self.log_fh: 
+            self.logger.removeHandler(self.log_fh)
+
+    def stop(self):
+        self.stop_recording()
+        GPIO.cleanup()
+   
     def calibrate(self, pump:str):
         """
         Set the position of a provided pump to 0
@@ -386,20 +435,6 @@ class RewardInterface(BaseInterface):
                 p.lock.release()
 
         self.toggle_auto_fill(afill_was_on) # turn autofill back on if it was on
-        
-
-    def record(self, reset:bool = True, data_dir = None):
-        """
-        start a log of all events that occur on the interface,
-        including any lick events or cue triggers
-
-        Args:
-            reset: bool
-                whether or not to reset the lick counts on all
-                lickometers before recording
-        """
-        if reset: self.reset_all_licks()
-        super(RewardInterface, self).record(data_dir)
 
 
     def trigger_reward(self, module, amount:float, force:bool = False, 
@@ -760,7 +795,7 @@ class FillThread(threading.Thread):
         self.pump.stop()
         self.join()
         self.success = False
-        self.pump.logger.debug("thread stopped")
+        self.parent.logger.debug("thread stopped")
 
 
 

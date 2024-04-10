@@ -1,17 +1,15 @@
 import numpy as np
-from ..base import BaseInterface
 from ratBerryPi.resources.base import BaseResource
 from ratBerryPi.utils import config_output
 import pyaudio as pa
 
 
 
-class AudioInterface(BaseInterface):
+class AudioInterface:
     def __init__(self, fs = 100_000):
         ## NOTE: for higher frequency sounds need a higher sampling rate
         # to obey Nyquist sampling theorem. look into limits on the amplifier and
         # pyaudio
-        super(AudioInterface, self).__init__(None, None)
         self.session = pa.PyAudio()
         self.fs = fs
         self.stream = None
