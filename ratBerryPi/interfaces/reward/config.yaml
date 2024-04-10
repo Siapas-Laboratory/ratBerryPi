@@ -32,11 +32,11 @@ modules:
     port: port4
     pump: pump1
 
-  # module6:
-  #   type: DefaultModule
-  #   dead_volume: 15
-  #   port: port5
-  #   pump: pump1
+  module6:
+    type: DefaultModule
+    dead_volume: 15
+    port: port5
+    pump: pump1
 
   # module7:
   #   type: DefaultModule

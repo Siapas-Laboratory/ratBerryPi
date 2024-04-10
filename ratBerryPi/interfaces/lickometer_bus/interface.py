@@ -48,7 +48,8 @@ class LickometerBus(BaseInterface):
         self.mcp.interrupt_configuration = 0x0000 # configure interrupt to compare all enabled pins against DEFVAL
         self.mcp.io_control = 0x44  # configure interrupt as open drain
         self.mcp.default_value = 0x0000 # set DEFVAL to all pins being low    
-        self.mcp.clear_ints()    
+        self.mcp.clear_ints()
+        return self.lickometers[name]
 
 
     def increment_licks(self, x):
