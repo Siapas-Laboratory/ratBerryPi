@@ -46,9 +46,9 @@ RatBerryPi consists of 3 layers of abstraction: the reward interface, reward mod
 There are 2 main modes of operation for this platform. The Raspberry Pi can be configured as a server that clients on other machines may connect to in order to run commands through a specified interface. Alternatively, one may write a program on the raspberry pi itself which creates an instance of an interface class and invokes methods of this class to run a behavioral protocol. The help documentation for the RewardInterface class includes relevant information about it's exposed methods for this second use case. Here we will elaborate on the server-client mode of operation.
 
 ### Server-Client Mode
-To start a server on the raspberry pi to connect to, simply run the command `python -m ratBerryPi.server`. This will expose a port on the raspberry pi for clients to connect to for running commands through the reward interface and broadcasting information about the state of the device.  By default it will bind port 5562 but this can be set as needed by passing the arguments `--port`. If using an interface other than the reward interface. 
+We provide a cli for creating either a server or a cli via the command `ratBerryPi` which can be called from the command line. To start a server on the raspberry pi, simply run the command `ratBerryPi server`. This will expose a port on the raspberry pi for clients to connect to for running commands through the reward interface and broadcasting information about the state of the device.  By default it will bind port 5562 but this can be set as needed by passing the arguments `--port`. If using an interface other than the reward interface. To start a client via the cli simply run the command `ratBerryPi client`. The default behavior of this method is to connect to a server hosted locally. If you would like to connect to a ratBerryPi server from a separate client device provide the `--host` argument.
 
-On a client device, users may connect to the server from a python terminal by first creating an instance of the `Client` class defined in `client.py`. For example:
+Users may connect to the server programmatically by first creating an instance of the `Client` class defined in `client.py`. For example:
 
 ```
 from ratBerryPi.client import Client

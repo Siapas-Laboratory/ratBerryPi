@@ -120,19 +120,3 @@ class Server:
     def __del__(self):
         if self.on.is_set():
             self.shutdown()
-
-if __name__ == '__main__':
-
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-p","--port", default = 5562)
-    args = parser.parse_args()
-
-    log_dir = os.path.join(os.path.expanduser('~'), ".ratBerryPi", "logs")
-    os.makedirs(log_dir, exist_ok = True)
-    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG, 
-                        filename=os.path.join(log_dir, f"{datetime.now().strftime('%m-%d-%Y-%H-%M-%S.log')}"))
-    logging.getLogger().addHandler(logging.StreamHandler())
-
-    server = Server(args.port)
-    server.start()

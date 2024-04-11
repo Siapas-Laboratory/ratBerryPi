@@ -212,35 +212,3 @@ class Channel:
         make sure we close the connection before deleting the channel
         """
         self.close()
-
-if __name__=='__main__':
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("host")
-    parser.add_argument("--port", default = 5562)
-
-    args = parser.parse_args()
-    client = Client(args.host, int(args.port))
-    client.new_channel("cli")
-
-    running = True
-    
-    while running:
-        req = input("enter a request: ").split()
-        command = req.pop(0)
-        if command.lower() == 'exit':
-            client.close_all_channels()
-            running = False
-        elif command.lower() == 'get':
-            print(client.get(req[-1], channel = 'cli'))
-        elif len(req)%2 == 0:
-            args = {}
-            for i in range(0, len(req), 2):
-                try:
-                    args[req[i]] = json.loads(req[i+1])
-                except json.decoder.JSONDecodeError:
-                    args[req[i]] = req[i+1]
-            print(client.run_command(command, args, channel = 'cli'))
-        else:
-            print('invalid command')
