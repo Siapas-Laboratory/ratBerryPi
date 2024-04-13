@@ -50,7 +50,6 @@ bool running_manual = false;
 
 unsigned long t;
 int log_interval = 100;
-
 int moveCompleted = 1;
 
 void setup() {
@@ -88,10 +87,13 @@ void loop() {
     stepper.stop();
     running_manual = false;
   }
-  if (stepper.isRunning()==1){
+
+  bool running = stepper.isRunning()==1;
+  if (running){
     stepper.run();
     position = -stepper.currentPosition() * cmPerStep;
-  } else if (moveCompleted == 0) {
+  }
+  if (running && stepper.isRunning()!=1) {
     moveCompleted = 1;
   }
   getDataFromPC();
