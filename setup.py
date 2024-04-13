@@ -9,7 +9,7 @@ setup(
     packages = find_packages(),
     entry_points = {
         'console_scripts': [
-            'ratBerryPi = ratBerryPi.main:main'
+            'ratBerryPi = ratBerryPi.cli:main'
         ]
     },
     package_data = {"": ["*.yaml"]},

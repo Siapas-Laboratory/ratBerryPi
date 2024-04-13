@@ -108,15 +108,16 @@ class PicoPump(BaseResource):
                 if acq:
                     res = self.serial.readline().decode().strip().split(',')
                     self.serial_lock.release()
-                    if len(res) == 3:
+                    if len(res) == 4:
                         try:
-                            pos, running, direction = res
+                            pos, running, direction, move_complete = res
                             pos = float(pos)
                             if pos != self.position:
                                 self.position = pos
                                 self.pos_updater.pos_updated.emit(self.position)
                             self.running = int(running) == 1
                             self.direction = Direction.FORWARD if int(direction) == 1 else Direction.BACKWARD
+                            self.move_complete = int(move_complete) == 1
                         except:
                             pass
         self.serial.close()
@@ -156,12 +157,7 @@ class PicoPump(BaseResource):
                 value = str(value)
             distance = "NULL"
             direction = "NULL"
-        elif mode == "CALIBRATE":
-            setting = "NULL"
-            value = "NULL"
-            distance = "NULL"
-            direction = "NULL"
-        elif mode == "STOP":
+        elif mode in ["CALIBRATE", "STOP", "CLEAR"]:
             setting = "NULL"
             value = "NULL"
             distance = "NULL"
@@ -214,15 +210,13 @@ class PicoPump(BaseResource):
                 self.logger.debug(target)
                 self.logger.debug(ok_error)
 
+                self.send_command("CLEAR")
+                while self.move_complete: time.sleep(0.001)
                 self.send_command("RUN", direction = direction, distance = dist)
-                while not self.running:
-                    time.sleep(0.001)
-                while self.running:
-                    time.sleep(0.001)
+                while not self.move_complete: time.sleep(0.001)
 
-                self.parent.logger.debug(self.running)
                 err = abs(self.position - target)
-                if err>abs(self.position - target):
+                if err>ok_error:
                     self.parent.logger.debug(err)
                     self.lock.release()
                     raise IncompleteDelivery
@@ -231,11 +225,8 @@ class PicoPump(BaseResource):
     def ret_to_max(self, blocking = False, timeout = -1):
         if not self.at_max_pos:
             amount = self.syringe.volume - self.vol_left
-            try:
-                self.move(amount, direction = Direction.BACKWARD,
-                          blocking = blocking, timeout = timeout)
-            except EndTrackError:
-                return
+            self.move(amount, direction = Direction.BACKWARD,
+                      blocking = blocking, timeout = timeout)
         else:
             raise EndTrackError
 

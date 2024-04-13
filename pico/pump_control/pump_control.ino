@@ -49,7 +49,9 @@ float distance;
 bool running_manual = false;
 
 unsigned long t;
-int log_interval = 50;
+int log_interval = 100;
+
+int moveCompleted = 1;
 
 void setup() {
 
@@ -82,14 +84,15 @@ void loop() {
     else {direction = 1;}
     stepper.move(direction * 10000);
     running_manual = true;
-  }
-  else if (running_manual && !(to_flush || to_rev)){
+  } else if (running_manual && !(to_flush || to_rev)){
     stepper.stop();
     running_manual = false;
   }
   if (stepper.isRunning()==1){
     stepper.run();
     position = -stepper.currentPosition() * cmPerStep;
+  } else if (moveCompleted == 0) {
+    moveCompleted = 1;
   }
   getDataFromPC();
   if ((millis() - t) >= log_interval){
@@ -97,7 +100,9 @@ void loop() {
     Serial.print(",");
     Serial.print(stepper.isRunning());
     Serial.print(",");
-    Serial.println(direction);
+    Serial.print(direction);
+    Serial.print(",");
+    Serial.println(moveCompleted);
     t = millis();
   }
 }
@@ -231,6 +236,9 @@ void executeThisFunction() {
   }
   else if (strcmp(mode, "CALIBRATE") == 0) {
     calibrate();
+  }
+  else if (strcmp(mode, "CLEAR") == 0){
+    moveCompleted = 0;
   }
 }
 
