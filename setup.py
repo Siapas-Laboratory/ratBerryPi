@@ -14,7 +14,7 @@ setup(
     },
     package_data = {"": ["*.yaml"]},
     install_requires = [
-        'RPi.GPIO',
+        'gpiozero',
         'pyaudio',
         'adafruit-blinka',
         'adafruit-circuitpython-mcp230xx',

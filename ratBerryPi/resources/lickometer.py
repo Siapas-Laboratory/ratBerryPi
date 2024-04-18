@@ -1,5 +1,6 @@
 from datetime import datetime
-import RPi.GPIO as GPIO
+from gpiozero import DigitalInputDevice
+
 import threading
 import time
 from .base import BaseResource
@@ -30,8 +31,8 @@ class Lickometer(BaseResource):
         self.update_interval = update_interval
 
         if isinstance(self.lickPin, int):
-            GPIO.setup(self.lickPin, GPIO.IN, GPIO.PUD_OFF)
-            GPIO.add_event_detect(self.lickPin, GPIO.RISING, callback=self.increment_licks)
+            self.lickPin = DigitalInputDevice(self.lickPin, pull_up = None, active_state = True)
+            self.lickPin.when_activated = self.increment_licks
 
         self.burst_thread = threading.Thread(target = self.monitor_bursts)
         self.burst_thread.start()

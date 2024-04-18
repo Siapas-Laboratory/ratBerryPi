@@ -4,7 +4,7 @@ from ratBerryPi.resources.pump import Syringe, Direction, EndTrackError, PumpNot
 from ratBerryPi.modules import *
 from ratBerryPi.lickometer_bus import LickometerBus
 
-import RPi.GPIO as GPIO
+from gpiozero import DigitalInputDevice
 import threading
 import time
 import logging
@@ -112,16 +112,14 @@ class RewardInterface:
         
         """
 
-        GPIO.setmode(GPIO.BCM)
         self.on = on if on else threading.Event()
 
         with open(config_file, 'r') as f:
             self.config = yaml.safe_load(f)
 
         if 'clockPin' in self.config:
-            self.clockPin = self.config['clockPin']
-            GPIO.setup(self.clockPin, GPIO.IN, GPIO.PUD_OFF)
-            GPIO.add_event_detect(self.clockPin, GPIO.RISING, callback=self.log_clk_signal)
+            self.clockPin = DigitalInputDevice(self.config['clockPin'], pull_up = False)
+            self.clockPin.when_activated = self.log_clk_signal
 
         # setup logging
         self.logger = logging.getLogger(__name__)
@@ -189,7 +187,7 @@ class RewardInterface:
         self.pump_threads = {p: None for p in self.pumps}
 
     def log_clk_signal(self, x):
-        self.logger.info("clock")
+        self.logger.info(f"clock")
 
     def start(self):
         if not self.on.is_set(): self.on.set()
@@ -215,7 +213,6 @@ class RewardInterface:
 
     def stop(self):
         self.stop_recording()
-        GPIO.cleanup()
    
     def calibrate(self, pump:str):
         """
@@ -316,7 +313,7 @@ class RewardInterface:
         
         self.toggle_auto_fill(afill_was_on) # turn autofill back on if it was on
 
-    def fill_lines(self, modules = None, prime_amount = 2, res_amount = None):
+    def fill_lines(self, modules = None, prime_amount = 3, res_amount = None):
         """
         fill the lines leading up to the specified reward ports
         with fluid
@@ -522,7 +519,7 @@ class RewardInterface:
                     self.pumps[i].hasFillValve and 
                     (i not in self.needs_refilling)):
                     self.needs_refilling.append(i)
-            time.sleep(.1)
+            time.sleep(.5)
     
     def set_auto_fill_frac_thresh(self, value:float) -> None:
         """
@@ -560,6 +557,7 @@ class RewardInterface:
                         time.sleep(.1) # wait for it to start running
                         if (not self.pump_threads[i].running) and (not self.pump_threads[i].success):
                             self.logger.exception(self.pump_threads[i])
+            time.sleep(0.5)
 
 
     def toggle_auto_fill(self, on:bool):
@@ -742,7 +740,6 @@ class RewardInterface:
     def stop(self):
         if self.on.is_set(): self.on.clear()
         self.auto_fill_thread.join()
-        GPIO.cleanup()
 
 
 class FillThread(threading.Thread):

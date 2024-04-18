@@ -1,6 +1,5 @@
 from ratBerryPi.resources import Pump, Valve, ResourceLocked
 from ratBerryPi.resources.pump import Direction
-import RPi.GPIO as GPIO
 import time
 from abc import ABC, abstractmethod
 import typing
@@ -144,6 +143,3 @@ class BaseRewardModule(ABC):
         if self.pump.hasFillValve:
             self.pump.fillValve.lock.release()
         self.pump.lock.release()
-
-    def __del__(self):
-        GPIO.cleanup()

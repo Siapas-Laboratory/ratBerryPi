@@ -3,7 +3,6 @@ from ratBerryPi.utils import config_output
 from .pump import Syringe, Direction, EndTrackError, PumpNotEnabled, PositionUpdater, IncompleteDelivery
 from .valve import Valve
 
-import RPi.GPIO as GPIO
 import time
 import math
 import threading
@@ -120,6 +119,8 @@ class PicoPump(BaseResource):
                             self.move_complete = int(move_complete) == 1
                         except:
                             pass
+                time.sleep(.05)
+
         self.serial.close()
 
                 
@@ -205,19 +206,20 @@ class PicoPump(BaseResource):
                 dist = amount / self.syringe.mlPerCm
                 dir_int = 1 if direction == Direction.FORWARD else -1
                 target = pre_pos - dir_int*dist
-                ok_error = 0.01 * amount /self.syringe.mlPerCm
+                ok_error = 0.01 * self.syringe.max_pos
 
-                self.logger.debug(target)
-                self.logger.debug(ok_error)
+                self.logger.debug(f"target position: {target} cm")
+                self.logger.debug(f"allowable error: {ok_error} cm")
 
                 self.send_command("CLEAR")
-                while self.move_complete: time.sleep(0.001)
+                while self.move_complete: time.sleep(0.05)
                 self.send_command("RUN", direction = direction, distance = dist)
-                while not self.move_complete: time.sleep(0.001)
+                while not self.move_complete: time.sleep(0.1)
 
+                self.logger.debug(f"final position: {self.position} cm")
                 err = abs(self.position - target)
+                self.logger.debug(f"error: {err} cm")
                 if err>ok_error:
-                    self.parent.logger.debug(err)
                     self.lock.release()
                     raise IncompleteDelivery
                 self.lock.release()

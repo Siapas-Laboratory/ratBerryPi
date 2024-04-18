@@ -1,11 +1,12 @@
 from ratBerryPi.resources.lickometer import Lickometer
 import threading
-import RPi.GPIO as GPIO
+from gpiozero import DigitalInputDevice
 import board
 import busio
 from digitalio import Direction, Pull
 from adafruit_mcp230xx.mcp23017 import MCP23017
 import time
+from datetime import datetime
 
 
 
@@ -21,9 +22,8 @@ class LickometerBus:
         self.mcp = None
 
         for i,v in lick_pins.items(): self.add_lickometer(i, v)
-
-        GPIO.setup(bus_pin, GPIO.IN, GPIO.PUD_UP)
-        GPIO.add_event_detect(bus_pin, GPIO.FALLING, callback=self.increment_licks)
+        self.bus_pin = DigitalInputDevice(bus_pin, pull_up = True)
+        self.bus_pin.when_activated = self.increment_licks
 
     def add_lickometer(self, name:str, pin:str):
         assert isinstance(pin, str), "invalid pin"

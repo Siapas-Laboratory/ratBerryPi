@@ -2,7 +2,7 @@ from .base import BaseResource, ResourceLocked
 from ratBerryPi.utils import config_output
 from .valve import Valve
 
-import RPi.GPIO as GPIO
+# import RPi.GPIO as GPIO
 import time
 import math
 import threading
@@ -156,18 +156,18 @@ class Pump(BaseResource):
                 with open(self.state_fpath, 'wb') as f:
                     pickle.dump(self.position, f)
         
-        # add event detection for the flush pin
-        GPIO.setup(flushPin, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
-        GPIO.add_event_detect(flushPin, GPIO.RISING, callback = self.__flush)
+        # # add event detection for the flush pin
+        # GPIO.setup(flushPin, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
+        # GPIO.add_event_detect(flushPin, GPIO.RISING, callback = self.__flush)
         
-        # add event detection for the reverse pin
-        GPIO.setup(revPin, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
-        GPIO.add_event_detect(revPin, GPIO.RISING, callback = self.__reverse)
+        # # add event detection for the reverse pin
+        # GPIO.setup(revPin, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
+        # GPIO.add_event_detect(revPin, GPIO.RISING, callback = self.__reverse)
 
-        if endPin is not None:
-            # add event detection for the end pin
-            GPIO.setup(endPin, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
-            GPIO.add_event_detect(endPin, GPIO.RISING, callback = self.calibrate)
+        # if endPin is not None:
+        #     # add event detection for the end pin
+        #     GPIO.setup(endPin, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
+        #     GPIO.add_event_detect(endPin, GPIO.RISING, callback = self.calibrate)
 
         if fillValvePin is not None:
             self.fillValve = Valve(f'{self.name}-fillValve', self, fillValvePin)
@@ -307,32 +307,32 @@ class Pump(BaseResource):
         else:
             raise ResourceLocked("Pump In Use")
             
-    def __flush(self, channel):
-        acquired = self.lock.acquire(False)
-        if acquired:
-            if self.verbose: 
-                self.logger.info("flushing started")
-            _prev_stepType = self.stepType
-            self.stepType = 'Full'
-            while GPIO.input(channel)==GPIO.HIGH:
-                self.single_step(direction = Direction.FORWARD, force = True)
-            self.stepType = _prev_stepType 
-            if self.position<0: self.calibrate()
-            if self.verbose: self.logger.info("flushing done")
-            self.lock.release()
+    # def __flush(self, channel):
+    #     acquired = self.lock.acquire(False)
+    #     if acquired:
+    #         if self.verbose: 
+    #             self.logger.info("flushing started")
+    #         _prev_stepType = self.stepType
+    #         self.stepType = 'Full'
+    #         while GPIO.input(channel)==GPIO.HIGH:
+    #             self.single_step(direction = Direction.FORWARD, force = True)
+    #         self.stepType = _prev_stepType 
+    #         if self.position<0: self.calibrate()
+    #         if self.verbose: self.logger.info("flushing done")
+    #         self.lock.release()
             
-    def __reverse(self, channel):
-        acquired = self.lock.acquire(False)
-        if acquired:
-            if self.verbose: 
-                self.logger.info("reversing started")
-            _prev_stepType = self.stepType
-            self.stepType = 'Full'
-            while GPIO.input(channel)==GPIO.HIGH:
-                self.single_step(direction = Direction.BACKWARD, force = True)
-            self.stepType = _prev_stepType
-            if self.verbose: self.logger.info("reversing done")
-            self.lock.release()
+    # def __reverse(self, channel):
+    #     acquired = self.lock.acquire(False)
+    #     if acquired:
+    #         if self.verbose: 
+    #             self.logger.info("reversing started")
+    #         _prev_stepType = self.stepType
+    #         self.stepType = 'Full'
+    #         while GPIO.input(channel)==GPIO.HIGH:
+    #             self.single_step(direction = Direction.BACKWARD, force = True)
+    #         self.stepType = _prev_stepType
+    #         if self.verbose: self.logger.info("reversing done")
+    #         self.lock.release()
     
     def is_available(self, amount, direction = Direction.FORWARD):
         if direction == Direction.FORWARD:
