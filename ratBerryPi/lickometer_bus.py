@@ -42,16 +42,16 @@ class LickometerBus:
         self.lickometers[name] = Lickometer(name, self, pin)
 
         self.mcp.interrupt_enable = self.mcp.interrupt_enable | 2**pin_n
-        self.mcp.interrupt_configuration = 0x0000 # configure interrupt to compare all enabled pins against DEFVAL
+        self.mcp.interrupt_configuration = 0x0000 # configure interrupt to occur on any change
+        # self.mcp.interrupt_configuration = 0xFFFF # configure interrupt to compare all enabled pins against DEFVAL
         self.mcp.io_control = 0x44  # configure interrupt as open drain
-        self.mcp.default_value = 0x0000 # set DEFVAL to all pins being low    
+        # self.mcp.default_value = 0x0000 # set DEFVAL to all pins being low    
         self.mcp.clear_ints()
         return self.lickometers[name]
 
 
     def increment_licks(self, x):
         for pin_flag in self.mcp.int_flag:
-            self.lickometers[self.pin_map[pin_flag]].increment_licks(None)
-            while self.lickometers[self.pin_map[pin_flag]].lickPin.value:
-                time.sleep(0.001)
+            if self.lickometers[self.pin_map[pin_flag]].lickPin.value:
+                self.lickometers[self.pin_map[pin_flag]].increment_licks(None)
         self.mcp.clear_ints()
