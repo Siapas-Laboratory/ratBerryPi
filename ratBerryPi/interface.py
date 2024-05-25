@@ -13,7 +13,7 @@ import os
 import yaml
 from datetime import datetime
 
-
+logger = logging.getLogger(__name__)
 ETHERNET = {
     "port0": {
         "LEDPin": "0x21:GPA0",
@@ -122,7 +122,7 @@ class RewardInterface:
             self.clockPin.when_activated = self.log_clk_signal
 
         # setup logging
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
         self.recording = False
         self.data_dir = data_dir
 
@@ -473,6 +473,7 @@ class RewardInterface:
                     else:
                         raise ResourceLocked("Pump In Use")
             if sync:
+                self.logger.info(f"triggering {amount} mL reward on {module}")
                 self.modules[module].trigger_reward(amount)
             elif not enqueued:
                 req = RewardRequest(self.modules[module], amount)
@@ -487,7 +488,7 @@ class RewardInterface:
                     except:
                         print(self.pump_threads[pump].err)
         else:
-            self.logger.info("delivered 0 mL reward")
+            self.logger.info(f"triggering {amount} mL reward on {module}")
 
     def refill_syringe(self, pump:str = None) -> None:
         """
@@ -792,7 +793,7 @@ class FillThread(threading.Thread):
         self.pump.stop()
         self.join()
         self.success = False
-        self.parent.logger.debug("thread stopped")
+        logger.debug("thread stopped")
 
 
 
@@ -821,6 +822,7 @@ class RewardThread(threading.Thread):
                 task = self.tasks.pop(0)
                 self.current_module = task.module
                 amount = task.amount
+                logger.info(f"triggering {amount} mL reward on {self.current_module.name}")
 
                 # prep the pump
                 self.current_module.prep_pump()

@@ -51,6 +51,8 @@ class PicoPump(BaseResource):
         self.monitor_thread = threading.Thread(target = self._monitor)
         self.monitor_thread.start()
         self.pos_updater = PositionUpdater()
+        self._speed = None
+        self._stepType = None
 
     @property
     def direction(self):
@@ -89,14 +91,19 @@ class PicoPump(BaseResource):
     
     @stepType.setter
     def stepType(self, stepType):
-        if stepType in self.step_type_configs:
-            self._stepType = stepType
-            self._modePins[0].value = self.step_type_configs[stepType][0]
-            self._modePins[1].value = self.step_type_configs[stepType][1]
-            self._modePins[2].value = self.step_type_configs[stepType][2]
-            time.sleep(.01)
+        if stepType in self.step_types:
+            self.send_command("SETTING", setting="MICROSTEP", value=stepType)
         else:
-            raise ValueError(f"invalid step type. valid stepTypes include {[i for i in self.step_type_configs]}")
+            raise ValueError(f"invalid step type. valid stepTypes include {[i for i in self.step_types]}")
+    
+    @property
+    def speed(self):
+        return self._speed
+    
+    @speed.setter
+    def speed(self, speed):
+        assert isinstance(speed, float)
+        self.send_command("SETTING", setting="SPEED", value=speed)
 
     def _monitor(self):
         os.nice(19)
@@ -107,9 +114,9 @@ class PicoPump(BaseResource):
                 if acq:
                     res = self.serial.readline().decode().strip().split(',')
                     self.serial_lock.release()
-                    if len(res) == 4:
+                    if len(res) == 6:
                         try:
-                            pos, running, direction, move_complete = res
+                            pos, running, direction, move_complete, step_lvl, speed = res
                             pos = float(pos)
                             if pos != self.position:
                                 self.position = pos
@@ -117,6 +124,8 @@ class PicoPump(BaseResource):
                             self.running = int(running) == 1
                             self.direction = Direction.FORWARD if int(direction) == 1 else Direction.BACKWARD
                             self.move_complete = int(move_complete) == 1
+                            self._stepType = self.step_types[int(step_lvl)]
+                            self._speed = float(speed)
                         except:
                             pass
                 time.sleep(.05)
