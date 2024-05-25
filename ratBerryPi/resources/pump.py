@@ -1,26 +1,17 @@
 from .base import BaseResource, ResourceLocked
-from ratBerryPi.utils import config_output
 from .valve import Valve
-
-# import RPi.GPIO as GPIO
 import time
 import math
 import threading
 import os
 import time
-import pickle
 from enum import Enum
-from datetime import datetime, timedelta
-import numpy as np
-from abc import ABC, abstractmethod
 from PyQt5.QtCore import pyqtSignal, QObject
-from queue import Queue, Empty
-
+import serial
 
 class Direction(Enum):
     FORWARD="F"
     BACKWARD="B"
-    
 
 class EndTrackError(Exception):
     """reached end of track"""
@@ -77,22 +68,11 @@ class PositionUpdater(QObject):
 
 class Pump(BaseResource):
 
-    step_type_configs = {'Full': (False, False, False),
-                         'Half': (True,  False, False),
-                         '1/4':  (False, True,  False),
-                         '1/8':  (True,  True,  False),
-                         '1/16': (False, False, True),
-                         '1/32': (True,  False, True)}
+    step_types = ['Full', 'Half', '1/4', '1/8', '1/16', '1/32']
+
     
-    steps_per_rot = {"Full":200, 
-                      "Half":400,
-                      "1/4":800,
-                      "1/8": 1600,
-                      "1/16": 3200}
-    
-    def __init__(self, name, stepPin, flushPin, revPin, modePins, dirPin, fillValvePin = None, 
-                 enPin = None, endPin = None, syringe = Syringe(syringeType='BD5mL'), stepDelay = .0001,
-                 stepType = "Half", pitch = 0.08,  reset = False, verbose = True, parent = None):
+    def __init__(self, name, port:str, parent = None, fillValvePin = None,
+                 syringe:Syringe = Syringe(syringeType='BD5mL'), baudrate:int = 230400):
         
         """
         this is a class that allows for the control of a syringe
@@ -103,83 +83,23 @@ class Pump(BaseResource):
         
         Args:
         -----
-            _stepPin: int
-                pin on the pi that is wired to the step pin of
-                the DRV8825 controlling this pump
-            stepType: str, optional
-                any of the available step types for driving the motor.
-                either Full, Half, 1/4, 1/8, or 1/16
-            _dirPin: int, optional
-                pin to set the direction of the pump
-            GPIOPins: tuple(int, int, int)
-                the pins used to set the step type (M0, M1, M2)
-            tolerance: float
-                the allowable error in the amount of fluid delivered in mL
         """
+
         super(Pump, self).__init__(name, parent)
         self.syringe = syringe
-
-        if enPin:
-            self.enPin = config_output(enPin)
-            self.enPin.value = False
-
-        self._dirPin = config_output(dirPin)
-        self.direction = Direction.FORWARD
-
-        self._stepPin = config_output(stepPin)
-        self._modePins = (config_output(modePins[0]),
-                          config_output(modePins[1]),
-                          config_output(modePins[2]))
-        self.stepType = stepType
-        
-        self.stepDelay = stepDelay
-        self.pitch = pitch
-        self.enable()
-        self.in_use = False
-        self.verbose = verbose
-        state_dir = os.path.join(os.path.expanduser('~'), ".ratBerryPi", "pump_states")
-        os.makedirs(state_dir, exist_ok = True)
-        self.state_fpath = os.path.join(state_dir, f"{self.name}.pckl")
-
-        if not os.path.exists(self.state_fpath):
-            self.logger.warning(f'pump states file not found, creating and setting {self.name} position to 0')
-            self.position = 0
-            with open(self.state_fpath, 'wb') as f:
-                pickle.dump(self.position, f)
-        else:
-            with open(self.state_fpath, 'rb') as f:
-                saved_pos = pickle.load(f)
-            if not reset:
-                self.position = saved_pos
-            else:
-                self.position = 0
-                with open(self.state_fpath, 'wb') as f:
-                    pickle.dump(self.position, f)
-        
-        # # add event detection for the flush pin
-        # GPIO.setup(flushPin, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
-        # GPIO.add_event_detect(flushPin, GPIO.RISING, callback = self.__flush)
-        
-        # # add event detection for the reverse pin
-        # GPIO.setup(revPin, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
-        # GPIO.add_event_detect(revPin, GPIO.RISING, callback = self.__reverse)
-
-        # if endPin is not None:
-        #     # add event detection for the end pin
-        #     GPIO.setup(endPin, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
-        #     GPIO.add_event_detect(endPin, GPIO.RISING, callback = self.calibrate)
-
         if fillValvePin is not None:
             self.fillValve = Valve(f'{self.name}-fillValve', self, fillValvePin)
             self.hasFillValve = True
         else:
             self.hasFillValve = False
-
-        self.pos_thread = threading.Thread(target = self._log_position)
-        self.pos_thread.start()
+        self.serial = serial.Serial(port, baudrate = baudrate)
+        self.serial_lock = threading.Lock()
+        self.position = 0
+        self.monitor_thread = threading.Thread(target = self._monitor)
+        self.monitor_thread.start()
         self.pos_updater = PositionUpdater()
-
-
+        self._speed = None
+        self._stepType = None
 
     @property
     def direction(self):
@@ -190,8 +110,6 @@ class Pump(BaseResource):
         if not isinstance(direction, Direction):
             raise ValueError("direction must be of type 'Direction'")
         self._direction = direction
-        self._dirPin.value = direction.value
-        time.sleep(.01) # wait for register to actually update
 
     @property
     def syringe(self):
@@ -202,7 +120,6 @@ class Pump(BaseResource):
         assert isinstance(syringe, Syringe), 'syringe must be an instance of Syringe'
         self._syringe = syringe
     
-
     @property
     def at_min_pos(self):
         return self.position <= 0
@@ -221,118 +138,96 @@ class Pump(BaseResource):
     
     @stepType.setter
     def stepType(self, stepType):
-        if stepType in self.step_type_configs:
-            self._stepType = stepType
-            self._modePins[0].value = self.step_type_configs[stepType][0]
-            self._modePins[1].value = self.step_type_configs[stepType][1]
-            self._modePins[2].value = self.step_type_configs[stepType][2]
-            time.sleep(.01)
+        if stepType in self.step_types:
+            self.send_command("SETTING", setting="MICROSTEP", value=stepType)
         else:
-            raise ValueError(f"invalid step type. valid stepTypes include {[i for i in self.step_type_configs]}")
-
-    @property
-    def stepsPermL(self):
-        stepsPerThread = self.steps_per_rot[self.stepType]
-        mlPerThread = self.syringe.mlPerCm * self.pitch
-        return  stepsPerThread/ mlPerThread
+            raise ValueError(f"invalid step type. valid stepTypes include {[i for i in self.step_types]}")
     
     @property
-    def displacement_per_step(self):
-        return self.pitch/self.steps_per_rot[self.stepType]
+    def speed(self):
+        return self._speed
+    
+    @speed.setter
+    def speed(self, speed):
+        assert isinstance(speed, float)
+        self.send_command("SETTING", setting="SPEED", value=speed)
 
-    def _log_position(self):
+    def _monitor(self):
         os.nice(19)
         while not self.parent.on.is_set(): time.sleep(.001)
         while self.parent.on.is_set():
-            with open(self.state_fpath, 'wb') as f:
-                    pickle.dump(self.position, f)
-            time.sleep(.001)
+            while self.serial.in_waiting:
+                acq = self.serial_lock.acquire(False)
+                if acq:
+                    res = self.serial.readline().decode().strip().split(',')
+                    self.serial_lock.release()
+                    if len(res) == 6:
+                        try:
+                            pos, running, direction, move_complete, step_lvl, speed = res
+                            pos = float(pos)
+                            if pos != self.position:
+                                self.position = pos
+                                self.pos_updater.pos_updated.emit(self.position)
+                            self.running = int(running) == 1
+                            self.direction = Direction.FORWARD if int(direction) == 1 else Direction.BACKWARD
+                            self.move_complete = int(move_complete) == 1
+                            self._stepType = self.step_types[int(step_lvl)]
+                            self._speed = float(speed)
+                        except:
+                            pass
+                time.sleep(.05)
 
+        self.serial.close()
 
+                
     def calibrate(self, channel=None):
-        self.position = 0
-        self.track_end = True
+        self.send_command("CALIBRATE")
 
-
-    def single_step(self, direction:Direction = None, force:bool = False, pre_checked = False):
+    def send_command(self, mode:str, setting:str = None, value:float = None, direction:Direction = None, distance:float = None) -> None:
         """
-        send a single pulse to step the pump's motor in a specified direction
-
-        Args:
-        -----
-        direction: Direction
-            direction to step the motor, either forward or backward
-        force: bool
-            flag to force the motor to step even if the carriage sled is near the end
-            of the track or the pump is not enabled
+        send command to the arduino
         """
 
-        acquired = self.lock.acquire(False)
-        if acquired:
-            if not pre_checked:
-                if direction:
-                    if direction != self.direction:
-                        self.direction = direction
-                if not force:
-                    if direction == Direction.FORWARD:
-                        if self.at_min_pos:
-                            self.lock.release()
-                            raise EndTrackError
-                    elif direction == Direction.BACKWARD:
-                        if self.at_max_pos:
-                            self.lock.release()
-                            raise EndTrackError
-     
-            if (not force) and (not self.enabled):
-                self.lock.release()
-                raise PumpNotEnabled 
-
-            target_t = self.stepDelay/2
-            self._stepPin.value = True
-            t1 = datetime.now()
-            t2 = datetime.now()
-            while (t2 - t1).total_seconds() < target_t:
-                t2 = datetime.now()
-            self._stepPin.value = False
-            t3 = datetime.now()
-            while (t3 - t1).total_seconds() < self.stepDelay:
-                t3 = datetime.now()
-
-            if self.direction == Direction.FORWARD:
-                self.position -= self.displacement_per_step
+        acq = self.serial_lock.acquire(timeout = 5)
+        
+        if not acq:
+            raise ResourceLocked("Serial port in use")
+        if mode == "RUN":
+            if not isinstance(direction, Direction): 
+                raise ValueError("must specify direction using Direction class when using RUN mode")
+            direction = direction.value
+            if not isinstance(distance, (int, float)): 
+                raise ValueError("must specify distance as float when using RUN mode")
+            distance = str(distance)
+            setting = "NULL"
+            value = "NULL"
+        elif mode == "SETTING":
+            if not isinstance(setting, str):  
+                raise ValueError("must specify the setting to set as float or int")
+            if setting == "MICROSTEP":
+                if value not in self.step_types: 
+                    raise ValueError("unrecognized step type")
+                value = str(self.step_types.index(value))
             else:
-                self.position += self.displacement_per_step
-            self.pos_updater.pos_updated.emit(self.position)
-            self.lock.release()
+                if not isinstance(value, (int, float)):  
+                    raise ValueError("must specify the value to set as float or int")
+                value = str(value)
+            distance = "NULL"
+            direction = "NULL"
+        elif mode in ["CALIBRATE", "STOP", "CLEAR"]:
+            setting = "NULL"
+            value = "NULL"
+            distance = "NULL"
+            direction = "NULL"
         else:
-            raise ResourceLocked("Pump In Use")
-            
-    # def __flush(self, channel):
-    #     acquired = self.lock.acquire(False)
-    #     if acquired:
-    #         if self.verbose: 
-    #             self.logger.info("flushing started")
-    #         _prev_stepType = self.stepType
-    #         self.stepType = 'Full'
-    #         while GPIO.input(channel)==GPIO.HIGH:
-    #             self.single_step(direction = Direction.FORWARD, force = True)
-    #         self.stepType = _prev_stepType 
-    #         if self.position<0: self.calibrate()
-    #         if self.verbose: self.logger.info("flushing done")
-    #         self.lock.release()
-            
-    # def __reverse(self, channel):
-    #     acquired = self.lock.acquire(False)
-    #     if acquired:
-    #         if self.verbose: 
-    #             self.logger.info("reversing started")
-    #         _prev_stepType = self.stepType
-    #         self.stepType = 'Full'
-    #         while GPIO.input(channel)==GPIO.HIGH:
-    #             self.single_step(direction = Direction.BACKWARD, force = True)
-    #         self.stepType = _prev_stepType
-    #         if self.verbose: self.logger.info("reversing done")
-    #         self.lock.release()
+            raise ValueError(f"unrecognized command {mode}")
+
+        cmd = ",".join(["<",mode, setting, value, direction, distance,">"])
+
+        self.serial.write(cmd.encode())
+        self.serial.flushInput()
+        self.serial_lock.release()
+
     
     def is_available(self, amount, direction = Direction.FORWARD):
         if direction == Direction.FORWARD:
@@ -340,22 +235,6 @@ class Pump(BaseResource):
         else:
             return amount <= (math.pi * ((self.syringe.ID/2)**2) * self.syringe.max_pos) - self.vol_left
             
-    def calculate_steps(self, amount):
-        """
-        calculate the numer of steps of the motor
-        needed to dispense a given amount of fluid
-        
-        Args:
-        -----
-        amount: float
-            desired fluid output in mL
-        """
-        stepsPermL = self.stepsPermL
-        n_steps = int(round(stepsPermL * amount))
-        actual = n_steps/stepsPermL
-        msg = f"{amount} mL requested; {actual} mL to be produced using stepType '{self.stepType}'; error = {amount - actual} mL"
-        self.logger.debug(msg)
-        return n_steps
 
     def move(self, amount, direction, check_availability = True, 
              blocking = False, timeout = -1):
@@ -370,73 +249,54 @@ class Pump(BaseResource):
             whether or not to move the piston forward
         """
         if amount >0:
-            steps = self.calculate_steps(amount)
-            if steps>0:
-                step_count = 0
+            acq = self.lock.acquire(blocking = blocking, timeout = timeout)
+            if self.running or not acq:
+                raise ResourceLocked("Pump in use")
+            else:
+                if check_availability:
+                    if not self.is_available(amount, direction):
+                        self.lock.release()
+                        raise EndTrackError
 
-                acquired = self.lock.acquire(blocking = blocking, 
-                                            timeout = timeout)
-                self.enable()
-                if acquired:
-                    if direction:
-                        if direction != self.direction:
-                            self.direction = direction
-                    if check_availability:
-                        if not self.is_available(amount, direction):
-                            raise EndTrackError
-                    was_enabled = self.enabled
-                    self.enable()
-                    t1 = datetime.now()
-                    while (step_count<steps):
-                        try:
-                            self.single_step(pre_checked = check_availability)
-                        except PumpNotEnabled as e:
-                            self.logger.warning(f"Pump turned off after {step_count} steps ({step_count/self.stepsPermL} mL)")
-                            self.lock.release()
-                            raise IncompleteDelivery
-                        step_count += 1
-                    self.logger.debug(f"mean step_delay = {(datetime.now() - t1).total_seconds()/steps}")
+                pre_pos = self.position
+                dist = amount / self.syringe.mlPerCm
+                dir_int = 1 if direction == Direction.FORWARD else -1
+                target = pre_pos - dir_int*dist
+                ok_error = 0.01 * self.syringe.max_pos
+
+                self.logger.debug(f"target position: {target} cm")
+                self.logger.debug(f"allowable error: {ok_error} cm")
+
+                self.send_command("CLEAR")
+                while self.move_complete: time.sleep(0.05)
+                self.send_command("RUN", direction = direction, distance = dist)
+                while not self.move_complete: time.sleep(0.1)
+
+                self.logger.debug(f"final position: {self.position} cm")
+                err = abs(self.position - target)
+                self.logger.debug(f"error: {err} cm")
+                if err>ok_error:
                     self.lock.release()
-                    if not was_enabled: self.disable()
-                else:
-                    raise ResourceLocked("Pump In Use")
+                    raise IncompleteDelivery
+                self.lock.release()
 
-    
     def ret_to_max(self, blocking = False, timeout = -1):
         if not self.at_max_pos:
             amount = self.syringe.volume - self.vol_left
-            try:
-                self.move(amount, direction = Direction.BACKWARD,
-                          blocking = blocking, timeout = timeout)
-            except EndTrackError:
-                return
+            self.move(amount, direction = Direction.BACKWARD,
+                      blocking = blocking, timeout = timeout)
         else:
             raise EndTrackError
-
-    def enable(self):
-        """
-        enable the pump
-        """
-        self.enabled = True
-
-    def disable(self):
-        """
-        disable the pump
-        """
-        self.enabled = False
-
-    def stop(self):
-        """
-        alias for disable
-        """
-        self.disable()
 
     def change_syringe(self, syringeType):
         """
         convenience function to change the syringe type
         """
         self.syringe = Syringe(syringeType)
-        
-    def __del__(self):
-        with open(self.state_fpath, 'wb') as f:
-            pickle.dump(self.position, f)
+
+    def stop(self):
+        """
+        stop the pump
+        """
+        self.send_command("STOP")
+

@@ -1,5 +1,5 @@
 from ratBerryPi.audio import AudioInterface
-from ratBerryPi.resources import Pump, Lickometer, LED, Valve, ResourceLocked, PicoPump
+from ratBerryPi.resources import Pump, Lickometer, LED, Valve, ResourceLocked
 from ratBerryPi.resources.pump import Syringe, Direction, EndTrackError, PumpNotEnabled, IncompleteDelivery
 from ratBerryPi.modules import *
 from ratBerryPi.lickometer_bus import LickometerBus
@@ -143,12 +143,7 @@ class RewardInterface:
                 self.config['pumps'][i]['syringe'] = Syringe(self.config['pumps'][i].pop('syringeType'))
             else:
                 self.config['pumps'][i]['syringe'] = Syringe()
-            ptype = self.config['pumps'][i].pop('type')
-            if ptype == 'PicoPump':
-                self.pumps[i] = PicoPump(i, **self.config['pumps'][i])
-            else:
-                self.config['pumps'][i]['modePins'] = tuple(self.config['pumps'][i]['modePins'])
-                self.pumps[i] = Pump(i, **self.config['pumps'][i])
+            self.pumps[i] = Pump(i, **self.config['pumps'][i])
 
         self.plugins = {}
         self.audio_interface = AudioInterface()
@@ -594,6 +589,25 @@ class RewardInterface:
             for m in self.modules:
                 self.modules[m].post_delay = post_delay
 
+    def set_microstep_lvl(self, lvl:str, module:str=None, pump:str=None):
+        """
+        set microstepping level of the pump
+        
+        """
+        if pump:
+            self.pumps[pump].stepType = lvl
+        elif module:
+            self.modules[module].pump.stepType = lvl
+
+    def set_step_speed(self, speed:float, module:str=None, pump:str=None):
+        """
+        set the speed of microstepping
+        """
+        if pump:
+            self.pumps[pump].speed = speed
+        elif module:
+            self.modules[module].speed = speed
+
     def change_syringe(self, syringeType:str, all:bool = False, module:str = None, pump:str=None):
         """
         change the syringe type either on all pumps or one pump specified by either
@@ -810,7 +824,6 @@ class RewardThread(threading.Thread):
         self.running = False
         self.success = False
             
-
     def run(self):
         acquired = self.tasks[0].module.acquire_locks()
         if not acquired:
@@ -862,7 +875,6 @@ class RewardThread(threading.Thread):
                 self.current_module.pump.fillValve.lock.release()
             self.running = False
             
-
     def enqueue(self, module:BaseRewardModule, amount: float):
         request = RewardRequest(module, amount)
         acquired = request.module.valve.lock.acquire(False)
