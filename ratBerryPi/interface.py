@@ -595,18 +595,25 @@ class RewardInterface:
         
         """
         if pump:
-            self.pumps[pump].stepType = stepType
+            p = self.pumps[pump]
         elif module:
-            self.modules[module].pump.stepType = stepType
+            p = self.modules[module].pump.stepType = stepTyp
+        p.stepType = stepType
+        time.sleep(0.1)
+        logger.debug(f"set microstep level to {p.stepType}")
+        
 
     def set_step_speed(self, speed:float, module:str=None, pump:str=None):
         """
         set the speed of microstepping
         """
         if pump:
-            self.pumps[pump].speed = speed
+            p = self.pumps[pump]
         elif module:
-            self.modules[module].pump.speed = speed
+            p = self.modules[module].pump
+        p.speed = speed
+        time.sleep(0.1)
+        logger.debug(f"set step speed to {p.speed}")
 
     def set_flow_rate(self, flow_rate: float, module:str=None, pump:str=None):
         """
@@ -619,8 +626,9 @@ class RewardInterface:
 
         steps_per_rev = Pump.steps_per_rev[Pump.step_types.index(p.stepType)]
         cm_per_step = p.lead/steps_per_rev
-        ml_per_step = p.syringe.mLPerCm * cm_per_step
+        ml_per_step = p.syringe.mlPerCm * cm_per_step
         p.speed = flow_rate/ml_per_step
+        time.sleep(0.1)
         logger.debug(f"set flow rate to {p.flow_rate} by setting step speed to {p.speed}")
 
 

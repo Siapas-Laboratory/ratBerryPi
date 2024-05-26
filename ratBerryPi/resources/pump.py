@@ -111,7 +111,7 @@ class Pump(BaseResource):
         steps_per_rev = self.steps_per_rev[self.step_types.index(self.stepType)]
         cm_per_step = self.lead/steps_per_rev
         cm_per_sec = self.speed * cm_per_step
-        flow_rate = self.syringe.mLPerCm * cm_per_sec
+        flow_rate = self.syringe.mlPerCm * cm_per_sec
         return flow_rate
     
     @direction.setter

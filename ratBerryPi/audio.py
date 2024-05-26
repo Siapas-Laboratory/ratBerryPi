@@ -68,7 +68,8 @@ class AudioInterface:
         self.stream.start_stream()
 
     def __del__(self):
-        self.stream.close()
+        if self.stream is not None:
+            self.stream.close()
         self.session.terminate()
 
     class Speaker(BaseResource):
