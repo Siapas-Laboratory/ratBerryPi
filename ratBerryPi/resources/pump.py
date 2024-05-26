@@ -69,9 +69,10 @@ class PositionUpdater(QObject):
 class Pump(BaseResource):
 
     step_types = ['Full', 'Half', '1/4', '1/8', '1/16', '1/32']
+    steps_per_rev = [200, 400, 800, 1600, 3200, 6400]
 
     
-    def __init__(self, name, port:str, parent = None, fillValvePin = None,
+    def __init__(self, name, port:str, parent = None, fillValvePin = None, lead = 0.2,
                  syringe:Syringe = Syringe(syringeType='BD5mL'), baudrate:int = 230400):
         
         """
@@ -100,10 +101,18 @@ class Pump(BaseResource):
         self.pos_updater = PositionUpdater()
         self._speed = None
         self._stepType = None
-
+        self.lead = lead
     @property
     def direction(self):
         return self._direction
+    
+    @property
+    def flow_rate(self):
+        steps_per_rev = self.steps_per_rev[self.step_types.index(self.stepType)]
+        cm_per_step = self.lead/steps_per_rev
+        cm_per_sec = self.speed * cm_per_step
+        flow_rate = self.syringe.mLPerCm * cm_per_sec
+        return flow_rate
     
     @direction.setter
     def direction(self, direction):
