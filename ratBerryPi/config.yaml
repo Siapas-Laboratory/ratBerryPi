@@ -56,3 +56,4 @@ pumps:
     syringeType: BD30mL
     port: /dev/ttyACM0
     fillValvePin: 15
+    lead: 0.2
