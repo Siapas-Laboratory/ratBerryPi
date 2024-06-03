@@ -13,7 +13,7 @@ setup(
         ]
     },
     package_data = {"": ["*.yaml"]},
-    extra_requires = {
+    extras_require = {
         'pi':[
             'gpiozero',
             'lgpio',
