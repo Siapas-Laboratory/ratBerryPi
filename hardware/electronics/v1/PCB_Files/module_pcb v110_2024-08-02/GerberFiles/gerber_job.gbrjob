@@ -1,0 +1,24 @@
+{
+    "Header": {
+        "Comment": "All values are metric (mm)",
+        "CreationDate": "2024-08-02T19:16:07Z",
+        "GenerationSoftware": {
+            "Application": "Fusion Electronics",
+            "Vendor": "Autodesk",
+            "Version": "9.7.0"
+        },
+        "Part": "Single"
+    },
+    "Overall": {
+        "BoardThickness": 1.671119,
+        "LayerNumber": 2,
+        "Name": {
+            "ProjectId": "module_pcb v108"
+        },
+        "Owner": "Nathaniel Nyema <nnyema@caltech.edu>",
+        "Size": {
+            "X": 43.033,
+            "Y": 56.5025
+        }
+    }
+}
