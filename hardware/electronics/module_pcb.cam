@@ -26,7 +26,7 @@
             "filename_prefix": "CAMOutputs/ODBFiles",
             "generate_job_file": true,
             "odb_format_version": "V8.1+",
-            "output_name": "module_interface_hat_v87",
+            "output_name": "module_pcb_v110",
             "output_type": "odb++",
             "outputs": [
                 {
@@ -200,7 +200,7 @@
                 "integer": 3
             },
             "generate_job_file": true,
-            "gerber_job_filepath": "/%PREFIX/gerber_job.gbrjob",
+            "gerber_job_filepath": "%PREFIX/gerber_job.gbrjob",
             "output_type": "gerber",
             "outputs": [
                 {
@@ -424,7 +424,7 @@
             "pdf_filename": "%N"
         },
         {
-            "filename_prefix": "GerberFiles",
+            "filename_prefix": "CAMOutputs/DrillFiles",
             "format_specifier": {
                 "decimal": 3,
                 "integer": 3
@@ -439,7 +439,7 @@
                         "rotate": false,
                         "upside_down": false
                     },
-                    "filename_format": "%PREFIX/drill_%FROM_%TO.xln",
+                    "filename_format": "%TEAMHUBNAME/%PROJECTNAME/%DRILLPREFIX/drill_%FROM_%TO.xln",
                     "name": "Auto Drill",
                     "type": "autodrills"
                 }
@@ -459,9 +459,9 @@
                 },
                 {
                     "filename_format": "%ASSEMBLYPREFIX/PnP_%N_%BOARDSIDE",
-                    "header": false,
+                    "header": true,
                     "name": "Pick and Place",
-                    "output_format": "txt",
+                    "output_format": "csv",
                     "type": "pick_and_place"
                 }
             ]
@@ -473,7 +473,7 @@
             ]
         }
     ],
-    "timestamp": "2024-08-02T01:23:17",
+    "timestamp": "2024-08-12T12:37:44",
     "type": "Fusion Electronics CAM job",
     "units": "metric",
     "version": "9.2.0"
