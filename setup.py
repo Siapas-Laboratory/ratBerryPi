@@ -15,6 +15,8 @@ setup(
     package_data = {"": ["*.yaml"]},
     extras_require = {
         'pi':[
+            'pyyaml',
+            'numpy',
             'gpiozero',
             'lgpio',
             'pyaudio',

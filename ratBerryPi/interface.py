@@ -14,54 +14,55 @@ import yaml
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
 ETHERNET = {
     "port0": {
-        "LEDPin": "0x21:GPA0",
-        "lickPin": "0x21:GPB0",
+        "LEDPin": "0x21:GPB0",
+        "lickPin": "GPB0",
         "lickBusPin": 17,
-        "SDPin":  "GPB0",
+        "SDPin":  "0x21:GPA0",
         "valvePin": "GPA0"},
     "port1": {
-        "LEDPin": "0x21:GPA1",
-        "lickPin":"0x21:GPB1",
+        "LEDPin": "0x21:GPB1",
+        "lickPin": "GPB1",
         "lickBusPin": 17,
-        "SDPin":  "GPB1",
+        "SDPin":  "0x21:GPA1",
         "valvePin": "GPA1"},
     "port2": {
-        "LEDPin": "0x21:GPA2",
-        "lickPin": "0x21:GPB2",
+        "LEDPin": "0x21:GPB2",
+        "lickPin": "GPB2",
         "lickBusPin": 17,
-        "SDPin": "GPB2",
+        "SDPin": "0x21:GPA2",
         "valvePin": "GPA2"},
     "port3": {
-        "LEDPin": "0x21:GPA3",
-        "lickPin": "0x21:GPB3",
+        "LEDPin": "0x21:GPB3",
+        "lickPin": "GPB3",
         "lickBusPin": 17,
-        "SDPin": "GPB3",
+        "SDPin": "0x21:GPA3",
         "valvePin": "GPA3"},
     "port4": {
-        "LEDPin": "0x21:GPA4",
-        "lickPin": "0x21:GPB4",
+        "LEDPin": "0x21:GPB4",
+        "lickPin": "GPB4",
         "lickBusPin": 17,
-        "SDPin": "GPB4",
+        "SDPin": "0x21:GPA4",
         "valvePin": "GPA4"},
     "port5": {
-        "LEDPin": "0x21:GPA5",
-        "lickPin": "0x21:GPB5",
+        "LEDPin": "0x21:GPB5",
+        "lickPin": "GPB5",
         "lickBusPin": 17,
-        "SDPin": "GPB5",
+        "SDPin": "0x21:GPA5",
         "valvePin": "GPA5"},
     "port6": {
-        "LEDPin": "0x21:GPA6",
-        "lickPin": "0x21:GPB6",
+        "LEDPin": "0x21:GPB6",
+        "lickPin": "GPB6",
         "lickIntPin": 17,
-        "SDPin": "GPB6",
+        "SDPin": "0x21:GPA6",
         "valvePin": "GPA6"},
     "port7": {
-        "LEDPin": "0x21:GPA7",
-        "lickPin": "0x21:GPB7",
+        "LEDPin": "0x21:GPB7",
+        "lickPin": "GPB7",
         "lickBusPin": 17,
-        "SDPin": "GPB7",
+        "SDPin": "0x21:GPA7",
         "valvePin": "GPA7"}
 }
 

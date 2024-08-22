@@ -1,0 +1,5 @@
+name: ratBerryPi
+dependencies:
+  - python
+  - portaudio
+  - pyqt

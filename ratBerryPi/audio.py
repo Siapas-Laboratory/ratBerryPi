@@ -6,15 +6,15 @@ import pyaudio as pa
 
 
 class AudioInterface:
-    def __init__(self, fs = 100_000):
-        ## NOTE: for higher frequency sounds need a higher sampling rate
-        # to obey Nyquist sampling theorem. look into limits on the amplifier and
-        # pyaudio
+    def __init__(self, fs = 44_100):
         self.session = pa.PyAudio()
+        devs = [self.session.get_device_info_by_index(i)['name'] 
+                for i in range(self.session.get_device_count())]
+        is_allo = ['Allo' in i for i in devs]
+        self.out_index = int(np.where(is_allo)[0][0]) if any(is_allo) else None
         self.fs = fs
         self.stream = None
         self.speakers = {}
-
 
     def start(self):
         pass
@@ -24,16 +24,17 @@ class AudioInterface:
         return self.speakers[name]
 
     def play_tone(self, speakers, freq, dur, volume=1, force = True):
-
+        if freq>=(self.fs/2):
+            raise ValueError(f"the requested frequency is greater than the Nyquist frequency of interface ({self.fs/2:.2f} Hz)")
         if self.stream:
             if self.stream.is_active():
                 if force:
                     self.stream.stop_stream()
-                    self.stream.close()
                     for i in self.speakers:
                         self.speakers[i].disable()
                 else:
                     return
+            self.stream.close()
         for i in speakers:
             self.speakers[i].enable()          
             
@@ -64,6 +65,7 @@ class AudioInterface:
                                       channels = 1,
                                       rate = self.fs,
                                       output = True,
+                                      output_device_index=self.out_index,
                                       stream_callback = callback)
         self.stream.start_stream()
 

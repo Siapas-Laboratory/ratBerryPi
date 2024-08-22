@@ -4,8 +4,11 @@ import digitalio
 from adafruit_mcp230xx.mcp23017 import MCP23017
 
 # Initialize the I2C bus:
-i2c = busio.I2C(board.SCL, board.SDA)
-mcps =  {32: MCP23017(i2c)}
+try:
+    i2c = busio.I2C(board.SCL, board.SDA)
+    mcps =  {32: MCP23017(i2c)}
+except:
+    print('WARNING: unable to dettect i2c devices')
 
 
 def config_output(pin):
