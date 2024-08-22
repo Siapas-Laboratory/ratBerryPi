@@ -1,17 +1,20 @@
 #include <math.h>
- 
+
+// enable pin
+#define ENABLE_PIN 2
+
 // microstepping pins
-#define M0 2              
-#define M1 3
-#define M2 6
+#define M0 3              
+#define M1 6
+#define M2 7
 
 // other pins for stepping the motor
-#define STEP_PIN 7
-#define DIR_PIN 8
+#define STEP_PIN 8
+#define DIR_PIN 9
 
 // pins for buttons used to manually control the motor
-#define FLUSH 9
-#define REV 10
+#define FLUSH 10
+#define REV 11
 
 // parameters for serial communication
 #define BAUD_RATE 230400  // the rate at which data is read
@@ -64,9 +67,11 @@ void setup() {
 
   Serial.begin(BAUD_RATE);
 
-  //step and dir pins
+  //step dir, and enable pins
+  pinMode(ENABLE_PIN, OUTPUT);
   pinMode(STEP_PIN, OUTPUT);
   pinMode(DIR_PIN, OUTPUT);
+  digitalWrite(ENABLE_PIN, LOW);
   digitalWrite(DIR_PIN, LOW);
   digitalWrite(STEP_PIN, LOW);
 
