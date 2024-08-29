@@ -22,7 +22,7 @@ class LickometerBus:
         self.mcp = None
 
         for i,v in lick_pins.items(): self.add_lickometer(i, v)
-        self.bus_pin = DigitalInputDevice(bus_pin, pull_up = True)
+        self.bus_pin = DigitalInputDevice(bus_pin, pull_up = False)
         self.bus_pin.when_activated = self.increment_licks
 
     def add_lickometer(self, name:str, pin:str):
@@ -35,6 +35,7 @@ class LickometerBus:
             self.addr = _addr
             i2c = busio.I2C(board.SCL, board.SDA)
             self.mcp = MCP23017(i2c, address = self.addr)
+            self.mcp.clear_ints()
         pin_n = self.GPIO_NAMES.index(pin_name[-1])
         self.pin_map[pin_n] = name
         pin = self.mcp.get_pin(pin_n)
@@ -44,7 +45,7 @@ class LickometerBus:
         self.mcp.interrupt_enable = self.mcp.interrupt_enable | 2**pin_n
         self.mcp.interrupt_configuration = 0x0000 # configure interrupt to occur on any change
         # self.mcp.interrupt_configuration = 0xFFFF # configure interrupt to compare all enabled pins against DEFVAL
-        self.mcp.io_control = 0x44  # configure interrupt as open drain
+        self.mcp.io_control = 0x2  # configure interrupt as active-high
         # self.mcp.default_value = 0x0000 # set DEFVAL to all pins being low    
         self.mcp.clear_ints()
         return self.lickometers[name]
