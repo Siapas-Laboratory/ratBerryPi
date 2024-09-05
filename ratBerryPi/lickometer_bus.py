@@ -7,6 +7,7 @@ from digitalio import Direction, Pull
 from adafruit_mcp230xx.mcp23017 import MCP23017
 import time
 from datetime import datetime
+from ratBerryPi.utils import i2c, mcps
 
 
 
@@ -26,6 +27,8 @@ class LickometerBus:
         self.bus_pin.when_activated = self.increment_licks
 
     def add_lickometer(self, name:str, pin:str):
+        global mcps
+        global i2c
         assert isinstance(pin, str), "invalid pin"
         pin_name = pin.split(":")
         _addr = int(pin_name[0], 16) if len(pin_name) == 2 else 32
@@ -33,8 +36,9 @@ class LickometerBus:
             assert _addr == self.addr, "the specified pin is not on the same bus as other lickometers on this bus"
         else:
             self.addr = _addr
-            i2c = busio.I2C(board.SCL, board.SDA)
-            self.mcp = MCP23017(i2c, address = self.addr)
+            if self.addr not in mcps:
+                mcps[self.addr] = MCP23017(i2c, address = addr)
+            self.mcp = mcps[self.addr]
             self.mcp.clear_ints()
         pin_n = self.GPIO_NAMES.index(pin_name[-1])
         self.pin_map[pin_n] = name
@@ -45,7 +49,7 @@ class LickometerBus:
         self.mcp.interrupt_enable = self.mcp.interrupt_enable | 2**pin_n
         self.mcp.interrupt_configuration = 0x0000 # configure interrupt to occur on any change
         # self.mcp.interrupt_configuration = 0xFFFF # configure interrupt to compare all enabled pins against DEFVAL
-        self.mcp.io_control = 0x2  # configure interrupt as active-high
+        self.mcp.io_control = 0b01000010  # configure interrupt as active-high
         # self.mcp.default_value = 0x0000 # set DEFVAL to all pins being low    
         self.mcp.clear_ints()
         return self.lickometers[name]
