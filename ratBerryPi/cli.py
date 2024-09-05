@@ -1,13 +1,11 @@
 import json
-from ratBerryPi.remote.client import Client
-from ratBerryPi.remote.server import Server
 import os
 import logging
 from datetime import datetime
 
 
 def create_client(host, port=5562):
-
+    from ratBerryPi.remote.client import Client
     client = Client(host, port)
     client.new_channel("cli")
 
@@ -33,7 +31,7 @@ def create_client(host, port=5562):
             print('invalid command')
 
 def start_server(port=5562):
-
+    from ratBerryPi.remote.server import Server
     log_dir = os.path.join(os.path.expanduser('~'), ".ratBerryPi", "logs")
     os.makedirs(log_dir, exist_ok = True)
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG, 
