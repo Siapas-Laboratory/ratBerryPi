@@ -5,12 +5,12 @@ A Raspberry Pi based system for controlling multiple muli-functional reward modu
 ## Software Installation - (Raspberry Pi)
 Clone this repository then follow these steps to setup a raspberry pi for use with ratBerryPi:
 
-1. If you haven't already, install miniforge3 as described here
+1. If you haven't already, install miniforge3 by downloading using the appropriate installer which can be downloaded from [here](https://github.com/conda-forge/miniforge?tab=readme-ov-file#download).
 
-2. If you already have a conda environment you would like to use activate it. If not create one and activate it by running:
+2. Create a conda environment using the environment.yml file provided in this repo and activate it by running the following from the project directory:
 
 ```
-conda env create -n ratBerryPi
+conda env create -f environment.yml
 conda activate ratBerryPi
 ```
 
@@ -23,11 +23,9 @@ wget https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/m
 sudo -E env PATH=$PATH python3 raspi-blinka.py
 ```
 
-
-4. After the reboot, navigate to this directory, re-activate the conda environment and run the following to finish the installation:
+4. After the reboot, re-navigate to the project directory, re-activate the conda environment and run the following to finish the installation:
 
 ```
-conda install portaudio pyqt
 pip3 install .
 ```
 
