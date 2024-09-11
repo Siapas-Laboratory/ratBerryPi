@@ -18,6 +18,7 @@ setup(
             'pyyaml',
             'numpy',
             'gpiozero',
+            'rpi-lgpio',
             'lgpio',
             'pyaudio',
             'adafruit-blinka',
