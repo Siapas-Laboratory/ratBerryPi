@@ -26,7 +26,7 @@ sudo -E env PATH=$PATH python3 raspi-blinka.py
 4. After the reboot, re-navigate to the project directory, re-activate the conda environment and run the following to finish the installation:
 
 ```
-pip3 install .
+pip install '.[gui]'
 ```
 
 *NOTE: When setting up a new raspberry pi, make sure to set the default audio output interface to the headphone jack using the [raspi-config](https://www.raspberrypi.com/documentation/computers/configuration.html#changing-the-audio-output). You may not get any sound from the speakers otherwise.*
@@ -36,6 +36,7 @@ If running pyBehavior directly on the pi you can install pyBehavior in this envi
 
 ```
 conda env update --name ratBerryPi --file environment.yml
+pip install .
 ```
 
 ## Software Installation - (Client Device)
