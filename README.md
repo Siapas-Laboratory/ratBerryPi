@@ -31,6 +31,13 @@ pip3 install .
 
 *NOTE: When setting up a new raspberry pi, make sure to set the default audio output interface to the headphone jack using the [raspi-config](https://www.raspberrypi.com/documentation/computers/configuration.html#changing-the-audio-output). You may not get any sound from the speakers otherwise.*
 
+### if using with pyBehavior
+If running pyBehavior directly on the pi you can install pyBehavior in this environment by first cloning the pyBehavior repo and then running the following from the cloned repository:
+
+```
+conda env update --name ratBerryPi --file environment.yml
+```
+
 ## Software Installation - (Client Device)
 As detailed in the Usage section below, one mode of operation of this system is to configure the raspberry pi that is connected to the hardware to function as a server that clients may connect to in order to trigger rewards or cues. For this to work, the ratBerryPi python package must also be installed on the client device. To install ratBerryPi on a client device, simply follow steps 4 and 5 above. If installing for use with [pyBehavior](https://github.com/nathanielnyema/pyBehavior), be sure to have the pyBehavior environment activated while performing these steps.
 
