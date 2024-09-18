@@ -2,13 +2,39 @@ import numpy as np
 from ratBerryPi.resources.base import BaseResource
 from ratBerryPi.utils import config_output
 import pyaudio as pa
-
+import typing
 
 
 class AudioInterface:
-    def __init__(self, fs = 192_000):
 
-        self.session = pa.PyAudio()
+    # list of supported sampling rates in Hz
+    # NOTE: at least on a pi 4, 88.2 kHz and up produces choppy
+    # inconsistent output 
+    SUPPORTED_FS = [44_100, 48_000, 88_200, 96_000, 192_000] 
+
+    class Speaker(BaseResource):
+        def __init__(self, name, parent, SDPin):
+            super(AudioInterface.Speaker, self).__init__(name, parent)
+            self.SDPin = config_output(SDPin)
+            self.SDPin.value = False
+
+        @property
+        def enabled(self):
+            return self.SDPin.value
+
+        def enable(self):
+            self.SDPin.value = True
+
+        def disable(self):
+            self.SDPin.value = False
+
+        def play_tone(self, freq, dur, volume=1, force = True):
+            self.parent.play_tone([self.name], freq, dur, volume, force)
+
+
+    def __init__(self, fs = 48_000):
+
+        self.session = pa.PyAudio()a
         self.fs = fs
         self.stream = None
         self.speakers = {}
@@ -19,10 +45,16 @@ class AudioInterface:
         is_allo = ['Allo' in i for i in devs]
         self.out_index = int(np.where(is_allo)[0][0]) if any(is_allo) else None
 
-    def start(self):
-        pass
+    @property
+    def fs(self):
+        return self._fs
 
-    def add_speaker(self, name:str,  SDPin:typing.Union[str, int]) -> AudioInterface.Speaker:
+    @fs.setter
+    def fs(self, fs):
+        assert fs in self.SUPPORTED_FS, f"{fs} is not a supported sampling rate. Supported sampling rates are as follows: {self.SUPPORTED_FS}"
+        self._fs = fs
+
+    def add_speaker(self, name:str,  SDPin:typing.Union[str, int]) -> Speaker:
         """
         add a speaker to the interface with the specified
         name and SDPin
@@ -60,6 +92,8 @@ class AudioInterface:
                 this sound
         """
 
+        assert isinstance(signal, np.ndarray), "signal must be a 1D numpy array"
+        assert signal.ndim == 1, "signal must be a 1D numpy array"
         # if force is true stop any running streams
         if self.stream:
             if self.stream.is_active():
@@ -77,12 +111,12 @@ class AudioInterface:
             self.speakers[i].enable()
 
         # resample signal from specified sampling rate to the interface sampling rate
-        if fs not None:
+        if fs is not None:
             raise NotImplemented()
         # pad the signal such that the number of samples is an even multiple of the sample rate
         restframes = signal.size % self.fs
-        signal = np.concatenate((samples, np.zeros(restframes))).astype(np.float32)
-        self.samples = np.concatenate((samples, np.zeros(restframes))).astype(np.float32).tobytes()
+        signal = np.concatenate((signal, np.zeros(restframes))).astype(np.float32)
+        self.samples = np.concatenate((signal, np.zeros(restframes))).astype(np.float32).tobytes()
 
         def callback(in_data, frame_count, time_info, status):
             """
@@ -93,7 +127,7 @@ class AudioInterface:
             if len(self.samples)>0:
                 nbytes = int(frame_count * 4)
                 data = self.samples[:nbytes]
-                if len(self.samples) > nbytes:         
+                if len(self.samples) > nbytes:
                     self.samples = self.samples[nbytes:]
                     return (data, pa.paContinue)
                 else:
@@ -145,23 +179,3 @@ class AudioInterface:
         if self.stream is not None:
             self.stream.close()
         self.session.terminate()
-
-    class Speaker(BaseResource):
-        def __init__(self, name, parent, SDPin):
-            super(AudioInterface.Speaker, self).__init__(name, parent)
-            self.SDPin = config_output(SDPin)
-            self.SDPin.value = False
-
-        @property
-        def enabled(self):
-            return self.SDPin.value
-
-        def enable(self):
-            self.SDPin.value = True
-
-        def disable(self):
-            self.SDPin.value = False
-
-        def play_tone(self, freq, dur, volume=1, force = True):
-            self.parent.play_tone([self.name], freq, dur, volume, force)
-

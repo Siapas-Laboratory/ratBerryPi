@@ -99,7 +99,7 @@ class RewardInterface:
 
     """
 
-    def __init__(self, on:threading.Event, config_file = Path(__file__).parent/"config.yaml",
+    def __init__(self, on:threading.Event = None, config_file = Path(__file__).parent/"config.yaml",
                  data_dir = os.path.join(os.path.expanduser('~'), ".ratBerryPi", "data")):
         """
         Constructs the reward interface from the config file
@@ -207,9 +207,6 @@ class RewardInterface:
         if self.log_fh: 
             self.logger.removeHandler(self.log_fh)
 
-    def stop(self):
-        self.stop_recording()
-   
     def calibrate(self, pump:str):
         """
         Set the position of a provided pump to 0
@@ -778,6 +775,7 @@ class RewardInterface:
             self.modules[module].valve.close()
 
     def stop(self):
+        self.stop_recording()
         if self.on.is_set(): self.on.clear()
         self.auto_fill_thread.join()
 
