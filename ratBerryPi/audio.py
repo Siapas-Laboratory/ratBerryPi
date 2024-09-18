@@ -7,45 +7,89 @@ import pyaudio as pa
 
 class AudioInterface:
     def __init__(self, fs = 192_000):
+
         self.session = pa.PyAudio()
-        devs = [self.session.get_device_info_by_index(i)['name'] 
-                for i in range(self.session.get_device_count())]
-        is_allo = ['Allo' in i for i in devs]
-        self.out_index = int(np.where(is_allo)[0][0]) if any(is_allo) else None
         self.fs = fs
         self.stream = None
         self.speakers = {}
 
+        # use the output associated to the allo-katana DAC if available
+        devs = [self.session.get_device_info_by_index(i)['name'] 
+                for i in range(self.session.get_device_count())]
+        is_allo = ['Allo' in i for i in devs]
+        self.out_index = int(np.where(is_allo)[0][0]) if any(is_allo) else None
+
     def start(self):
         pass
 
-    def add_speaker(self, name,  SDPin):
+    def add_speaker(self, name:str,  SDPin:typing.Union[str, int]) -> AudioInterface.Speaker:
+        """
+        add a speaker to the interface with the specified
+        name and SDPin
+
+        Args: 
+            name: str
+                name to assign the speaker
+            SDPin: typing.Union[str, int]
+                pin to toggle in order to mute this speaker.
+                the convention is such that when this pin is low
+                the speaker is muted. when high the speaker is enabled
+        Returns:
+            speaker: AudioInterface.Speaker
+                reference to the speaker added to the interface
+        """
         self.speakers[name] = AudioInterface.Speaker(name, self, SDPin)
         return self.speakers[name]
 
-    def play_tone(self, speakers, freq, dur, volume=1, force = True):
-        if freq>=(self.fs/2):
-            raise ValueError(f"the requested frequency is greater than the Nyquist frequency of interface ({self.fs/2:.2f} Hz)")
+    def play(self, signal:np.ndarray, speakers:list, fs:float=None, force:bool = True) -> None:
+        """
+        play some arbitrary signal on the specified speakers
+
+        Args:
+            signal: np.ndarray
+                1D array of the signal to play on the speakers
+            speakers: list
+                list of names of speakers to play the tone on
+            fs: float
+                sampling rate of the provided signal
+                if specified the signal will be resampled to self.fs
+                otherwise the signal will be assumed to have sampling rate
+                self.fs
+            force: bool
+                flag indicating to stop any running streams to play
+                this sound
+        """
+
+        # if force is true stop any running streams
         if self.stream:
             if self.stream.is_active():
                 if force:
                     self.stream.stop_stream()
+                    # disable all speakers
                     for i in self.speakers:
                         self.speakers[i].disable()
                 else:
                     return
             self.stream.close()
-        for i in speakers:
-            self.speakers[i].enable()          
-            
-        n_samples = int(self.fs * dur)
-        restframes = n_samples % self.fs
-        t = np.arange(n_samples)/self.fs
-        self.samples = volume * np.sin(2* np.pi * freq * t)
-        self.samples = np.concatenate((self.samples, np.zeros(restframes))).astype(np.float32).tobytes()
 
+        # enable specified speakers
+        for i in speakers:
+            self.speakers[i].enable()
+
+        # resample signal from specified sampling rate to the interface sampling rate
+        if fs not None:
+            raise NotImplemented()
+        # pad the signal such that the number of samples is an even multiple of the sample rate
+        restframes = signal.size % self.fs
+        signal = np.concatenate((samples, np.zeros(restframes))).astype(np.float32)
+        self.samples = np.concatenate((samples, np.zeros(restframes))).astype(np.float32).tobytes()
 
         def callback(in_data, frame_count, time_info, status):
+            """
+            callback for audio stream
+            pulls frame_count * 4  bytes (4 bytes per float32 sample) 
+            of data from the queued samples and pushes them to the speaker
+            """
             if len(self.samples)>0:
                 nbytes = int(frame_count * 4)
                 data = self.samples[:nbytes]
@@ -61,6 +105,7 @@ class AudioInterface:
                     self.SDPins[i].value = False
                 return (None, pa.paComplete)
 
+        # create and start the audio stream
         self.stream = self.session.open(format = pa.paFloat32,
                                       channels = 1,
                                       rate = self.fs,
@@ -68,6 +113,33 @@ class AudioInterface:
                                       output_device_index=self.out_index,
                                       stream_callback = callback)
         self.stream.start_stream()
+
+    def play_tone(self, speakers:list, freq:float, dur:float, volume:float=1, force:bool = True) -> None:
+        """
+        play a sine tone of a specified frequency, duration and volume
+        on the specified speakers
+
+        Args:
+            speakers: list
+                list of names of speakers to play the tone on
+            freq: float
+                desired frequency of the tone. this must not exceed the
+                Nyquist frequency for the interface (self.fs/2)
+            dur: float
+                desired duration of the tone
+            volume: float
+                value between 0 and 1 indicating the fraction
+                of max volume to play the sound at
+            force: bool
+                flag indicating to stop any running streams to play
+                this sound
+        """
+        if freq>=(self.fs/2):
+            raise ValueError(f"the requested frequency is greater than the Nyquist frequency of interface ({self.fs/2:.2f} Hz)")  
+        n_samples = int(self.fs * dur)
+        t = np.arange(n_samples)/self.fs
+        samples = volume * np.sin(2* np.pi * freq * t)
+        self.play(samples, speakers, force=force)
 
     def __del__(self):
         if self.stream is not None:
