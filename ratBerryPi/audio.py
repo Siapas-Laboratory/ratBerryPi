@@ -6,7 +6,7 @@ import pyaudio as pa
 
 
 class AudioInterface:
-    def __init__(self, fs = 44_100):
+    def __init__(self, fs = 192_000):
         self.session = pa.PyAudio()
         devs = [self.session.get_device_info_by_index(i)['name'] 
                 for i in range(self.session.get_device_count())]
