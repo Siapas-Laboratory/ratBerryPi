@@ -1,5 +1,5 @@
 from ratBerryPi.audio import AudioInterface
-from ratBerryPi.resources import Pump, Lickometer, LED, Valve, ResourceLocked
+from ratBerryPi.resources import Pump, Lickometer, LED, Valve, ResourceLocked, BaseResource
 from ratBerryPi.resources.pump import Syringe, Direction, EndTrackError, PumpNotEnabled, IncompleteDelivery
 from ratBerryPi.modules import *
 from ratBerryPi.lickometer_bus import LickometerBus
@@ -12,71 +12,16 @@ from pathlib import Path
 import os
 import yaml
 from datetime import datetime
+from typing import Union, Dict, List
 
 logger = logging.getLogger(__name__)
 
-ETHERNET = {
-    "port0": {
-        "LEDPin": "0x21:GPB0",
-        "lickPin": "GPB0",
-        "lickBusPin": 17,
-        "SDPin":  "0x21:GPA0",
-        "valvePin": "GPA0"},
-    "port1": {
-        "LEDPin": "0x21:GPB1",
-        "lickPin": "GPB1",
-        "lickBusPin": 17,
-        "SDPin":  "0x21:GPA1",
-        "valvePin": "GPA1"},
-    "port2": {
-        "LEDPin": "0x21:GPB2",
-        "lickPin": "GPB2",
-        "lickBusPin": 17,
-        "SDPin": "0x21:GPA2",
-        "valvePin": "GPA2"},
-    "port3": {
-        "LEDPin": "0x21:GPB3",
-        "lickPin": "GPB3",
-        "lickBusPin": 17,
-        "SDPin": "0x21:GPA3",
-        "valvePin": "GPA3"},
-    "port4": {
-        "LEDPin": "0x21:GPB4",
-        "lickPin": "GPB4",
-        "lickBusPin": 17,
-        "SDPin": "0x21:GPA4",
-        "valvePin": "GPA4"},
-    "port5": {
-        "LEDPin": "0x21:GPB5",
-        "lickPin": "GPB5",
-        "lickBusPin": 17,
-        "SDPin": "0x21:GPA5",
-        "valvePin": "GPA5"},
-    "port6": {
-        "LEDPin": "0x21:GPB6",
-        "lickPin": "GPB6",
-        "lickIntPin": 17,
-        "SDPin": "0x21:GPA6",
-        "valvePin": "GPA6"},
-    "port7": {
-        "LEDPin": "0x21:GPB7",
-        "lickPin": "GPB7",
-        "lickBusPin": 17,
-        "SDPin": "0x21:GPA7",
-        "valvePin": "GPA7"}
-}
 
-class NoSpeaker(Exception):
-    pass
-
-class NoLED(Exception):
-    pass
-
-class NoLickometer(Exception):
-    pass
-
-class NoFillValve(Exception):
-    pass
+class MissingResource(BaseException):
+    def __init__(self, msg):
+        self.message = msg
+    def __str__(self):
+        return self.message
 
 class RewardInterface:
     """
@@ -84,53 +29,82 @@ class RewardInterface:
 
     ...
 
-    Methods:
-
-    calibrate(pump)
-    fill_lines(amounts)
-    record(reset = True)
-    trigger_reward(module, amount, force = False, enqueue = False)
-    toggle_auto_fill(on)
-    change_syringe(syringeType, all = False, module = None, pump=None)
-    reset_licks(module = None, lickometer = None)
-    reset_all_licks()
-    toggle_LED(on, module = None, led = None)
-    play_tone(freq, dur, volume = 1, module = None, speaker = None)
-
+    Attributes:
+        on (threading.Event):
+            thread Event used to synchronize start and stop
+            of all threads started in the context of the interface
+        modules (Dict[str, BaseModule]]):
+            A dictionary mapping module names to the corresponding
+            instance of the given module's respective class. 
+            These module classes can be found under ratBerryPi.modules
+            and are all sub-classes of the class BaseModule. 
+            Most commonly, the module will be an instance of the 
+            class DefauleModule.
+            (see BaseModule and DefaultModule in ratBerryPi.modules)
+        pumps (Dict[str, Pump]):
+            A dictionary mapping pump names to the corresponding 
+            instance of the Pump class.
+            (see Pump in ratBerryPi.resources)
+        audio_interface (AudioInterface):
+            Interface for playing sound through the raspberry pi
+            (see AudioInterface in ratBerryPi.audio)
+        plugins (Dict[str, BaseResource]):
+            Dictionary mapping names of loose plugins (i.e. resources not attached to a module)
+            to the corresponding instances of their respective classes
+            (see ratBerryPi.resources)
+        recording (bool):
+            Flag indicating whether or not data produced by the interface
+            is being saved.
+        data_dir (Union[str, os.PathLike]) :
+            Path to the default directory where data will be saved while recording.
+            This will usually be ~/.ratBerryPi/data
+        data_path (str):
+            Path to the file where data is currently being written to 
+            if currently recording, and where data was most recently saved to
+            otherwise
+        auto_fill (bool):
+            Flag indicating whether or not auto-filling of the syringes is enables
+        auto_fill_frac_thresh (float):
+            Threshold fraction of the syringe capacity below which a syringe is 
+            flagged for refilling
+        needs_refilling (List[str]):
+            list of pumps that have been flagged for refilling
     """
 
-    def __init__(self, on:threading.Event = None, config_file = Path(__file__).parent/"config.yaml",
-                 data_dir = os.path.join(os.path.expanduser('~'), ".ratBerryPi", "data")):
+    def __init__(self, on: threading.Event = None, 
+                 config_file: Union[str, os.PathLike] = Path(__file__).parent/"config.yaml",
+                 data_dir: Union[str, os.PathLike]= os.path.join(os.path.expanduser('~'), ".ratBerryPi", "data")):
         """
-        Constructs the reward interface from the config file
-
         Args:
-            on: threading.Event
+            on: 
                 threading event used to gracefully stop any threads started
                 by this class
             config_file: 
                 path to config file for configuring the interface
-        
+            data_dir: 
+                Path to the directory where data will be saved while recording.
+                By default this is ~/.ratBerryPi/data
         """
 
         self.on = on if on else threading.Event()
 
         with open(config_file, 'r') as f:
-            self.config = yaml.safe_load(f)
+            config = yaml.safe_load(f)
 
-        if 'clockPin' in self.config:
-            self.clockPin = DigitalInputDevice(self.config['clockPin'], pull_up = False)
-            self.clockPin.when_activated = self.log_clk_signal
+        if 'clockPin' in config:
+            self._clockPin = DigitalInputDevice(config['clockPin'], pull_up = False)
+            self._clockPin.when_activated = self._log_clk_signal
 
         # setup logging
-        self.logger = logger
+        self._logger = logger
         self.recording = False
         self.data_dir = data_dir
+        self.data_path = ""
 
         # placeholder for file handler
-        self.log_fh = None
+        self._log_fh = None
         # create formatter
-        self.formatter = logging.Formatter('%(asctime)s.%(msecs)03d, %(levelname)s, %(message)s',
+        self._formatter = logging.Formatter('%(asctime)s.%(msecs)03d, %(levelname)s, %(message)s',
                                            "%Y-%m-%d %H:%M:%S")
 
 
@@ -138,20 +112,20 @@ class RewardInterface:
         self.needs_refilling = []
 
         # load all pumps
-        for i in self.config['pumps']:
-            self.config['pumps'][i]['parent'] = self
-            if 'syringeType' in self.config['pumps'][i]:
-                self.config['pumps'][i]['syringe'] = Syringe(self.config['pumps'][i].pop('syringeType'))
+        for i in config['pumps']:
+            config['pumps'][i]['parent'] = self
+            if 'syringeType' in config['pumps'][i]:
+                config['pumps'][i]['syringe'] = Syringe(config['pumps'][i].pop('syringeType'))
             else:
-                self.config['pumps'][i]['syringe'] = Syringe()
-            self.pumps[i] = Pump(i, **self.config['pumps'][i])
+                config['pumps'][i]['syringe'] = Syringe()
+            self.pumps[i] = Pump(i, **config['pumps'][i])
 
         self.plugins = {}
         self.audio_interface = AudioInterface()
 
         # load any loose plugins not attached to a module
-        if 'plugins' in self.config:
-            for k, v in self.config['plugins'].items():
+        if 'plugins' in config:
+            for k, v in config['plugins'].items():
                 plugin_type = v.pop('type')
                 if plugin_type == 'Speaker':
                     self.audio_interface.add_speaker(v['name'], v['SDPin'])
@@ -161,68 +135,105 @@ class RewardInterface:
                     self.plugins[k] = constructor(k, **v)
 
         self.modules = {}
-        self.lick_busses = {}
-        for i in self.config['modules']:
-            if 'port' in self.config['modules'][i]:
-                port = self.config['modules'][i]['port']
-                self.config['modules'][i].update(ETHERNET[port])
-            lick_bus_pin = self.config['modules'][i].get("lickBusPin")
-            if lick_bus_pin and lick_bus_pin not in self.lick_busses:
-                self.lick_busses[lick_bus_pin] = LickometerBus(lick_bus_pin, self.on)
-            valvePin = self.config['modules'][i]['valvePin']
-            dead_volume = self.config['modules'][i].get('dead_volume',1)
-            constructor = globals()[self.config['modules'][i]['type']]
-            self.modules[i] = constructor(i, self, self.pumps[self.config['modules'][i]['pump']], 
-                                          valvePin, dead_volume, config = self.config['modules'][i])
+        self._lick_busses = {}
+        preset_file = Path(__file__).parent/"presets.yaml"
+        with open(preset_file, 'r') as f:
+            presets = yaml.safe_load(f)
 
-        self.valves_manually_toggled = False
+        for i in config['modules']:
+            if 'preset_name' in config['modules'][i]:
+                preset_name = config['modules'][i].pop('preset_name')
+                mod_config = presets[preset_name]
+                mod_config.update(config['modules'][i]) # allow config file to override presets
+                config['modules'][i] = mod_config
+            lick_bus_pin = config['modules'][i].get("lickBusPin")
+            if lick_bus_pin and lick_bus_pin not in self._lick_busses:
+                self._lick_busses[lick_bus_pin] = LickometerBus(lick_bus_pin, self.on)
+            valvePin = config['modules'][i]['valvePin']
+            dead_volume = config['modules'][i].get('dead_volume',1)
+            constructor = globals()[config['modules'][i]['type']]
+            self.modules[i] = constructor(i, self, self.pumps[config['modules'][i]['pump']], 
+                                          valvePin, dead_volume, config = config['modules'][i])
         self.auto_fill = False
         self.auto_fill_frac_thresh = 0.95
-        self.auto_fill_thread = threading.Thread(target = self._fill_syringes)
-        self.refill_check_thread = threading.Thread(target = self._check_for_refills)
-        self.pump_threads = {p: None for p in self.pumps}
+        self._auto_fill_thread = threading.Thread(target = self._fill_syringes)
+        self._refill_check_thread = threading.Thread(target = self._check_for_refills)
+        self._pump_threads = {p: None for p in self.pumps}
 
-    def log_clk_signal(self, x):
-        self.logger.info(f"clock")
+    def _log_clk_signal(self, x) -> None:
+        """
+        callback function that logs 'clock' whenever self._clockPin goes high
+        """
+        self._logger.info(f"clock")
 
-    def start(self):
+    def start(self) -> None:
+        """
+        set the on threading event and start all threads.
+        NOTE: this method should ideally be called right after
+        instantiating this class. auto-filling will not work 
+        without calling this method,and unless the threading Event 
+        is set outside of the interface, neither will the
+        pump interface and lickometers
+        """
         if not self.on.is_set(): self.on.set()
-        self.refill_check_thread.start() 
-        self.auto_fill_thread.start()
+        self._refill_check_thread.start() 
+        self._auto_fill_thread.start()
 
-    def record(self, reset:bool = True, data_dir = None):
+    def record(self, reset:bool = True, data_dir = None) -> None:
+        """
+        start writing all logs at loglevel INFO
+        to a csv file at data_dir
 
+        Args:
+            reset: 
+                flag indicating to reset all licks on all modules
+                before starting the recording
+            data_dir:
+                optional alternative data saving directory.
+                if not set the self.data_dir will be used
+
+        """
         if reset: self.reset_all_licks()
         data_dir = data_dir if data_dir else self.data_dir
         os.makedirs(data_dir, exist_ok = True)
         self.stop_recording()
         log_fname = datetime.strftime(datetime.now(), "%Y_%m_%d_%H_%M_%S.csv")
-        self.data_path = os.path.join(data_dir, log_fname)
-        self.log_fh = logging.FileHandler(self.data_path)
-        self.log_fh.setLevel(logging.INFO)
-        self.log_fh.setFormatter(self.formatter)
-        self.logger.addHandler(self.log_fh)
+        self._data_path = os.path.join(data_dir, log_fname)
+        self._log_fh = logging.FileHandler(self.data_path)
+        self._log_fh.setLevel(logging.INFO)
+        self._log_fh.setFormatter(self._formatter)
+        self._logger.addHandler(self._log_fh)
 
-    def stop_recording(self):
-        if self.log_fh: 
-            self.logger.removeHandler(self.log_fh)
+    def stop_recording(self) -> None:
+        """
+        stop logging data
+        """
+        if self._log_fh: 
+            self._logger.removeHandler(self._log_fh)
 
-    def calibrate(self, pump:str):
+    def calibrate(self, pump: str) -> None:
         """
         Set the position of a provided pump to 0
 
         Args:
-            pump: str
+            pump:
                 name of the pump to calibrate
         """
 
         self.pumps[pump].calibrate()
 
-    def push_to_reservoir(self, pump:str, amount:float):
+    def push_to_reservoir(self, pump: str, amount: float) -> None:
         """
         push a specified amount of fluid to the reservoir
         useful when changing syringes to get any air bubbles
         out
+
+        Args:
+            pump: 
+                name of the pump whose reservoir should
+                be pushed to
+            amount:
+                amount of fluid in mL to push to the reservoir
         """
 
         pump = self.pumps[pump]
@@ -239,7 +250,7 @@ class RewardInterface:
                 pump.fillValve.lock.release()
                 pump.lock.release()
 
-    def empty_lines(self, modules = None):
+    def empty_lines(self, modules: List[str] = None) -> None:
         """
         empty the lines by drawing the dead volumes worth of
         fluid from each line hookede up to each specified module
@@ -248,15 +259,8 @@ class RewardInterface:
         CAUTION: make sure the reservoir is empty before running this function
 
         Args:
-            modules: list
+            modules:
                 a list of all modules whose lines should be filled
-            res_amount: int, dict
-                either a single value specifying the amount of fluid
-                to fill the lines leading up to all reservoirs with 
-                or a dictionary specifying how much fluid to fill each line
-                leading up to each reservoir. keys should be pump
-                names and values should be amounts in mL
-        
         """
 
         if not modules: modules = list(self.modules.keys())
@@ -306,20 +310,22 @@ class RewardInterface:
         
         self.toggle_auto_fill(afill_was_on) # turn autofill back on if it was on
 
-    def fill_lines(self, modules = None, prime_amount = 3, res_amount = None):
+    def fill_lines(self, modules: List[str] = None, 
+                   prime_amount: Union[float, Dict[str,float]] = 3, 
+                   res_amount: Union[float, Dict[str, float]] = None) -> None:
         """
         fill the lines leading up to the specified reward ports
         with fluid
 
         Args:
-            modules: list
+            modules:
                 a list of all modules whose lines should be filled
-            prime_amount: int, dict
+            prime_amount:
                 either a single value specifying the amount of fluid
                 to fill all lines with or a dictionary specifying how
                 much fluid to fill each line with. keys should be module
                 names and values should be amounts in mL
-            res_amount: int, dict
+            res_amount:
                 either a single value specifying the amount of fluid
                 to fill the lines leading up to all reservoirs with 
                 or a dictionary specifying how much fluid to fill each line
@@ -427,24 +433,23 @@ class RewardInterface:
         self.toggle_auto_fill(afill_was_on) # turn autofill back on if it was on
 
 
-    def trigger_reward(self, module, amount:float, force:bool = False, 
-                       sync:bool = False, enqueue:bool = False):
+    def trigger_reward(self, module:str, amount:float, force:bool = False, 
+                       sync:bool = False, enqueue:bool = False) -> None:
         """
         trigger reward delivery on a provided reward module
 
         Args:
-            module: str
+            module:
                 name of the module to trigger reward delivery on
-            amount: float
+            amount: 
                 amount of reward in mL to be delivered at the reward port
-            force: bool (optional)
+            force: 
                 whether or not to force reward delivery even if the pump is in use.
                 Note, this will not force reward delivery if the pump carriage sled
                 is at the end of the track
-            sync: bool (optional)
+            sync: 
                 flag to deliver reward synchronously. if set to true this function is blocking
-                NOTE: triggered reward delivery is not supported when delivering reward synchronously
-            enqueue: bool (optional)
+            enqueue: 
                 if there is currently a reward thread running that is using this module's pump, 
                 when set to True, this argument allows the user to enqueue this reward 
                 delivery until after the currently running task is finished
@@ -454,38 +459,42 @@ class RewardInterface:
         enqueued = False
 
         if amount > 0:
-            if self.pump_threads[pump]:
-                if self.pump_threads[pump].running:
-                    if isinstance(self.pump_threads[pump], FillThread):
-                        self.pump_threads[pump].stop()
+            if self._pump_threads[pump]:
+                if self._pump_threads[pump].running:
+                    if isinstance(self._pump_threads[pump], FillThread):
+                        self._pump_threads[pump].stop()
                     elif force:
-                        self.pump_threads[pump].stop()
+                        self._pump_threads[pump].stop()
                     elif enqueue:
-                        self.pump_threads[pump].enqueue(self.modules[module], amount)
+                        self._pump_threads[pump].enqueue(self.modules[module], amount)
                         enqueued = True
                     else:
                         raise ResourceLocked("Pump In Use")
             if sync:
-                self.logger.info(f"triggering {amount} mL reward on {module}")
+                self._logger.info(f"triggering {amount} mL reward on {module}")
                 self.modules[module].trigger_reward(amount)
             elif not enqueued:
                 req = RewardRequest(self.modules[module], amount)
-                self.pump_threads[pump] = RewardThread(req)
-                self.pump_threads[pump].start()
+                self._pump_threads[pump] = RewardThread(req)
+                self._pump_threads[pump].start()
 
                 # wait to check if the thread started successfully
                 time.sleep(.1)
-                if (not self.pump_threads[pump].running) and (not self.pump_threads[pump].success):
+                if (not self._pump_threads[pump].running) and (not self._pump_threads[pump].success):
                     try:
-                        raise self.pump_threads[pump].err
+                        raise self._pump_threads[pump].err
                     except:
-                        print(self.pump_threads[pump].err)
+                        print(self._pump_threads[pump].err)
         else:
-            self.logger.info(f"triggering {amount} mL reward on {module}")
+            self._logger.info(f"triggering {amount} mL reward on {module}")
 
     def refill_syringe(self, pump:str = None) -> None:
         """
+        refill the syringe on a specified pump
 
+        Args:
+            pump:
+                the pump whose syringe should be refilled
         """
 
         pump_reserved = self.pumps[pump].lock.acquire(False) 
@@ -506,6 +515,10 @@ class RewardInterface:
                 raise e
     
     def _check_for_refills(self) -> None:
+        """
+        this function runs in a thread in the background and checks
+        periodically which syringes need to be refilled
+        """
         os.nice(19)
         while self.on.is_set():
             for i in self.pumps:
@@ -521,7 +534,7 @@ class RewardInterface:
         at which to trigger a refill
 
         Args:
-            value: float (optional)
+            value:
                 new threshold value
         """
 
@@ -540,26 +553,26 @@ class RewardInterface:
             if self.auto_fill:
                 for i in self.needs_refilling:
                     create_fill_thread = False
-                    if self.pump_threads[i]:
-                        if not self.pump_threads[i].running:
+                    if self._pump_threads[i]:
+                        if not self._pump_threads[i].running:
                             create_fill_thread = True
                     else:
                         create_fill_thread = True
                     if create_fill_thread:
-                        self.pump_threads[i] = FillThread(self.pumps[i], self)
-                        self.pump_threads[i].start()
+                        self._pump_threads[i] = FillThread(self.pumps[i], self)
+                        self._pump_threads[i].start()
                         time.sleep(.1) # wait for it to start running
-                        if (not self.pump_threads[i].running) and (not self.pump_threads[i].success):
-                            self.logger.exception(self.pump_threads[i])
+                        if (not self._pump_threads[i].running) and (not self._pump_threads[i].success):
+                            self._logger.exception(self._pump_threads[i])
             time.sleep(0.5)
 
 
-    def toggle_auto_fill(self, on:bool):
+    def toggle_auto_fill(self, on:bool) -> None:
         """
         turn auto-filling of the syringes on or off
 
         Args:
-            on: bool
+            on:
                 whether or not to turn auto-filling on
         """
         if not on:
@@ -571,14 +584,14 @@ class RewardInterface:
                         pass
         self.auto_fill = on
 
-    def update_post_delay(self, post_delay:float, module:str = None):
+    def update_post_delay(self, post_delay:float, module:str = None) -> None:
         """
         update the post reward delay of a given module or all modules
 
         Args:
-            post_delay: float
+            post_delay:
                 desired post-reward delay
-            module: str
+            module:
                 the module to update. if none, update all modules
         """
         if module:
@@ -587,41 +600,49 @@ class RewardInterface:
             for m in self.modules:
                 self.modules[m].post_delay = post_delay
 
-    def set_microstep_type(self, stepType:str, module:str=None, pump:str=None):
+    def set_microstep_type(self, stepType:str, pump:str=None) -> None:
         """
         set microstepping level of the pump
-        
+
+        Args:
+            stepType:
+                new micro step type to set the pump to
+            pump:
+                pump whose step type should be updated
         """
-        if pump:
-            p = self.pumps[pump]
-        elif module:
-            p = self.modules[module].pump.stepType = stepTyp
-        p.stepType = stepType
+        self.pumps[pump].stepType = stepType
         time.sleep(0.1)
         logger.debug(f"set microstep level to {p.stepType}")
         
 
-    def set_step_speed(self, speed:float, module:str=None, pump:str=None):
+    def set_step_speed(self, speed:float, pump:str=None) -> None:
         """
         set the speed of microstepping
+        
+        Args:
+            speed:
+                new step speed to set the pump to in
+                steps/s
+            pump:
+                pump whose speed should be updated
         """
-        if pump:
-            p = self.pumps[pump]
-        elif module:
-            p = self.modules[module].pump
-        p.speed = speed
+        self.pumps[pump].speed = speed
         time.sleep(0.1)
         logger.debug(f"set step speed to {p.speed}")
 
-    def set_flow_rate(self, flow_rate: float, module:str=None, pump:str=None):
+    def set_flow_rate(self, flow_rate: float, pump:str=None) -> None:
         """
         set the flow rate by adjusting step speed
-        """
-        if pump:
-            p = self.pumps[pump]
-        elif module:
-            p = self.modules[module].pump
 
+        Args:
+            flow_rate:
+                desired flow rate in ml/s
+            pump:
+                pump whose flow rate should be set
+
+        """
+
+        p = self.pumps[pump]
         steps_per_rev = Pump.steps_per_rev[Pump.step_types.index(p.stepType)]
         cm_per_step = p.lead/steps_per_rev
         ml_per_step = p.syringe.mlPerCm * cm_per_step
@@ -630,24 +651,24 @@ class RewardInterface:
         logger.debug(f"set flow rate to {p.flow_rate} by setting step speed to {p.speed}")
 
 
-    def change_syringe(self, syringeType:str, all:bool = False, module:str = None, pump:str=None):
+    def change_syringe(self, syringeType:str, all:bool = False, module:str = None, pump:str=None) -> None:
         """
         change the syringe type either on all pumps or one pump specified by either
         it's name or a module that it is attached to
 
         Args:
-            syringeType: str
+            syringeType:
                 name of the syringe type to switch to. options include: 
                 'BD1mL', 'BD5mL', 'BD10mL', 'BD30mL', 'BD50/60mL'. These
                 options are keys to the dirctionary syringeTypeDict defined
                 in the Syringe class in pump.py. To add more syringes add
                 a field to this dictionary with the ID of the syringe and 
                 the maximum length the syringe can be withdrawn to in cm.
-            all: bool
+            all:
                 whether or not to change the syringe type for all pumps
-            module: str
+            module:
                 the name of the module with the pump whose syringe is to be changed
-            pump: str
+            pump:
                 the name of the pump whose syringe is to be changed
 
         """
@@ -659,29 +680,29 @@ class RewardInterface:
         elif module: 
             self.modules[module].pump.change_syringe(syringeType)
     
-    def reset_licks(self, module:str = None, lickometer:str = None):
+    def reset_licks(self, module:str = None, lickometer:str = None) -> None:
         """
         reset licks to 0 on a given module's lickometer
         or a specified lickometer
 
         Args:
-            module: str
+            module:
                 name of the module to reset licks on
-            lickometer: str
+            lickometer:
                 name of the lickometer to reset licks on
         """
         if module is not None:
             if hasattr(self.modules[module], 'lickometer'):
                 self.modules[module].lickometer.reset_licks()
             else:
-                raise NoLickometer
+                raise MissingResource("could not find the specified Lickometer")
         elif lickometer is not None:
             if lickometer in self.plugins:
                 self.plugins[lickometer].reset_licks()
             else:
-                raise NoLickometer
+                raise MissingResource("could not find the specified Lickometer")
         
-    def reset_all_licks(self):
+    def reset_all_licks(self) -> None:
         """
         reset licks to 0 on all lickometers
         """
@@ -689,16 +710,16 @@ class RewardInterface:
             if isinstance(self.plugins[i], Lickometer):
                 self.plugins[i].reset_licks()
     
-    def toggle_LED(self, on:bool, module:str = None, led:str = None):
+    def toggle_LED(self, on:bool, module:str = None, led:str = None) -> None:
         """
         toggle a given LED on or off
 
         Args:
-            on: bool
+            on:
                 whether to turn the LED on (True) or off (False)
-            module: str
+            module:
                 name of the module whose LED should be toggled
-            led: str
+            led:
                 name of the LED to be toggled
         """
 
@@ -708,33 +729,33 @@ class RewardInterface:
                     if on: self.modules[module].LED.turn_on()
                     else: self.modules[module].LED.turn_off()
                 else:
-                    raise NoLED
+                    raise MissingResource("could not find the specified LED")
             else:
-                raise NoLED
+                raise MissingResource("could not find the specified LED")
         elif led is not None:
             if isinstance(self.plugins[led], LED):
                 if on: self.plugins[led].turn_on()
                 else: self.plugins[led].turn_off()
             else:
-                raise NoLED
+                raise MissingResource("could not find the specified LED")
         else:
-            raise NoLED
+            raise MissingResource("could not find the specified LED")
 
-    def play_tone(self, freq:float, dur:float, volume:float = 1, module:str = None, speaker:str = None):
+    def play_tone(self, freq:float, dur:float, volume:float = 1, module:str = None, speaker:str = None) -> None:
         """
         play a sine tone from a specified speaker or the speaker on the specified module
 
         Args:
-            freq: float
+            freq:
                 frequency of the sine tone to be played in Hz
-            dur: float
+            dur:
                 duration of the tone to be played in seconds
-            volume: float
+            volume:
                 fraction of max volume to play the tone at;
                 should be a value from 0 to 1
-            module: str
+            module:
                 the name of the module whose speaker the tone should be played from
-            speaker: str
+            speaker:
                 the name of the speaker the tone should be played from
         """
         if module is not None:
@@ -742,42 +763,34 @@ class RewardInterface:
                 if isinstance(self.modules[module].speaker, AudioInterface.Speaker):
                     self.modules[module].speaker.play_tone(freq, dur, volume)
                 else:
-                    raise NoSpeaker
+                    raise MissingResource("could not find the specified speaker")
             else:
-                raise NoSpeaker
+                raise MissingResource("could not find the specified speaker")
         elif speaker is not None:
             self.audio_interface.play_tone(speaker, freq, dur, volume)
         else:
             raise ValueError("Must Specify either 'module' or 'speaker'")
 
-    def toggle_valve(self, module:str, open_valve:bool):
+    def toggle_valve(self, module:str, open_valve:bool) -> None:
         """
         toggle the valve for a given module open or close
-        
-        IMPORTANT NOTE: users are encouraged to use this method for controlling the valves
-        instead of accessing the valves via their module and manually toggling them
-        because the autofill method does not check the status of non-fill valves when refilling.
-        this function ideally being the preferred method for toggling the valves automatically
-        turns off auto-fill when opening a valve to avoid a refill happening when a non-fill valve is open
-        we cannot gurantee against this behavior when toggling manually
 
         Args:
-            module: str
+            module:
                 the name of the module with the valve to toggle
-            open_valve: bool
+            open_valve:
                 whether or not to open the valve
         """
 
         if open_valve:
             self.modules[module].valve.open()
-            self.valves_manually_toggled = True
         else:
             self.modules[module].valve.close()
 
     def stop(self):
         self.stop_recording()
         if self.on.is_set(): self.on.clear()
-        self.auto_fill_thread.join()
+        self._auto_fill_thread.join()
 
 
 class FillThread(threading.Thread):

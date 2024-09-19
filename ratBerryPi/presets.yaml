@@ -1,0 +1,58 @@
+# This file defines some preset
+# pin mapppings for our reward modules
+
+module1:
+  type: DefaultModule
+  LEDPin: 0x21:GPB0
+  lickPin: GPB0
+  SDPin:  0x21:GPA0
+  valvePin: GPA0
+
+module2:
+  type: DefaultModule
+  LEDPin: 0x21:GPB1
+  lickPin: GPB1
+  SDPin:  0x21:GPA1
+  valvePin: GPA1
+
+module3:
+  type: DefaultModule
+  LEDPin: 0x21:GPB2
+  lickPin: GPB2
+  SDPin: 0x21:GPA2
+  valvePin: GPA2
+
+module4:
+  type: DefaultModule
+  LEDPin: 0x21:GPB3
+  lickPin: GPB3
+  SDPin: 0x21:GPA3
+  valvePin: GPA3
+
+module5:
+  type: DefaultModule
+  LEDPin: 0x21:GPB4
+  lickPin: GPB4
+  SDPin: 0x21:GPA4
+  valvePin: GPA4
+
+module6:
+  type: DefaultModule
+  LEDPin: 0x21:GPB5
+  lickPin: GPB5
+  SDPin: 0x21:GPA5
+  valvePin: GPA5
+
+module7:
+  type: DefaultModule
+  LEDPin: 0x21:GPB6
+  lickPin: GPB6
+  SDPin: 0x21:GPA6
+  valvePin: GPA6
+
+module8:
+  type: DefaultModule
+  LEDPin: 0x21:GPB7
+  lickPin: GPB7
+  SDPin: 0x21:GPA7
+  valvePin: GPA7

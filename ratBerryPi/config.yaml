@@ -1,54 +1,61 @@
+# This file defines parameters for the creation
+# of the reward interface. In this example
+# all modules are configured using presets
+# for the additional parameters associated to these
+# presets see presets.yaml
+
+# pin to use to detect the clock signal 
 clockPin: 23
 
 # module config
 modules:
   module1:
-    type: DefaultModule
     dead_volume: 14
-    port: port0
+    preset_name: module1
     pump: pump1
+    lickBusPin: 17
 
   module2:
-    type: DefaultModule
     dead_volume: 14
-    port: port1
+    preset_name: module2
     pump: pump1
+    lickBusPin: 17
 
   module3:
-    type: DefaultModule
     dead_volume: 14
-    port: port2
+    preset_name: module3
     pump: pump1
+    lickBusPin: 17
 
   module4:
-    type: DefaultModule
     dead_volume: 14
-    port: port3
+    preset_name: module4
     pump: pump1
+    lickBusPin: 17
 
   module5:
-    type: DefaultModule
     dead_volume: 14
-    port: port4
+    preset_name: module5
     pump: pump1
+    lickBusPin: 17
 
   module6:
-    type: DefaultModule
-    dead_volume: 15
-    port: port5
+    dead_volume: 14
+    preset_name: module6
     pump: pump1
+    lickBusPin: 17
 
-  # module7:
-  #   type: DefaultModule
-  #   dead_volume: 15
-  #   port: port6
-  #   pump: pump1
+  module7:
+    dead_volume: 14
+    preset_name: module7
+    pump: pump1
+    lickBusPin: 17
 
-  # module8:
-  #   type: DefaultModule
-  #   dead_volume: 15
-  #   port: port7
-  #   pump: pump1
+  module8:
+    dead_volume: 14
+    preset_name: module8
+    pump: pump1
+    lickBusPin: 17
 
 # pump config
 pumps:

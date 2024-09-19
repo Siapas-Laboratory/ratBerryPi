@@ -8,8 +8,10 @@ import time
 from enum import Enum
 from PyQt5.QtCore import pyqtSignal, QObject
 import serial
+from typing import Union, Dict, List
 
 class Direction(Enum):
+    """directions of the pump"""
     FORWARD="F"
     BACKWARD="B"
 
@@ -18,6 +20,7 @@ class EndTrackError(Exception):
     pass
 
 class PumpNotEnabled(Exception):
+    """pump is not enabled"""
     pass
 
 class IncompleteDelivery(Exception):
@@ -25,6 +28,11 @@ class IncompleteDelivery(Exception):
     pass
     
 class Syringe:
+    """
+    a syringe which may be loaded in the pump
+    """
+
+
     # ID and volume for any syringes we might want to use
     # in cm and mL respectively 
     syringeTypeDict = {'BD1mL':     {'ID': 0.478, 'volume': 1}, 
@@ -37,7 +45,10 @@ class Syringe:
         self.syringeType = syringeType
 
     @property
-    def syringeType(self):
+    def syringeType(self) -> str:
+        """
+        name of the type of syringe
+        """
         return self._syringeType
 
     @syringeType.setter
@@ -48,42 +59,76 @@ class Syringe:
         self._syringeType = syringeType
 
     @property
-    def ID(self):
+    def ID(self) -> float:
+        """
+        inner diameter of the syringe in cm
+        """
         return self.syringeTypeDict[self.syringeType]['ID']
 
     @property
-    def volume(self):
+    def volume(self) -> float:
+        """
+        max volume of this syringe in mL
+        """
         return self.syringeTypeDict[self.syringeType]['volume']
     
     @property
-    def max_pos(self):
+    def max_pos(self) -> float:
+        """
+        maximum possible position the pump can assume
+        while this syringe is loaded (cm)
+        """
         return self.volume/(math.pi * (self.ID/2)**2)
     
     @property
-    def mlPerCm(self):
+    def mlPerCm(self) -> float:
+        """
+        mL of fluid per cm displacement of the piston
+        of this syringe
+        """
         return math.pi * ((self.ID/2)**2)
 
 class PositionUpdater(QObject):
+    """
+    QObject used to signal to a GUI that the 
+    position has been updated
+    """
     pos_updated = pyqtSignal(float)
 
 class Pump(BaseResource):
+    """
+    this is a class that allows for the control of a syringe
+    pump actuated by a Nema 17 Bipolar stepper motor and driven
+    by a DRV8825 via a raspberry pi pico which we interface with
+    over a serial bus
+    """
 
     step_types = ['Full', 'Half', '1/4', '1/8', '1/16', '1/32']
     steps_per_rev = [200, 400, 800, 1600, 3200, 6400]
 
     
-    def __init__(self, name, port:str, parent = None, fillValvePin = None, lead = 0.2,
-                 syringe:Syringe = Syringe(syringeType='BD5mL'), baudrate:int = 230400):
+    def __init__(self, name: str, port: str, parent = None, fillValvePin: Union[str, int] = None, 
+                 lead: float = 0.2, syringe: Syringe = Syringe(syringeType='BD5mL'), baudrate: int = 230400):
         
         """
-        this is a class that allows for the control of a syringe
-        pump actuated by a Nema 17 Bipolar stepper motor and driven
-        by a DRV8825 via a raspberry pi. NOTE: we are not using RPIMotorLib
-        because we needed some functionality to track the position of the pump
-        but many of the provided functions are heavily inspired by RPIMotorLib
-        
         Args:
-        -----
+            name:
+                name to assign the pump
+            port: 
+                serial port to listen and write to
+                when communicating with the pico
+            parent:
+                parent reward interface which this pump is attached to
+            fillValvePin: 
+                GPIO pin to use to programmatically toggle the fill valve
+            lead:
+                lead of the lead screw in cm. this should match the value
+                set on the pico
+            syringe:
+                syringe that should be loaded in the pump at the start
+            baudrate:
+                baudrate for communicating with the pico
+
         """
 
         super(Pump, self).__init__(name, parent)
@@ -102,12 +147,19 @@ class Pump(BaseResource):
         self._speed = None
         self._stepType = None
         self.lead = lead
+
     @property
-    def direction(self):
+    def direction(self) -> Direction:
+        """
+        direction the pump is set to move in
+        """
         return self._direction
     
     @property
-    def flow_rate(self):
+    def flow_rate(self) -> float:
+        """
+        flow rate in ml/s
+        """
         steps_per_rev = self.steps_per_rev[self.step_types.index(self.stepType)]
         cm_per_step = self.lead/steps_per_rev
         cm_per_sec = self.speed * cm_per_step
@@ -115,53 +167,73 @@ class Pump(BaseResource):
         return flow_rate
     
     @direction.setter
-    def direction(self, direction):
+    def direction(self, direction: Direction) -> None:
         if not isinstance(direction, Direction):
             raise ValueError("direction must be of type 'Direction'")
         self._direction = direction
 
     @property
-    def syringe(self):
+    def syringe(self) -> Syringe:
+        """
+        syringe loaded in the pump
+        """
         return self._syringe
 
     @syringe.setter
-    def syringe(self, syringe):
+    def syringe(self, syringe: Syringe) -> None:
         assert isinstance(syringe, Syringe), 'syringe must be an instance of Syringe'
         self._syringe = syringe
     
     @property
-    def at_min_pos(self):
+    def at_min_pos(self) -> bool:
+        """
+        flag indicating if the pump is at or below
+        it's minimum position
+        """
         return self.position <= 0
 
     @property
-    def at_max_pos(self):
+    def at_max_pos(self) -> bool:
+        """
+        flag indicating if the pump is at or beyond
+        it's maximum position given the syringe
+        """
         return self.position >= self.syringe.max_pos
 
     @property
-    def vol_left(self):
+    def vol_left(self) -> float:
+        """
+        amount of fluid left in the syringe on the pump (mL)
+        """
         return math.pi * ((self.syringe.ID/2)**2) * self.position
     
     @property
-    def stepType(self):
+    def stepType(self) -> str:
+        """
+        micro stepping type used by the motor on the pump
+        """
         return self._stepType
     
     @stepType.setter
-    def stepType(self, stepType):
+    def stepType(self, stepType: str) -> None:
         if stepType in self.step_types:
             self.send_command("SETTING", setting="MICROSTEP", value=stepType)
         else:
             raise ValueError(f"invalid step type. valid stepTypes include {[i for i in self.step_types]}")
     
     @property
-    def speed(self):
+    def speed(self) -> float:
+        """
+        step speed of the motor on the pump (steps/s)
+        """
         return self._speed
     
     @speed.setter
-    def speed(self, speed):
+    def speed(self, speed: float) -> None:
         assert isinstance(speed, float)
         self.send_command("SETTING", setting="SPEED", value=speed)
 
-    def _monitor(self):
+    def _monitor(self) -> None:
         os.nice(19)
         while not self.parent.on.is_set(): time.sleep(.001)
         while self.parent.on.is_set():
@@ -189,12 +261,34 @@ class Pump(BaseResource):
         self.serial.close()
 
                 
-    def calibrate(self, channel=None):
+    def calibrate(self) -> None:
+        """
+        zero the pump position
+        """
         self.send_command("CALIBRATE")
 
-    def send_command(self, mode:str, setting:str = None, value:float = None, direction:Direction = None, distance:float = None) -> None:
+    def send_command(self, mode: str, setting: str = None, value: float = None, 
+                     direction: Direction = None, distance: float = None) -> None:
         """
-        send command to the arduino
+        send a command to the pico
+
+        Args:
+            mode:
+                the command to run through the pico. available 
+                modes are as follows:
+                    RUN: move the pump a specified distance (must pass the distance argument) 
+                    SETTING: set a parameter on the pump
+                    CALIBRATE: zero the position of the pump carriage sled
+                    STOP: stop the pump if it is currently moving to a target
+                    CLEAR: clear the move complete flag so it can be raised again when a run is finished
+            setting:
+                name of parameter to set if mode is SETTING
+            value:
+                value to set setting to if mode is SETTING
+            direction:
+                direction to move the pump carriage sled if the mode is RUN
+            distance:
+                distance to move the pump carriage sled in cm if the mode is RUN
         """
 
         acq = self.serial_lock.acquire(timeout = 5)
@@ -238,24 +332,46 @@ class Pump(BaseResource):
         self.serial_lock.release()
 
     
-    def is_available(self, amount, direction = Direction.FORWARD):
+    def is_available(self, amount: float, direction: Direction = Direction.FORWARD) -> bool:
+        """
+        returns a bool indicating if the specified amount of fluid is available in
+        the syringe if direction is forward or can be drawn into the syringe if direction
+        is backwards
+
+        Args:
+            amount:
+                desired amount of fluid in mL
+            direction:
+                direction the fluid needs to be moved
+        """
         if direction == Direction.FORWARD:
             return amount < self.vol_left
         else:
             return amount <= (math.pi * ((self.syringe.ID/2)**2) * self.syringe.max_pos) - self.vol_left
             
 
-    def move(self, amount, direction, check_availability = True, 
-             blocking = False, timeout = -1):
+    def move(self, amount: float, direction: Direction, check_availability: bool = True, 
+             blocking: bool = False, timeout: float = -1) -> None:
         """
         move a given amount of fluid out of or into the syringe
         
         Args:
-        -----
-        amount: float
-            desired fluid output in mL
-        forward: bool
-            whether or not to move the piston forward
+            amount:
+                amount of fluid to move in mL
+            direction:
+                direction the fluid needs to be moved
+            check_availability:
+                flag indicating to check whether or not 
+                the specified amount is available before
+                making the request to the pico. if true
+                an EndTrackError will be raised if the amount
+                is not available
+            blocking:
+                passed on to the acquire method of this pumps
+                re-entrant threading lock. (see threading.RLock.acquire)
+            timeout:
+                passed on to the acquire method of this pumps
+                re-entrant threading lock. (see threading.RLock.acquire)
         """
         if amount >0:
             acq = self.lock.acquire(blocking = blocking, timeout = timeout)
@@ -289,7 +405,19 @@ class Pump(BaseResource):
                     raise IncompleteDelivery
                 self.lock.release()
 
-    def ret_to_max(self, blocking = False, timeout = -1):
+    def ret_to_max(self, blocking: bool = False, timeout: float = -1) -> None:
+        """
+        return the pump to the max position allowable for the syringe
+
+        Args:
+            blocking:
+                passed on to the acquire method of this pumps
+                re-entrant threading lock. (see threading.RLock.acquire)
+            timeout:
+                passed on to the acquire method of this pumps
+                re-entrant threading lock. (see threading.RLock.acquire)
+        """
+
         if not self.at_max_pos:
             amount = self.syringe.volume - self.vol_left
             self.move(amount, direction = Direction.BACKWARD,
@@ -297,13 +425,18 @@ class Pump(BaseResource):
         else:
             raise EndTrackError
 
-    def change_syringe(self, syringeType):
+    def change_syringe(self, syringeType: str) -> None:
         """
-        convenience function to change the syringe type
+        convenience function to change the type of syringe
+        loaded in the pump
+
+        Args:
+            syringeType:
+                new syringe type
         """
         self.syringe = Syringe(syringeType)
 
-    def stop(self):
+    def stop(self) -> None:
         """
         stop the pump
         """

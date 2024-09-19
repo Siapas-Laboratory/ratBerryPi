@@ -18,23 +18,31 @@ class BaseRewardModule(ABC):
         self.valve = Valve(f"{self.name}-valve", self, valvePin)
         self.dead_volume = dead_volume
         self.load_from_config(config)
-        self.logger = self.parent.logger
+        self.logger = self.parent._logger
 
     @abstractmethod
     def load_from_config(self, config: dict):
+        """
+        this method should be defined in sub-classes
+        and should configure the module based on a provided config
+
+        Args:
+            config:
+                dictionary with parameters for configuring
+                the module
+        """
         ...
 
-    def trigger_reward(self, amount:float, post_delay:float = None) -> None:
+    def trigger_reward(self, amount: float, post_delay: float = None) -> None:
         """
         trigger reward delivery
 
         Args:
-        -----
-        amount: float
-            the total amount of reward to be delivered in mLs
-        post_delay: float
-            amount of time after pump actuation to wait before closing the valve 
-            [default = self.post_delay]
+            amount:
+                the total amount of reward to be delivered in mLs
+            post_delay:
+                amount of time after pump actuation to wait before closing the valve 
+                (default behavior is to use self.post_delay)
         """
 
         if not post_delay:
@@ -58,14 +66,25 @@ class BaseRewardModule(ABC):
         else:
             self.logger.info("delivered 0 mL reward")
 
-    def prep_pump(self):
+    def prep_pump(self) -> None:
+        """
+        if the pump is currently set to move backwards
+        push some fluid to the reservoir before doing other things
+        """
         if self.pump.direction == Direction.BACKWARD and self.pump.hasFillValve:
             self.valve.close()
             self.pump.fillValve.open()
             self.pump.move(.05 * self.pump.syringe.mlPerCm, Direction.FORWARD)
 
-    def empty_line(self, amount:float = None):
+    def empty_line(self, amount: float = None) -> None:
+        """
+        expell all fluid from the line leading up to this module
 
+        Args:
+            amount:
+                the amount of fluid that needs to be expelled.
+                if not set self.dead_volume will be used
+        """
         assert self.pump.hasFillValve, "must have a fill valve to empty a line"
         if amount is None: amount = self.dead_volume
         acquired = self.acquire_locks()
@@ -83,7 +102,23 @@ class BaseRewardModule(ABC):
             self.release_locks()
 
 
-    def fill_line(self, amount:float = None, refill:bool = True):
+    def fill_line(self, amount: float = None, refill: bool = True) -> None:
+        """
+        fill the line leading up to this module with fluid
+
+        Args:
+            amount:
+                the amount of fluid needed to fill the line.
+                if not set self.dead_volume will be used
+            refill:
+                flag to itermittently refill the syringe
+                and continue filling the line until the 
+                requested amount has been produced.
+                if there is no fill valve this argument is ignored
+                and an error will be raised if the requested amount
+                is greater than that available in the syringe.
+
+        """
         
         if amount is None: amount = self.dead_volume
         acquired = self.acquire_locks()
@@ -117,24 +152,16 @@ class BaseRewardModule(ABC):
             # release the locks
             self.release_locks()
 
-    def acquire_locks(self):
+    def acquire_locks(self) -> None:
         """
         pre-acquire locks on shared resources
-
-        Args:
-        -----
-        blocking: bool
-            whether or not to temporarily block execution until
-            each lock is acquired or a timeout is reached
-        timeout: float
-            timeout period to wait if blocking is true
         """
         pump_reserved = self.pump.lock.acquire(False) 
         valve_reserved = self.valve.lock.acquire(False)
         fill_valve_reserved = self.pump.fillValve.lock.acquire(False) if self.pump.hasFillValve else True 
         return pump_reserved and valve_reserved and fill_valve_reserved
     
-    def release_locks(self):
+    def release_locks(self) -> None:
         """
         release all locks
         """
