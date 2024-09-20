@@ -2,7 +2,7 @@ import time
 from .base import BaseResource, ResourceLocked
 from ratBerryPi.utils import config_output
 from digitalio import DigitalInOut
-
+from typing import Union
 
 class Valve(BaseResource):
     """

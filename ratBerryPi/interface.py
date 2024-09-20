@@ -198,7 +198,7 @@ class RewardInterface:
         os.makedirs(data_dir, exist_ok = True)
         self.stop_recording()
         log_fname = datetime.strftime(datetime.now(), "%Y_%m_%d_%H_%M_%S.csv")
-        self._data_path = os.path.join(data_dir, log_fname)
+        self.data_path = os.path.join(data_dir, log_fname)
         self._log_fh = logging.FileHandler(self.data_path)
         self._log_fh.setLevel(logging.INFO)
         self._log_fh.setFormatter(self._formatter)
