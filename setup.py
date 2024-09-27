@@ -20,7 +20,7 @@ setup(
             'gpiozero',
             'rpi-lgpio',
             'lgpio',
-            'pyaudio',
+            'pygame',
             'adafruit-blinka',
             'adafruit-circuitpython-mcp230xx'
         ]

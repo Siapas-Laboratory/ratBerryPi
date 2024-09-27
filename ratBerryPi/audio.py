@@ -1,8 +1,13 @@
 import numpy as np
 from ratBerryPi.resources.base import BaseResource
 from ratBerryPi.utils import config_output
-import pyaudio as pa
+import pygame
 from typing import Union, Dict
+import threading
+import time
+import logging
+
+
 
 
 class AudioInterface:
@@ -80,7 +85,7 @@ class AudioInterface:
             self.parent.play_tone([self.name], freq, dur, volume, force)
 
 
-    def __init__(self, fs: float = 48_000, out_index: int = None):
+    def __init__(self, fs: float = 88_200):
         """
         Args:
             fs:
@@ -91,19 +96,9 @@ class AudioInterface:
                 an allo katana  DAC if available and otherwise use the default output
         """
 
-        self._session = pa.PyAudio()
         self.fs = fs
-        self._stream = None
         self.speakers = {}
-
-        if out_index is not None:
-            self.out_index = out_index
-        else:
-            # use the output associated to the allo-katana DAC if available
-            devs = [self._session.get_device_info_by_index(i)['name'] 
-                    for i in range(self._session.get_device_count())]
-            is_allo = ['Allo' in i for i in devs]
-            self.out_index = int(np.where(is_allo)[0][0]) if any(is_allo) else None
+        self.logger = logging.getLogger('ratBerryPi.interface')
 
     @property
     def fs(self) -> float:
@@ -115,6 +110,9 @@ class AudioInterface:
     @fs.setter
     def fs(self, fs: float) -> None:
         assert fs in self.SUPPORTED_FS, f"{fs} is not a supported sampling rate. Supported sampling rates are as follows: {self.SUPPORTED_FS}"
+        if pygame.mixer.get_init():
+            pygame.mixer.quit()
+        pygame.mixer.init(channels=1, frequency = fs)
         self._fs = fs
 
     def add_speaker(self, name: str,  SDPin: Union[str, int]) -> Speaker:
@@ -151,65 +149,34 @@ class AudioInterface:
                 otherwise the signal will be assumed to have sampling rate
                 self.fs
             force:
-                flag indicating to stop any running streams to play
+                flag indicating to stop any playing audio to play
                 this sound
         """
 
         assert isinstance(signal, np.ndarray), "signal must be a 1D numpy array"
         assert signal.ndim == 1, "signal must be a 1D numpy array"
-        # if force is true stop any running streams
-        if self._stream:
-            if self._stream.is_active():
-                if force:
-                    self._stream.stop_stream()
-                    # disable all speakers
-                    for i in self.speakers:
-                        self.speakers[i].disable()
-                else:
-                    return
-            self._stream.close()
 
-        # enable specified speakers
+        # if force is true stop any running streams
+        if pygame.mixer.get_busy():
+            if force: 
+                pygame.mixer.stop()
+            else: 
+                return
+
+        # enable only specified speakers
+        for i in self.speakers:
+            self.speakers[i].disable()
         for i in speakers:
             self.speakers[i].enable()
 
         # resample signal from specified sampling rate to the interface sampling rate
         if fs is not None:
             raise NotImplemented()
-        # pad the signal such that the number of samples is an even multiple of the sample rate
-        restframes = signal.size % self.fs
-        signal = np.concatenate((signal, np.zeros(restframes))).astype(np.float32)
-        self.samples = np.concatenate((signal, np.zeros(restframes))).astype(np.float32).tobytes()
 
-        def callback(in_data, frame_count, time_info, status):
-            """
-            callback for audio stream
-            pulls frame_count * 4  bytes (4 bytes per float32 sample) 
-            of data from the queued samples and pushes them to the speaker
-            """
-            if len(self.samples)>0:
-                nbytes = int(frame_count * 4)
-                data = self.samples[:nbytes]
-                if len(self.samples) > nbytes:
-                    self.samples = self.samples[nbytes:]
-                    return (data, pa.paContinue)
-                else:
-                    for i in self.speakers:
-                        self.speakers[i].disable()
-                    return (None, pa.paComplete)
-            else:
-                for i in self.SDPins:
-                    self.SDPins[i].value = False
-                return (None, pa.paComplete)
+        signal = ((2**15) * np.clip(signal, -1,1)).astype('int16')
+        sound = pygame.sndarray.make_sound(signal)
+        sound.play()
 
-        # create and start the audio stream
-        self._stream = self._session.open(format = pa.paFloat32,
-                                      channels = 1,
-                                      rate = self.fs,
-                                      output = True,
-                                      output_device_index=self.out_index,
-                                      stream_callback = callback)
-        self._stream.start_stream()
 
     def play_tone(self, speakers: list, freq: float, dur: float, volume: float = 1, 
                   force: bool = True) -> None:
@@ -240,6 +207,4 @@ class AudioInterface:
         self.play(samples, speakers, force=force)
 
     def __del__(self) -> None:
-        if self._stream is not None:
-            self._stream.close()
-        self._session.terminate()
+        pygame.mixer.quit()
