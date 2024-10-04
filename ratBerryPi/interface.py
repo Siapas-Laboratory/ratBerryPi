@@ -741,6 +741,31 @@ class RewardInterface:
         else:
             raise MissingResource("could not find the specified LED")
 
+    def play_sound(self, sound: np.ndarray, fs: float = None module:str = None, speaker:str = None) -> None:
+        """
+        play an arbitrary sound specified as a numpy array
+
+        Args:
+            signal:
+                1D array of the signal to play on the speakers
+            module:
+                the name of the module whose speaker the sound should be played from
+            speaker:
+                the name of the speaker the tone should be played from
+        """
+        if module is not None:
+            if hasattr(self.modules[module], 'speaker'):
+                if isinstance(self.modules[module].speaker, AudioInterface.Speaker):
+                    self.modules[module].speaker.play(sound, fs)
+                else:
+                    raise MissingResource("could not find the specified speaker")
+            else:
+                raise MissingResource("could not find the specified speaker")
+        elif speaker is not None:
+            self.audio_interface.play(sound, fs)
+        else:
+            raise ValueError("Must Specify either 'module' or 'speaker'")
+
     def play_tone(self, freq:float, dur:float, volume:float = 1, module:str = None, speaker:str = None) -> None:
         """
         play a sine tone from a specified speaker or the speaker on the specified module

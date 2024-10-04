@@ -82,7 +82,7 @@ help(RewardInterface)
 ```
 
 ### Server-Client Mode
-We provide a cli for creating either a server or a cli via the command `ratBerryPi` which can be called from the command line. To start a server on the raspberry pi, simply run the command `ratBerryPi server`. This will expose a port on the raspberry pi for clients to connect to for running commands through the reward interface and broadcasting information about the state of the device.  By default it will bind port 5562 but this can be set as needed by passing the arguments `--port`. If using an interface other than the reward interface. To start a client via the cli simply run the command `ratBerryPi client`. The default behavior of this method is to connect to a server hosted locally. If you would like to connect to a ratBerryPi server from a separate client device provide the `--host` argument.
+We provide a cli for creating either a server or a cli via the command `ratBerryPi` which can be called from the command line. To start a server on the raspberry pi, simply run the command `ratBerryPi server`. This will expose a port on the raspberry pi for clients to connect to for running commands through the reward interface and broadcasting information about the state of the device.  By default it will bind port 5562 but this can be set as needed by passing the arguments `--port`. If using an interface other than the reward interface.
 
 Users may connect to the server programmatically by first creating an instance of the `Client` class defined in `client.py`. For example:
 
@@ -104,6 +104,14 @@ Once you've created the client, the 2 most important methods of this class are `
 
 
 Both `run_command` and `get` further take as input an optional keyword argument `channel` which allows the user to specify the name of a 'channel' for communicating with the server. These channels are simply an abstraction for a connection to the server and allow users to isolate certain types of requests to avoid cross talk. For example, I may want to create an app using the reward interface where it would be useful to spawn a thread in the background to continuously monitor the position of the pump so I can print it for the user to see. It would be useful in this case to create a new channel specifically dedicated to these requests. Behind the scenes the server keeps these channels isolated by spawning separate threads for handling requests made on different channels. To create a new channel simply use the method of the client class `new_channel` which takes as input one positional argument which is the name of the new channel.
+
+To start a client via the cli simply run the command `ratBerryPi client`. The default behavior of this method is to connect to a server hosted locally. If you would like to connect to a ratBerryPi server from a separate client device provide the `--host` argument as well as the `--port` argument if the server is being hosted on a non-default port. This should launch a cli where you can enter method names from the reward interface as commands followed by argument names and associated arguments separated by spaces. For example, if you wanted to run the trigger_reward method for a 1 mL reward on module1,  you would enter:
+
+```
+trigger_reward module module1 amount 1
+```
+
+There are 2 special commands: `get` and `exit`. `exit` will close the connection to the server and stop the cli. `get` is the cli equivalent to the get method described above.
 
 ## Operating the Pump and Manifold
 

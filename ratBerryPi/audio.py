@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.interpolate import interp1d
 from ratBerryPi.resources.base import BaseResource
 from ratBerryPi.utils import config_output
 import pygame
@@ -63,6 +64,24 @@ class AudioInterface:
             disable this speaker
             """
             self.SDPin.value = False
+
+        def play(self, signal: np.ndarray, fs:float = None, force: bool = True) -> None:
+            """
+            play some arbitrary signal on this speaker
+
+            Args:
+                signal:
+                    1D array of the signal to play on the speakers
+                fs:
+                    sampling rate of the provided signal
+                    if specified the signal will be resampled to self.fs
+                    otherwise the signal will be assumed to have sampling rate
+                    self.fs
+                force:
+                    flag indicating to stop any playing audio to play
+                    this sound
+            """
+            self.parent.play([self.name], signal, fs, force)
 
         def play_tone(self, freq: float, dur: float, volume: float = 1, force: bool = True) -> None:
             """
@@ -171,7 +190,11 @@ class AudioInterface:
 
         # resample signal from specified sampling rate to the interface sampling rate
         if fs is not None:
-            raise NotImplemented()
+            t_end = signal.size/fs
+            t = np.arange(0, t_end, step = 1/fs)
+            interp = interp1d(t, signal)
+            t2 = np.arange(0, t_end, step = 1/self.fs)
+            signal = interp(t2)
 
         signal = ((2**15) * np.clip(signal, -1,1)).astype('int16')
         sound = pygame.sndarray.make_sound(signal)
@@ -204,7 +227,7 @@ class AudioInterface:
         n_samples = int(self.fs * dur)
         t = np.arange(n_samples)/self.fs
         samples = volume * np.sin(2* np.pi * freq * t)
-        self.play(samples, speakers, force=force)
+        self.play(speakers, samples, force=force)
 
     def __del__(self) -> None:
         pygame.mixer.quit()
