@@ -4,6 +4,7 @@ from ratBerryPi.resources.pump import Syringe, Direction, EndTrackError, PumpNot
 from ratBerryPi.modules import *
 from ratBerryPi.lickometer_bus import LickometerBus
 
+import numpy as np
 from gpiozero import DigitalInputDevice
 import threading
 import time
@@ -741,7 +742,7 @@ class RewardInterface:
         else:
             raise MissingResource("could not find the specified LED")
 
-    def play_sound(self, sound: np.ndarray, fs: float = None module:str = None, speaker:str = None) -> None:
+    def play_sound(self, sound: np.ndarray, fs: float = None, module:str = None, speaker:str = None) -> None:
         """
         play an arbitrary sound specified as a numpy array
 

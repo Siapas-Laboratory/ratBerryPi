@@ -153,7 +153,7 @@ class AudioInterface:
         self.speakers[name] = AudioInterface.Speaker(name, self, SDPin)
         return self.speakers[name]
 
-    def play(self, signal: np.ndarray, speakers: list, fs: float = None, force: bool = True) -> None:
+    def play(self, speakers: list, signal: np.ndarray, fs: float = None, force: bool = True) -> None:
         """
         play some arbitrary signal on the specified speakers
 
