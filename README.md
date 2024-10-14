@@ -7,7 +7,7 @@ ratBerryPi was built for the general class of behavioral paradigms that involve 
 ## Getting Started
 In this repository we provide stl files for our modified version of the syringe pump and manufacturing files for printing our custom PCBs which control all peripherals. For build instructions use the following links:
 
-- [Pump and Manifold Assembly](docs/pump_manifold_assembly.md)
+- [Hardware Assembly](docs/hardware_assembly.md)
 - [PCB Ordering](docs/pcb_ordering.md)
 - [Electronics Assembly](docs/electronics_assembly.md)
 
@@ -114,8 +114,7 @@ trigger_reward module module1 amount 1
 There are 2 special commands: `get` and `exit`. `exit` will close the connection to the server and stop the cli. `get` is the cli equivalent to the get method described above.
 
 ## Operating the Pump and Manifold
-
-***TODO: talk about the buttons for manual control***
+The primary interface to the pump and valves is meant to be through software, however we provide some features to control the pump and fill valve manually to help with loading the pump. Specifically, there are 3 buttons on the interface PCB that users should be familiar with: the flush button, the reverse button, and the fill valve button. The flush button allows you to manually advance the pump carriage sled forward. The reverse buton allows you to manually advance the pump carriage sled backwards. The fill valve button allows you to manually toggle the valve that goes to the reservoir (i.e. when the fill valve button is pressed this valve is open). In theory it is also possible to manually turn the lead screw to move the carriage sled if the pump is powered down (i.e. the 12V power supply to the interface board is unplugged) however we strongly discourage operating the pump in this way. In general it should be noted that whenever the 12V power supply is unplugged or the pump is unplugged, you should re-calibrate the pump before using it for anything. To do this you can use the calibrate method ot the Reward Interface.
 
 ### Filling the lines
 For optimal performance, before triggering any rewards, all lines for reward delivery must be filled with the solution to be delivered to the reward ports. The key to doing this properly is making sure there are as few air bubbles in the lines as possible. We provide a method through the RewardInterface called fill_lines which automatically fills the lines. We strongly recommend users call this method before triggering any rewards. In the pyBehavior PumpConfig widget there is a button available that calls this method. Prior to running this method, be sure to pre-fill a syringe, load it in the pump, and make sure the reservoir is full. We've also found it useful to manually push some fluid to the reservoir while the pump is loaded with the full syringe before calling `fill_lines`. ***NOTE: If you do this make sure to hold open the fill valve with the fill valve button*** Importantly, this process can only work if the syringe used for filling the lines has at least as much volume as the dead volume leading up to the reservoir. Depending on the use case, it may even be in the user's best interest to use a fairly large syringe (about 30 mL) to fill the lines and switch to a more precise syringe for the experiment itself.
