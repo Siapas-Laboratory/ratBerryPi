@@ -12,16 +12,17 @@
 * 10 mm long M3 socket head screws (x4)
 * 20 mm long M3 socket head screws (x4)
 * 25 mm long M3 socket head screws (x4)
-* 11 mm long M4 thumb screw
+* 12 mm long M4 thumb screw (x2)
+* [M4x6 threaded inserts](https://www.amazon.com/100pcs-M4-Threaded-Inserts-Components/dp/B0CZXMXZG2/ref=asc_df_B0CZXMXZG2/?tag=hyprod-20&linkCode=df0&hvadid=693637112524&hvpos=&hvnetw=g&hvrand=18070985569350448006&hvpone=&hvptwo=&hvqmt=&hvdev=c&hvdvcmdl=&hvlocint=&hvlocphy=9031119&hvtargid=pla-2355037181884&mcid=de6cd1ac120c37788256b2d3de154efd&th=1) (x2)
 * M5 Hex Nut (x1)
-* M5 Knob (x1)
+* [50 mm long M5 Knob](https://www.amazon.com/Kipp-06220-405X50-Thermoplastic-External-Diameter/dp/B013I72QTY/ref=sr_1_6?s=industrial&ie=UTF8&qid=1513737752&sr=1-6&keywords=M5+knob) (x1)
 * [150 mm long T8 Lead Screw + Nut](https://www.amazon.com/150mm（5-9-Inches）Tr8x2-Thread-Printer-Machine/dp/B0B8RGRYNW/ref=sr_1_2?crid=2PI5409AN7P8M&dib=eyJ2IjoiMSJ9.NOXkkOYI_8yEDDdQ4KmFjBWnvBEwRLslsTZclAvBnbL_KOv4d9s6TYV7Yn544udbtQOYQXvm2dr9G_Ep9ubmZK9Rg4Xr69crSYm5hNxOl-wg4prLb-qqFuYFbljIq9QVpmSEQVmfwoT48KGZFxoAb-WrPK3JdLU6P3ORKLwpgLvZrBFGSQqaKDwgmBYALRPol7djfDgh1sJT8BxapY-XdOXylolAWgHEqzAiywRl2d1UcMa3TGKzSWVdgSiVDuHt1jn8gQtWl0cUQW8XgRdSmPLsAtrViMXtH6d-Jm2j6IM.4UlREFWkPLfs1N6UiTGZtPtQ8Gy_k3MyA0ZD5ybcKd8&dib_tag=se&keywords=150mm%2Btr8x2%2Bacme%2Blead%2Bscrew%2Band%2Bbrass%2Bnut&qid=1728682639&s=industrial&sprefix=150mm%2Btr8x2%2Bacme%2Blead%2Bscrew%2Band%2Bbrass%2Bnut%2Cindustrial%2C183&sr=1-2&th=1) (x1)
 * [Flexible Motor Lead Screw Coupling](https://www.amazon.com/AFUNTA-Flexible-Couplings-Compatible-Machines/dp/B07JL1QYLS/ref=pd_bxgy_thbs_d_sccl_1/141-5956694-6505548?pd_rd_w=qr3Ns&content-id=amzn1.sym.4e8180d8-1c12-4df8-af99-b6dc78fc0026&pf_rd_p=4e8180d8-1c12-4df8-af99-b6dc78fc0026&pf_rd_r=4T94AV7PVW2MM7R65NRM&pd_rd_wg=a20A0&pd_rd_r=dc5a870c-a3d4-4b0e-ba6b-15bc7fdf8f1d&pd_rd_i=B07JL1QYLS&psc=1) (x1)
 * [Nema 17 Bipolar Stepper Motor](https://www.amazon.com/STEPPERONLINE-Stepper-Bipolar-Connector-compatible/dp/B00PNEQKC0) (x1)
 * [Steel Rods](https://www.amazon.com/Steel-Round-Turning-Lathe-200mm/dp/B00LUSVKVY/ref=pd_sim_469_2?_encoding=UTF8&pd_rd_i=B00LUSVKVY&pd_rd_r=G7BG21YGXPVGEYXQ3GW3&pd_rd_w=WYFjR&pd_rd_wg=t8WZj&refRID=G7BG21YGXPVGEYXQ3GW3&th=1) (x2)
 * [Linear Motion Ball Bearings](https://www.amazon.com/Linear-Motion-Bearing-Bushing-Printer/dp/B07K71FWMG/ref=pd_bxgy_thbs_d_sccl_2/138-0211087-8320359?pd_rd_w=7Q4QU&content-id=amzn1.sym.3858a394-39a9-4946-90e6-86a3153d2546&pf_rd_p=3858a394-39a9-4946-90e6-86a3153d2546&pf_rd_r=6N2RDYHQYJK3EC33EJZV&pd_rd_wg=J7q7j&pd_rd_r=3c87071d-28a5-4f1b-80da-199966422f73&pd_rd_i=B07K71FWMG&psc=1) (x2)
 * [JST Xh 4 Pin Male Connector Pre-Assembled](https://www.amazon.com/Sets-2-5-4-Connector-200mm-Female/dp/B01DUC1S14) (x1)
-* White Lithium Grease
+* White Lithium Grease (or lubricant of your choice)
 
 ### Assembly Steps
 *Assemble the carriage sled*
@@ -72,8 +73,24 @@ Once the pump is fully assembled, apply white lithium grease to the threads of t
 ## Lickometer Assembly
 ### Required Components
 *Printed Parts*
+* [Mouse Lickometer](../hardware/3Ddesigns/stl/lickometer_mouse.stl) or [Rat Lickometer](../hardware/3Ddesigns/stl/lickometer_rat.stl) 
 
+***Note about printing:*** *we recommend printing with the front of the lickometer on the print bed for these files like shown below. Furthermore if your slicer supports it, only use supports on the bed of the printer. These settings ensure there will be no supports in the channels where the sensors need to go*
+
+![alt text](ims/example_lickometer_print.png)
 *Additional Pieces*
+* IR Emitter (x1)
+* IR Phototransistor (x1)
+* [JST Xh 4 Pin Male Connector Pre-Assembled](https://www.amazon.com/Sets-2-5-4-Connector-200mm-Female/dp/B01DUC1S14) (x1)
+* x mm long M3 set screws
 
 ### Assembly Steps
-...
+1. Solder the wires of the JST connector to the IR Emitter and Phototransistor following the below diagram
+
+
+2. Tap M3 or M4 threads in the holes indicated below.
+
+3. Insert either the emitter or phototransistor into one of the slots in the lickometer with the bulb facing towards the inside of the lickometer. Be careful to go only far enough such that the entire bulb is visible from the hole looking into the lickometer well. 
+
+4. Secure the emitter or phototransistor in place using an M3 set screw.
+5. Repeat steps 3 and 4 for the other component using the other slot.
