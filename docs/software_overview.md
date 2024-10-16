@@ -1,6 +1,6 @@
 # Software Overview
 ## Architecture
-RatBerryPi consists of 3 layers of abstraction: the reward interface, reward modules and resources. The interface orchestrates use of all modules and resources. Resources are considered to be devices such as a syringe pump or solenoid valve which we may want to actuate and may be shared accross modules. Modules are collections or resources some of which may be unique to that module. Importantly, the module must have associated to it a valve which can be actuated to direct the flow of fluid to it. In the default use case, the interface has associated to it a set of pumps which several reward modules share. Each module has a valve, an led, a lickometer and a speaker associated to it.
+RatBerryPi consists of 3 layers of abstraction: the reward interface, reward modules and resources. The interface orchestrates use of all modules and resources. Resources are considered to be devices such as a syringe pump or solenoid valve that may or may not be shared accross modules. Modules are collections or resources. Importantly, the module must have associated to it a valve which can be opened to direct the flow of fluid to it. In the default use case, the interface has associated to it a set of pumps which several reward modules share. Each module has a valve, an led, a lickometer and a speaker associated to it.
 
 **Technical Notes**
 #TODO: add some info here about how the multi-speaker control is implemented in hardware and what this means for how the speakers are controlled and also the lickometer bus
