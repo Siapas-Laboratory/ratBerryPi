@@ -10,6 +10,7 @@
 
 ### Assembly Steps
 *Flashing Pump Code to the Pico*
+
 In order to test out the electronics at the end we will need to have the pico firmware loaded. This is best done on a device other than the pi. We'll follow the steps detailed [here](https://randomnerdtutorials.com/programming-raspberry-pi-pico-w-arduino-ide/) to flash [pump control code](../pico/pump_control/pump_control.ino) to flash the code to the pi using the Arduino IDE.
 
 1. Install the Arduino IDE on the device you will use to flash the code. 
@@ -31,7 +32,7 @@ https://github.com/earlephilhower/arduino-pico/releases/download/global/package_
 
 *Seting up the PCB*
 
-1. Solder any components not soldered by the PCB manufacturer. The v1 PCB unfortunately does not have labels for all components on the board so we show the labels below. You can match component names to the part itself using the BOM for the PCB assembly job. Importantly, resistors are not labeled in this image as we generally recommend at least having these mounted by your manufacturer.
+1. Solder any components not soldered by the PCB manufacturer. The v1 PCB unfortunately does not have labels for all components on the board so we show the labels below. You can match component names to the part itself using the BOM for the PCB assembly job. Importantly, resistors are not labeled in this image as we generally recommend at least having these mounted by your manufacturer. (*NOTE: For all ICs the dot indicates the top left corner*)
 ![alt text](ims/module_interface_hat_no_components.png)
 2. Plug the stepper motor driver in the appropriate slot on the interface PCB being careful to match the pins correctly.
 3. Now we will attach the components to the pi. The pi should be turned off at this stage. If Audio is needed plug in the audio hat first followed by the assembled interface PCB. Connect the audio hat to the interface PCB additionally by an audio cable (use the headphone jack of the audio hat). Use standoffs as needed.
@@ -50,11 +51,27 @@ https://github.com/earlephilhower/arduino-pico/releases/download/global/package_
 
 ## Module PCB
 ### Required Components
+* Module PCB
+* 0.1µF electrolytic capacitor - [C1]
+* 2-pin screw terminal (x2) - [AUDIO, LED]
+* [1kΩ Trim Potentiometer](https://www.digikey.com/en/products/detail/bourns-inc/PV36P102C01B00/666482) (x1) - [TRIM_LED]
+* [5kΩ Trim Potentiometer](https://www.digikey.com/en/products/detail/bourns-inc/PV36P502C01B00/666496) (x1) - [TRIM_EMITTER]
+* JST female connector (x1)
+* Ethernet Conector (x1)
+* LM6132BIN (x1) 
+* 50Ω resistor (x1) - [R_TERM]
+* 22kΩ resistor (x1) - [R_PHOTO]
+* 68Ω resistor (x1) - [R_EMITTER]
+* 220Ω resistor (x1) - [R_LED]
 
 
 ### Assembly Steps
 
 *Setting up the PCB*
-1. Follow the below diagram to solder all components to the PCB
+1. Solder all components to the PCB. The v1 module PCB is missing labels for the values of vertain components so we show them below. (*NOTE: The ethernet connector is meant to be soldered on the back of the PCB. Also, For the LM6132, the square solder pad indicates where the top left corner of the component should go*)
+![alt text](ims/module_pcb_no_components.png)
 
 *Setting the Lickometer Trimpot*
+1. Once all other electronics have been assembled and all software has been installed, plug the assembled lickometer into the module PCB and plug the module PCB into the interface. 
+2. Start the ratBerryPi server and trigger licks with an object of comparable size to a mouse or rat tongue. We usually use a small flathead screwdriver. 
+3. Start with the trim_emitter potentiometer set to a fairly high resistance and lower the resistance to a point beyond which you no longer register licks.
