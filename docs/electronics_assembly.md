@@ -1,6 +1,6 @@
-## Interface PCB
+## interface HAT
 ### Required Components
-* Assembeld Interface PCB + additional components that could not be assembled by the PCB manufacturer
+* Assembeld interface HAT + additional components that could not be assembled by the PCB manufacturer
 * DRV8825 stepper motor driver (x1)
 * Raspberry Pi (≥4)
 * Male to Male Audio Cable (optional)
@@ -34,8 +34,8 @@ https://github.com/earlephilhower/arduino-pico/releases/download/global/package_
 
 1. Solder any components not soldered by the PCB manufacturer. The v1 PCB unfortunately does not have labels for all components on the board so we show the labels below. You can match component names to the part itself using the BOM for the PCB assembly job. Importantly, resistors are not labeled in this image as we generally recommend at least having these mounted by your manufacturer. (*NOTE: For all ICs the dot indicates the top left corner*)
 ![alt text](ims/module_interface_hat_no_components.png)
-2. Plug the stepper motor driver in the appropriate slot on the interface PCB being careful to match the pins correctly.
-3. Now we will attach the components to the pi. The pi should be turned off at this stage. If Audio is needed plug in the audio hat first followed by the assembled interface PCB. Connect the audio hat to the interface PCB additionally by an audio cable (use the headphone jack of the audio hat). Use standoffs as needed.
+2. Plug the stepper motor driver in the appropriate slot on the interface HAT being careful to match the pins correctly.
+3. Now we will attach the components to the pi. The pi should be turned off at this stage. If Audio is needed plug in the audio hat first followed by the assembled interface HAT. Connect the audio hat to the interface HAT additionally by an audio cable (use the headphone jack of the audio hat). Use standoffs as needed.
 4. Power on the Pi first by plugging in the Pi power supply, then power on the Interface by plugging in the 12V supply.
 5. Use a multimeter to set VREF of the stepper motor driver to 1V such that the max current output will be limited to 2A. The steps to do this are outlined [here](https://www.pololu.com/product/2133) but we will briefly note them below.
 
@@ -49,7 +49,7 @@ https://github.com/earlephilhower/arduino-pico/releases/download/global/package_
 8. Plug the Pico into the Raspberry Pi using a USB cable. Use the flush and reverse buttons to ensure the pump is functional. Press the fill valve button to ensure this valve can be toggled by the button.
 
 
-## Module PCB
+## Module Electronics
 ### Required Components
 * Module PCB
 * 0.1µF electrolytic capacitor - [C1]

@@ -86,11 +86,8 @@ Once the pump is fully assembled, apply white lithium grease to the threads of t
 
 ### Assembly Steps
 1. Solder the wires of the JST connector to the IR Emitter and Phototransistor following the below diagram
-
-
-2. Tap M3 or M4 threads in the holes indicated below.
-
+![alt text](ims/lickometer_pins.png)
+2. Tap M3 threads in the holes on the sides of the lickometer and M4 threads in the holes on the back.
 3. Insert either the emitter or phototransistor into one of the slots in the lickometer with the bulb facing towards the inside of the lickometer. Be careful to go only far enough such that the entire bulb is visible from the hole looking into the lickometer well. 
-
 4. Secure the emitter or phototransistor in place using an M3 set screw.
 5. Repeat steps 3 and 4 for the other component using the other slot.
