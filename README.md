@@ -4,6 +4,8 @@ A Raspberry Pi based system for controlling liquid-reward delivery and basic cue
 ## Overview
 ratBerryPi was built for the general class of behavioral paradigms that involve an animal collecting a liquid reward from one of many end points. The system is built around a modified version of the open source [Poseidon Syringe Pump](https://pachterlab.github.io/poseidon/), which we use to supply fluid as reward to any of multiple reward end-points via a manifold of 3-way stopcocks with luer connectors and an array of media isolation solenoid valves. One valve on the manifold is connected to a reservoir which can be used to intermittently refill the syringe without unloading and reloading it. The reward end-points in this system are modules that are each fitted with a lickometer, speaker and LED. The reward modules plug into a central interface that sits as a HAT on the Raspberry Pi controlling the system. In theory, up to 32 modules can be connected to a given pi by stacking 4 interface HATs. All peripherals are accessible and programmable through a Python class we've defined called the RewardInterface. Users may access this interface either remotely or locally (see [Usage](#usage)). The codebase was developed with flexibility and configurability in mind such that skilled users may modify the hardware and software to meet their needs (see [Software Overview](docs/software_overview.md) and [Hardware Overview](docs/hardware_overview.md)).
 
+[***PICTURE HERE***]
+
 ## Getting Started
 In this repository we provide stl files for our modified version of the syringe pump and manufacturing files for printing our custom PCBs which control all peripherals. For build instructions use the following links:
 
