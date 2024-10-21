@@ -1,8 +1,7 @@
 ## Electronics Overview
 The 2 main hardware components of the system are the interface and the modules. The interface is a HAT that sits on a raspberry pi, but often we may refer to the entire unit as the interface. Similarly when we refer to modules this is usually a reference to the entire reward module unit consisting of all attached devices (lickometer, speaker, and LED) but at it's core there is a PCB that usually is packaged with the module with the main electronics needed to operate all devices. The interface functions as a hub for all modules to plug into and offers some additional features which we will describe below.
 
-[**PICTURE HERE**]
-
+![alt text](ims/module_plus_interface_box.png)
 
 ### User Selectable I/O
 Most digital I/O in the ratBerryPi system is handled through extended GPIOs provided by 2 I2C interfaces on each interface HAT. The effect is that most GPIOs on the Pi itself remain available for users program as they wish. The caveat is that there are 2 signals that could not be allocated to a slot on the I2C interfaces due to space constraints and another that needs to be read by a GPIO on the pi itself for performance reasons. Instead of hardwiring these signals to any GPIOs on the Pi we allow the user to configure them as needed. The benefit of this setup is that in the event you need to stack interface HATs, you can select different pins for each HAT as needed. The that need to be assigned to GPIOs are as follows:
@@ -23,7 +22,7 @@ This feature has not been tested as yet, but in principle the interface HATs are
 * Update the I2C address on all stacked HATs to be unique. This can be done using the address select jumpers (A0-A2 and B0-B2) on the interface HAT. Jumping any pads together sets that bit in the I2C address to 1. By default, (A0=0, A1=0, A2=0) and (B0=1, B1=0, B2=0).
 
 ### Audio
-All modules have a screw terminal to plug in a speaker. Audio is provided to the modules from a single audio source which can be plugged in through the headphone jack on the HAT. This audio source can either be an audio HAT (specifically the [Innomaker HIFI DAC Pro HAT]()) or the pi itself if using a Raspberry Pi 4. Importantly if using the Pi audio, you will need to amplify this audio on the level of the module. For this you can use the PAM8302 Class D Amplifier. There is a designated spot on the module PCB for it. Instead of plugging the speaker into the AUDIO screw terminal, you can use the output of the PAM8302. 
+All modules have a screw terminal to plug in a speaker. Audio is provided to the modules from a single audio source which can be plugged in through the headphone jack on the HAT. This audio source can either be an audio HAT (specifically the [Innomaker HIFI DAC Pro HAT](https://www.amazon.com/Raspberry-DAC-Pro-ES9038Q2M-Resolution/dp/B0B2DJZTSF)) or the pi itself if using a Raspberry Pi 4. Importantly if using the Pi audio, you will need to amplify this audio on the level of the module. For this you can use the PAM8302 Class D Amplifier. There is a designated spot on the module PCB for it. Instead of plugging the speaker into the AUDIO screw terminal, you can use the output of the PAM8302. 
 
 It's worth noting that because audio in this system is provided by a single source, it would not be possible to play different audio on different speakers. You may however, play the same audio on a subset or one of many speakers. This is handled by an onboard analog switch which directs the audio input to the desired end point.
 
