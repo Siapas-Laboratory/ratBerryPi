@@ -60,7 +60,7 @@ Once the pump is fully assembled, apply white lithium grease to the threads of t
 
 *Additional Pieces*
 * [Solenoid Media Isolation Valves [Clippard NR1-2-12]](https://www.clippard.com/part/NR1-2-12) (x9 or $n_{modules}$ + 1)
-* Luer Manifold (several 3-way luer stopcocks might work instead)
+*  3-way luer stopcocks (x9 or $n_{modules}$ + 1)
 * 1/16" ID PVC tubing
 * O-Rings
 * Barb Fittings

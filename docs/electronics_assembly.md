@@ -5,8 +5,12 @@
 * Raspberry Pi (≥4)
 * Male to Male Audio Cable (optional)
 * [Innomaker HIFI DAC Pro Hat](https://www.amazon.com/Raspberry-DAC-Pro-ES9038Q2M-Resolution/dp/B0B2DJZTSF) (optional)
+* 16 mm standoffs (x7) + nuts (x4)
+* 10mm long M2.5 socket head screws
 * Female to Female jumper
 * USB cable
+* printed [interface box](../hardware/3Ddesigns/stl/interface_box_base.stl) and [back](../hardware/3Ddesigns/stl/interface_box_back.stl) (if using the audio hat use this [box](../hardware/3Ddesigns/stl/interface+audio_box_base.stl) and [back](../hardware/3Ddesigns/stl/interface+audio_box_back.stl))
+* M3 threaded inserts
 
 ### Assembly Steps
 *Flashing Pump Code to the Pico*
@@ -36,17 +40,23 @@ https://github.com/earlephilhower/arduino-pico/releases/download/global/package_
 ![alt text](ims/module_interface_hat_no_components.png)
 2. Plug the stepper motor driver in the appropriate slot on the interface HAT being careful to match the pins correctly.
 3. Now we will attach the components to the pi. The pi should be turned off at this stage. If Audio is needed plug in the audio hat first followed by the assembled interface HAT. Connect the audio hat to the interface HAT additionally by an audio cable (use the headphone jack of the audio hat). Use standoffs as needed.
-4. Power on the Pi first by plugging in the Pi power supply, then power on the Interface by plugging in the 12V supply.
-5. Use a multimeter to set VREF of the stepper motor driver to 1V such that the max current output will be limited to 2A. The steps to do this are outlined [here](https://www.pololu.com/product/2133) but we will briefly note them below.
+4. Set all M# threaded inserts in place on the printed box parts using a soldering iron
+4. Secure the Pi to the printed interface box base with M2.5 screws.
+5. Screw on the back with M3 screws.
+6. Power on the Pi first by plugging in the Pi power supply, then power on the Interface by plugging in the 12V supply.
+7. Use a multimeter to set VREF of the stepper motor driver to 1V such that the max current output will be limited to 2A. The steps to do this are outlined [here](https://www.pololu.com/product/2133) but we will briefly note them below.
 
     a. Measure VREF by first placing the negative probe of the multimeter on ground (this can be accessed from the negative screw of the PWR screw terminal; you will need to screw in place a loose wire first for this to work). Place the positive terminal on the trimpot itself.
     ![alt text](ims/vref.jpg)
     b. Turn the trimpot until VREF is 1V
 
-6. Plug any valves in to their appropriate slots on the interface. Plug in the pump as well.
-7. Use a jumper to connect the male header pins to the appropriate GPIO pins given your config.yaml and presets.yaml file. These pins are unfortunately not labeled on the board in v1 but we show the names below:
+8. Plug in the pump. Pass the wires for any valves through the hold in the lid and plug them into their appropriate slots on the interface. 
+9. Use a jumper to connect the male header pins to the appropriate GPIO pins given your config.yaml and presets.yaml file. These pins are unfortunately not labeled on the board in v1 but we show the names below:
 ![alt text](ims/interface_pcb_pins.png)
-8. Plug the Pico into the Raspberry Pi using a USB cable. Use the flush and reverse buttons to ensure the pump is functional. Press the fill valve button to ensure this valve can be toggled by the button.
+10. Screw on the lid with M3x22mm screws being sure not to over tighten and cause damage to the PCB
+11. Plug the Pico into the Raspberry Pi using a USB cable.
+
+Once assembled you can use the flush and reverse buttons to ensure the pump is functional. Press the fill valve button to ensure this valve can be toggled by the button.
 
 
 ## Module Electronics
@@ -74,4 +84,4 @@ https://github.com/earlephilhower/arduino-pico/releases/download/global/package_
 *Setting the Lickometer Trimpot*
 1. Once all other electronics have been assembled and all software has been installed, plug the assembled lickometer into the module PCB and plug the module PCB into the interface. 
 2. Start the ratBerryPi server and trigger licks with an object of comparable size to a mouse or rat tongue. We usually use a small flathead screwdriver. 
-3. Start with the trim_emitter potentiometer set to a fairly high resistance and lower the resistance to a point beyond which you no longer register licks.
+3. Start with the trim_emitter potentiometer set to a fairly high resistance and lower the resistance to a point where you just start registering licks. 

@@ -1,5 +1,5 @@
 ## Electronics Overview
-The 2 main hardware components of the system are the interface and the modules. The interface is a HAT that sits on a raspberry pi, but often we may refer to the entire unit as the interface. Similarly when we refer to modules this is usually a reference to the entire reward module unit consisting of all attached devices (lickometer, speaker, and LED) but at it's core there is a PCB that usually is packaged with the module with the main electronics needed to operate all devices. The interface functions as a hub for all modules to plug into and offers some additional features which we will describe below.
+The 2 main hardware components of the system are the interface and the modules. The interface is a HAT that sits on a raspberry pi, but often we may refer to the entire unit as the interface. Similarly when we refer to modules we are usually referring to the entire reward module unit consisting of all attached devices (lickometer, speaker, and LED). At it's core, however, the reward module is controlled by a PCB that usually is packaged with the module. This PCB has the main electronics needed to operate all devices. The interface functions as a hub for all modules to plug into and offers some additional features which we will describe below.
 
 ![alt text](ims/module_plus_interface_box.png)
 
@@ -27,3 +27,17 @@ All modules have a screw terminal to plug in a speaker. Audio is provided to the
 It's worth noting that because audio in this system is provided by a single source, it would not be possible to play different audio on different speakers. You may however, play the same audio on a subset or one of many speakers. This is handled by an onboard analog switch which directs the audio input to the desired end point.
 
 ## Fluid Delivery System
+They main components of the fluid delivery system are the syringe pump, the valves that lead up to each reward module, the valve that leads up to the reservoir (the fill valve), the reservoir and the manifold of 3-way stopcocks that all valves are mounted to. 
+
+![alt text]()
+
+Many of these components are there to enable automatic refilling of a syringe without the need for unloading, However, the fundamental function of the system, namely delivering reward to a specified module, is supported primarily by the valves for each module and the pump. In practice, this is what a reward delivery looks like in this system:
+
+1. A GPIO pin is set to a HIGH state in order to open the valve for a specified module
+2. We wait a set period of time for the valve to actually open.
+3. The pump advances to perfuse the requested reward amount.
+4. We wait for a set period of time to ensure the entire reward amount has made it to the module (this is necessary because any compliance in the lines means that reward delivery is not instantaneous)
+5. The GPIO pin associated to the valve is set to LOW to close the valve.
+6. We wait to make sure the valve is closed.
+
+Whenever we need to refill the syringe this is accomplished by closing all valves except the fill valve, opening the fill valve, and running the pump in reverse to draw fluid from the reservoir into the syringe. We added a clamp to the pump to allow the syringe to be secured in place to avoid significant slack when switching between reversing and advancing the pump. However, to be safe, a small volume is pumped to the reservoir before any reward delivery after the pump was in reverse.
