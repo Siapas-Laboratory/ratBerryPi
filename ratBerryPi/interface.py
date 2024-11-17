@@ -613,7 +613,7 @@ class RewardInterface:
         """
         self.pumps[pump].stepType = stepType
         time.sleep(0.1)
-        logger.debug(f"set microstep level to {p.stepType}")
+        logger.debug(f"set microstep level to {self.pumps[pump].stepType}")
         
 
     def set_step_speed(self, speed:float, pump:str=None) -> None:
@@ -629,7 +629,7 @@ class RewardInterface:
         """
         self.pumps[pump].speed = speed
         time.sleep(0.1)
-        logger.debug(f"set step speed to {p.speed}")
+        logger.debug(f"set step speed to {self.pumps[pump].speed}")
 
     def set_flow_rate(self, flow_rate: float, pump:str=None) -> None:
         """

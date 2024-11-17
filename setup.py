@@ -15,7 +15,7 @@ setup(
     package_data = {"": ["*.yaml"]},
     extras_require = {
         'pi':[
-            'scipy'
+            'scipy',
             'pyyaml',
             'numpy',
             'gpiozero',
