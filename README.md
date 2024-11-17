@@ -59,7 +59,7 @@ There are 2 main modes of operation for the ratBerryPi. The Raspberry Pi can be 
 
 Users may interact with the ratBerryPi through an instance of the RewardInterface class as follows:
 
-```
+```python
 from ratBerryPi.interace import RewardInterface
 
 rpi = RewardInterface()
@@ -78,7 +78,7 @@ If nothing is passed to the constructor of the class, rpi will be an instance of
 
 Several instance methods are provided through `rpi` which allow the user interact with the hardware. For a full list of these methods see the help documentation for the RewardInterface class. This documentation can be accessed from a python terminal as follows:
 
-```
+```python
 from ratBerryPi.interface import RewardInterface
 help(RewardInterface)
 ```
@@ -88,7 +88,7 @@ We provide a cli for creating either a server or a cli via the command `ratBerry
 
 Users may connect to the server programmatically by first creating an instance of the `Client` class defined in `client.py`. For example:
 
-```
+```python
 from ratBerryPi.client import Client
 
 host = '123.456.789' # raspberry pi ip address
