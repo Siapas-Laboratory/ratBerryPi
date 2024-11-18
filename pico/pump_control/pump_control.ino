@@ -71,7 +71,7 @@ void setup() {
   pinMode(ENABLE_PIN, OUTPUT);
   pinMode(STEP_PIN, OUTPUT);
   pinMode(DIR_PIN, OUTPUT);
-  digitalWrite(ENABLE_PIN, LOW);
+  digitalWrite(ENABLE_PIN, HIGH);
   digitalWrite(DIR_PIN, LOW);
   digitalWrite(STEP_PIN, LOW);
 
@@ -141,6 +141,7 @@ void step(){
       position -= direction * cmPerStep;
       steps_to_go -= 1;
       if (steps_to_go==0){
+        digitalWrite(ENABLE_PIN, HIGH);
         running=0;
         moveCompleted = 1;
       }
@@ -151,6 +152,7 @@ void step(){
 void stop(){
   // stop any currently running pump tasks
   steps_to_go = 0;
+  digitalWrite(ENABLE_PIN, HIGH);
   running = 0;
   running_manual = false;
 }
@@ -158,7 +160,10 @@ void stop(){
 void setTarget(unsigned long target){
   // set the target number of microsteps for the motor
   steps_to_go = target;
-  if (target > 0){running = 1;}
+  if (target > 0){
+    digitalWrite(ENABLE_PIN, LOW);
+    running = 1;
+    }
   last_step = micros();
 }
 
