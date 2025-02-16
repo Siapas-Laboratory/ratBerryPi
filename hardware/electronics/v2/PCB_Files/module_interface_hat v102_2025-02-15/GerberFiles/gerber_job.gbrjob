@@ -1,0 +1,24 @@
+{
+    "Header": {
+        "Comment": "All values are metric (mm)",
+        "CreationDate": "2025-02-16T04:01:30Z",
+        "GenerationSoftware": {
+            "Application": "Fusion Electronics",
+            "Vendor": "Autodesk",
+            "Version": "9.7.0"
+        },
+        "Part": "Single"
+    },
+    "Overall": {
+        "BoardThickness": 1.1978,
+        "LayerNumber": 4,
+        "Name": {
+            "ProjectId": "module_interface_hat v102"
+        },
+        "Owner": "Nathaniel Nyema <nnyema@caltech.edu>",
+        "Size": {
+            "X": 142.875,
+            "Y": 82.728
+        }
+    }
+}
