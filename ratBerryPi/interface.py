@@ -476,7 +476,7 @@ class RewardInterface:
                 self.modules[module].trigger_reward(amount)
             elif not enqueued:
                 req = RewardRequest(self.modules[module], amount)
-                self._pump_threads[pump] = RewardThread(req)
+                self._pump_threads[pump] = PumpRewardThread(self.modules[module].pump, [req])
                 self._pump_threads[pump].start()
 
                 # wait to check if the thread started successfully
@@ -871,31 +871,83 @@ class FillThread(threading.Thread):
         self.success = False
         logger.debug("thread stopped")
 
+class LockHolder(threading.Thread):
+    def __init__(self, lock):
+        super().__init__()
+        self.lock = lock
+        self.err = None
+        self.running = False
+        self.stopped = False
+
+    def run(self):
+        acq = self.lock.acquire(False)
+        if not acq:
+            self.err = ResourceLocked("failed to acquire lock")
+            return
+        self.running = True
+        while not self.stopped:
+            time.sleep(0.1)
+        self.lock.release()
+    
+    def stop(self):
+        self.stopped = True
+        self.join()
 
 
-class RewardThread(threading.Thread):
+class PumpRewardThread(threading.Thread):
 
-    def __init__(self, init_request):
-        #TODO: need to set a property that we can read to indicate
-        # whether or not we are currently delivering reward
-        super(RewardThread, self).__init__()
+    def __init__(self, parent, pump:Pump, tasks:List[RewardRequest]):
+        super(PumpRewardThread, self).__init__()
         assert isinstance(init_request, RewardRequest)
-        self.tasks = [init_request]
-        if not self.tasks[0].module.pump.is_available(self.tasks[0].amount, Direction.FORWARD):
+        self.parent = parent
+        self.pump = pump
+        self.tasks = tasks
+        if not self.pump.is_available(sum([i.amount for i in self.tasks]), Direction.FORWARD):
             raise ValueError("the requested amount is more than is available in the syringe")
+        self.held_locks = []
+        self.hold_threads = []
+        for i in self.tasks:
+            self.hold_lock(i)
         self.running = False
         self.success = False
+
+    def hold_lock(self, module:BaseRewardModule):
+        if module.name in self.held_locks:
+            self.hold_threads.append(None)
+        else:
+            hold_thread = LockHolder(module.valve.lock)
+            hold_thread.start()
+            time.sleep(.1)
+            if (not hold_thread.running) and (not (hold_thread.err is None)):
+                raise hold_thread.err
+            self.hold_threads.append(hold_thread)
+            self.held_locks.append(module.name)
+
+    def enqueue(self, module:BaseRewardModule, amount: float):
+        self.hold_lock(module)
+        task = RewardRequest(module, amount)
+        self.tasks.append(task)
             
     def run(self):
-        acquired = self.tasks[0].module.acquire_locks()
-        if not acquired:
+        acq = self.pump.lock.acquire(False)
+        if self.pump.hasFillValve:
+            acq = acquired and self.pump.fillValve.lock.acquire(False)
+        if not acq:
             self.err = ResourceLocked("failed to acquire locks")
             return
+
         self.running = True
         try:
             while len(self.tasks) > 0:
-                task = self.tasks.pop(0)
+                task = self.tasks.pop()
                 self.current_module = task.module
+                h = self.hold_threads.pop()
+                acq = True
+                if not (h is None):
+                    h.stop()
+                    acq = self.current_module.valve.lock.acquire()
+                if not acq:
+                    raise ResourceLocked(f"failed to acquire lock for {self.current_module.name} valve")
                 amount = task.amount
                 logger.info(f"triggering {amount} mL reward on {self.current_module.name}")
 
@@ -903,11 +955,11 @@ class RewardThread(threading.Thread):
                 self.current_module.prep_pump()
                 self.current_module.valve.open() # make sure the valve is open before delivering reward
                 # make sure the fill valve is closed if the pump has one
-                if self.current_module.pump.hasFillValve: 
-                    self.current_module.pump.fillValve.close()
+                if self.pump.hasFillValve: 
+                    self.pump.fillValve.close()
                 
                 # deliver the reward
-                self.current_module.pump.move(amount, direction = Direction.FORWARD)
+                self.pump.move(amount, direction = Direction.FORWARD)
 
                 if len(self.tasks) > 0:
                     if not self.tasks[0].module == self.current_module:
@@ -921,10 +973,16 @@ class RewardThread(threading.Thread):
                     # wait then close the valve
                     time.sleep(self.current_module.post_delay)
                     self.current_module.valve.close()
+
+                if self.current_module.name not in [i.module.name for i in self.tasks]:
+                    self.held_locks.remove(self.current_module.name)
                     self.current_module.valve.lock.release()
 
             self.success = True
 
+        except ResourceLocked as e:
+            self.err = e
+            self.success = False
         except (PumpNotEnabled, IncompleteDelivery) as e:
             self.err = e
             self.success = False
@@ -936,12 +994,7 @@ class RewardThread(threading.Thread):
                 self.current_module.pump.fillValve.close()
                 self.current_module.pump.fillValve.lock.release()
             self.running = False
-            
-    def enqueue(self, module:BaseRewardModule, amount: float):
-        request = RewardRequest(module, amount)
-        acquired = request.module.valve.lock.acquire(False)
-        if not acquired: raise ResourceLocked()
-        self.tasks.append()
+
     
     def stop(self):
         if self.running:
