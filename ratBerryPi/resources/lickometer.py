@@ -6,6 +6,9 @@ import time
 from .base import BaseResource
 from PyQt5.QtCore import pyqtSignal, QObject
 from typing import Union
+import logging
+
+logger = logging.getLogger(__name__)
 
 class LickNotifier(QObject):
     new_lick = pyqtSignal(bool)
@@ -48,7 +51,7 @@ class Lickometer(BaseResource):
             self.lickPin.when_activated = self.increment_licks
     
     def increment_licks(self, x):
-        self.logger.info(f"{self.name}, lick") 
+        logger.info(f"{self.name}, lick") 
         self.licks += 1
         self.lick_notifier.new_lick.emit(self.licks) 
 

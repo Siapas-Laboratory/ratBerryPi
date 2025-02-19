@@ -9,7 +9,7 @@ import time
 import logging
 
 
-
+logger = logging.getLogger(__name__)
 
 class AudioInterface:
 
@@ -117,7 +117,6 @@ class AudioInterface:
 
         self.fs = fs
         self.speakers = {}
-        self.logger = logging.getLogger('ratBerryPi.interface')
 
     @property
     def fs(self) -> float:

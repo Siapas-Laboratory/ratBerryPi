@@ -9,6 +9,9 @@ from enum import Enum
 from PyQt5.QtCore import pyqtSignal, QObject
 import serial
 from typing import Union, Dict, List
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Direction(Enum):
     """directions of the pump"""
@@ -141,6 +144,7 @@ class Pump(BaseResource):
         self.serial = serial.Serial(port, baudrate = baudrate)
         self.serial_lock = threading.Lock()
         self.position = 0
+        self.reading_data = False
         self.monitor_thread = threading.Thread(target = self._monitor)
         self.monitor_thread.start()
         self.pos_updater = PositionUpdater()
@@ -248,20 +252,25 @@ class Pump(BaseResource):
                         try:
                             pos, running, direction, move_complete, step_lvl, speed = res
                             pos = float(pos)
+                            
                             if pos != self.position:
                                 self.position = pos
                                 self.pos_updater.pos_updated.emit(self.position)
-                            r = int(running) == 1
-                            if r != self.running:
-                                self.running =r
-                                self.logger.debug(f'running is {r}')
+                            
+                            running = int(running) == 1
+                            if running != self.running:
+                                self.running = running
+                                logger.debug(f'{self.name} running is {running}')
+  
+                            move_complete = int(move_complete) == 1
+                            if move_complete != self.move_complete:
+                                self.move_complete = move_complete
+                                logger.debug(f'{self.name} move_complete is {move_complete}')
+
                             self.direction = Direction.FORWARD if int(direction) == 1 else Direction.BACKWARD
-                            mc = int(move_complete) == 1
-                            if mc != self.move_complete:
-                                self.move_complete = mc
-                                self.logger.debug(f'move_complete is {mc}')
                             self._stepType = self.step_types[int(step_lvl)]
                             self._speed = float(speed)
+                            self.reading_data = True
                         except:
                             pass
                 time.sleep(.05)
@@ -398,8 +407,8 @@ class Pump(BaseResource):
                 target = pre_pos - dir_int*dist
                 ok_error = 0.01 * self.syringe.max_pos
 
-                self.logger.debug(f"target position: {target} cm")
-                self.logger.debug(f"allowable error: {ok_error} cm")
+                logger.debug(f"target position: {target} cm")
+                logger.debug(f"allowable error: {ok_error} cm")
 
                 self.send_command("CLEAR")
                 while self.move_complete: time.sleep(0.05)
@@ -417,10 +426,10 @@ class Pump(BaseResource):
                         # (i.e. force stop) 
                         time.sleep(0.1)
                 else:
-                    self.logger.warning('missed the start of pump movement')
-                self.logger.debug(f"final position: {self.position} cm")
+                    logger.warning('missed the start of pump movement')
+                logger.debug(f"final position: {self.position} cm")
                 err = abs(self.position - target)
-                self.logger.debug(f"error: {err} cm")
+                logger.debug(f"error: {err} cm")
                 if err>ok_error:
                     self.lock.release()
                     raise IncompleteDelivery

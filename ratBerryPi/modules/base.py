@@ -3,6 +3,9 @@ from ratBerryPi.resources.pump import Direction
 import time
 from abc import ABC, abstractmethod
 import typing
+import logging
+
+logger = logging.getLogger(__name__)
 
 class BaseRewardModule(ABC):
     """
@@ -18,7 +21,6 @@ class BaseRewardModule(ABC):
         self.valve = Valve(f"{self.name}-valve", self, valvePin)
         self.dead_volume = dead_volume
         self.load_from_config(config)
-        self.logger = self.parent._logger
 
     @abstractmethod
     def load_from_config(self, config: dict):
@@ -64,7 +66,7 @@ class BaseRewardModule(ABC):
                 # release the locks
                 self.release_locks()
         else:
-            self.logger.info("delivered 0 mL reward")
+            logger.info("delivered 0 mL reward")
 
     def prep_pump(self) -> None:
         """
@@ -136,7 +138,7 @@ class BaseRewardModule(ABC):
                         self.pump.fillValve.close()
                 # if the remaining/requested amount is more then available
                 if not self.pump.is_available(amount):
-                    self.logger.debug(amount)
+                    logger.debug(amount)
                     # set the amount to be dispensed in the current iteration as the volume in the syringe
                     dispense_vol = self.pump.vol_left - .1 # for safety discount .1 mL so we don't come close to the end
                     if not self.pump.hasFillValve:

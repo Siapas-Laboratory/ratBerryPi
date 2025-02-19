@@ -2,6 +2,9 @@ from .base import BaseResource
 from ratBerryPi.utils import config_output
 from typing import Union
 from digitalio import DigitalInOut
+import logging
+
+logger = logging.getLogger(__name__)
 
 class LED(BaseResource):
     """
@@ -39,11 +42,11 @@ class LED(BaseResource):
         turn on the LED
         """
         self.LEDPin.value = True
-        self.logger.info(f"{self.name}, on")
+        logger.info(f"{self.name}, on")
     
     def turn_off(self) -> None:
         """
         turn off the LED
         """
         self.LEDPin.value = False
-        self.logger.info(f"{self.name}, off")
+        logger.info(f"{self.name}, off")

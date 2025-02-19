@@ -32,12 +32,6 @@ def create_client(host, port=5562):
 
 def start_server(port=5562):
     from ratBerryPi.remote.server import Server
-    log_dir = os.path.join(os.path.expanduser('~'), ".ratBerryPi", "logs")
-    os.makedirs(log_dir, exist_ok = True)
-    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG, 
-                        filename=os.path.join(log_dir, f"{datetime.now().strftime('%m-%d-%Y-%H-%M-%S.log')}"))
-    logging.getLogger().addHandler(logging.StreamHandler())
-
     server = Server(port)
     server.start()
 

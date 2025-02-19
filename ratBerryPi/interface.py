@@ -97,7 +97,6 @@ class RewardInterface:
             self._clockPin.when_activated = self._log_clk_signal
 
         # setup logging
-        self._logger = logger
         self.recording = False
         self.data_dir = data_dir
         self.data_path = ""
@@ -165,7 +164,7 @@ class RewardInterface:
         """
         callback function that logs 'clock' whenever self._clockPin goes high
         """
-        self._logger.info(f"clock")
+        logger.info(f"clock")
 
     def start(self) -> None:
         """
@@ -203,14 +202,14 @@ class RewardInterface:
         self._log_fh = logging.FileHandler(self.data_path)
         self._log_fh.setLevel(logging.INFO)
         self._log_fh.setFormatter(self._formatter)
-        self._logger.addHandler(self._log_fh)
+        logger.parent.addHandler(self._log_fh)
 
     def stop_recording(self) -> None:
         """
         stop logging data
         """
         if self._log_fh: 
-            self._logger.removeHandler(self._log_fh)
+            logger.parent.removeHandler(self._log_fh)
 
     def calibrate(self, pump: str) -> None:
         """
@@ -460,9 +459,9 @@ class RewardInterface:
             if self._pump_threads[pump]:
                 if self._pump_threads[pump].running:
                     if isinstance(self._pump_threads[pump], FillThread):
-                        self._logger.debug("stopping fill thread")
+                        logger.debug("stopping fill thread")
                         self._pump_threads[pump].stop()
-                        self._logger.debug("fill thread stopped")
+                        logger.debug("fill thread stopped")
                     elif force:
                         self._pump_threads[pump].stop()
                     elif enqueue:
@@ -471,14 +470,14 @@ class RewardInterface:
                     else:
                         raise ResourceLocked("Pump In Use")
             if sync:
-                self._logger.info(f"triggering {amount} mL reward on {module}")
+                logger.info(f"triggering {amount} mL reward on {module}")
                 self.modules[module].trigger_reward(amount)
             elif not enqueued:
                 req = RewardRequest(self.modules[module], amount)
-                self._logger.debug(f"creating reward thread for {pump}")
+                logger.debug(f"creating reward thread for {pump}")
                 ev = threading.Event()
                 self._pump_threads[pump] = PumpRewardThread(self, self.modules[module].pump, [req], ev)
-                self._logger.debug(f"starting reward thread for {pump}")
+                logger.debug(f"starting reward thread for {pump}")
                 self._pump_threads[pump].start()
 
                 # wait to check if the thread started successfully
@@ -486,7 +485,7 @@ class RewardInterface:
                 if (not self._pump_threads[pump].running) and (not self._pump_threads[pump].success):
                     raise self._pump_threads[pump].err
         else:
-            self._logger.info(f"triggering {amount} mL reward on {module}")
+            logger.info(f"triggering {amount} mL reward on {module}")
 
     def refill_syringe(self, pump:str = None) -> None:
         """
@@ -522,12 +521,15 @@ class RewardInterface:
         periodically which syringes need to be refilled
         """
         os.nice(19)
+        logger.debug("waiting for pumps to initialize before checking for refills...")
+        while not all([i.reading_data for i in self.pumps.values()]):
+            time.sleep(0.05)
         while self.on.is_set():
             for i in self.pumps:
                 if (self.pumps[i].vol_left < (self.auto_fill_frac_thresh * self.pumps[i].syringe.volume) and 
                     self.pumps[i].hasFillValve and 
                     (i not in self.needs_refilling)):
-                    self._logger.debug(f"{i} needs refilling")
+                    logger.debug(f"{i} needs refilling")
                     self.needs_refilling.append(i)
             time.sleep(.5)
     
@@ -562,14 +564,14 @@ class RewardInterface:
                     else:
                         create_fill_thread = True
                     if create_fill_thread:
-                        self._logger.debug(f"creating fill thread for {i}")
+                        logger.debug(f"creating fill thread for {i}")
                         ev = threading.Event()
                         self._pump_threads[i] = FillThread(self.pumps[i], self, ev)
-                        self._logger.debug(f"starting fill thread for {i}")
+                        logger.debug(f"starting fill thread for {i}")
                         self._pump_threads[i].start()
                         while not ev.is_set(): time.sleep(0.01) # wait for it to start running
                         if (not self._pump_threads[i].running) and (not self._pump_threads[i].success):
-                            self._logger.exception(self._pump_threads[i].err)
+                            logger.exception(self._pump_threads[i].err)
             time.sleep(0.5)
 
 
@@ -832,6 +834,7 @@ class FillThread(threading.Thread):
         self.parent = parent
         self.running = False
         self.success = False
+        self.stopped = False
         self.err = None
         self.ev = ev
 
@@ -844,10 +847,10 @@ class FillThread(threading.Thread):
         bad_lock = acquire_many_locks({
             f"pump {self.pump.name}": self.pump.lock,
             f"pump {self.pump.name} fill valve": self.pump.fillValve.lock,
-            **{f"valve {i.name}": i for i in valves}
+            **{f"valve {i.name}": i.lock for i in valves}
         })
         if not(bad_lock is None):
-            self.err = ResourceLocked(f"failed to acquire lock for {bad_lock}")
+            self.err = ResourceLocked(f"{self.pump.name} fill thread failed to acquire lock for {bad_lock}")
             self.ev.set()
             return
         
@@ -865,10 +868,11 @@ class FillThread(threading.Thread):
 
         except (PumpNotEnabled, IncompleteDelivery) as e:
             self.err = e
-            logger.exception(e)
             self.success = False
+            if not self.stopped:
+                logger.exception(e)
         finally:
-            logger.debug("releasing locks")
+            logger.debug(f"{self.pump.name} fill thread releasing locks")
             while self.pump.lock._is_owned():
                 self.pump.lock.release()
             self.pump.fillValve.close()
@@ -882,10 +886,9 @@ class FillThread(threading.Thread):
             self.running = False
 
     def stop(self):
+        self.stopped = True
         self.pump.stop()
-        time.sleep(0.5)
         self.join()
-        self.success = False
 
 class LockHolder(threading.Thread):
     def __init__(self, lock, ev):
@@ -893,7 +896,6 @@ class LockHolder(threading.Thread):
         self.lock = lock
         self.ev = ev
         self.err = None
-        self.success = True
         self.stopped = False
 
     def run(self):
@@ -943,7 +945,7 @@ class PumpRewardThread(threading.Thread):
             hold_thread.start()
             while not ev.is_set():time.sleep(0.01)
             if not hold_thread.success:
-                raise ResourceLocked(f'failed to acquire lock for {module.name} valve')
+                raise ResourceLocked(f'lock holder for {self.pump.name} reward thread failed to acquire lock for {module.name} valve')
 
             self.hold_threads.append(hold_thread)
             self.held_locks.append(module.name)
@@ -960,7 +962,7 @@ class PumpRewardThread(threading.Thread):
             f"pump {self.pump.name} fill valve": self.pump.fillValve.lock,
         })
         if not(bad_lock is None):
-            self.err = ResourceLocked(f"failed to acquire lock for {bad_lock}")
+            self.err = ResourceLocked(f"{self.pump.name} reward thread failed to acquire lock for {bad_lock}")
             self.ev.set()
             return
         
@@ -976,7 +978,7 @@ class PumpRewardThread(threading.Thread):
                     h.stop()
                     acq = self.current_module.valve.lock.acquire(False)
                 if not acq:
-                    raise ResourceLocked(f"failed to acquire lock for {self.current_module.name} valve")
+                    raise ResourceLocked(f"{self.pump.name} reward thread to acquire lock for {self.current_module.name} valve")
                 amount = task.amount
                 logger.info(f"triggering {amount} mL reward on {self.current_module.name}")
 
@@ -1009,10 +1011,10 @@ class PumpRewardThread(threading.Thread):
 
         except (PumpNotEnabled, IncompleteDelivery, ResourceLocked) as e:
             self.err = e
-            logger.exception(e)
-            self.success = False
+            if not self.stopped:
+                logger.exception(e)
         finally:
-            logger.debug("releasing locks")
+            logger.debug(f"{self.pump.name} reward thread releasing locks")
             while self.current_module.valve.lock._is_owned():
                 self.current_module.valve.lock.release()
             while self.pump.lock._is_owned():
@@ -1027,7 +1029,7 @@ class PumpRewardThread(threading.Thread):
     def stop(self):
         if self.running:
             self.running = False
+            self.stopped = True
             self.current_module.pump.stop()
             self.join()
-            self.success = False
-            self.current_module.pump.logger.debug("thread stopped")
+            logger.debug(f"{self.pump.name} reward thread stopped")

@@ -2,7 +2,7 @@ import logging
 import os
 from datetime import datetime
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s.%(msecs)03d, %(levelname)s, %(message)s',
                               "%Y-%m-%d %H:%M:%S")
