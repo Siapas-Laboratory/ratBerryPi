@@ -239,9 +239,7 @@ class RewardInterface:
 
         pump = self.pumps[pump]
         if pump.hasFillValve:
-            fill_lock_acquired = pump.fillValve.lock.acquire(False)
-            pump_lock_acquired = pump.lock.acquire(False)
-            if fill_lock_acquired and pump_lock_acquired:
+            if acquire_many_locks([pump.lock, pump.fillValve.lock]) is None:
                 for i in self.modules:
                     if self.modules[i].pump == pump:
                         self.modules[i].valve.close()
@@ -277,7 +275,7 @@ class RewardInterface:
 
         # pre-acquire locks for all resources and
         locks = {
-            **{f"{m} valve": self.modules[m].valve.lock for m in modules},
+            **{f"{m} valve": m.valve.lock for m in modules},
             **{f"pump {p}": p.lock for p in pumps},
             **{f"pump {p} fill valve": p.fillValve.lock for p in pumps}
         }
@@ -378,7 +376,7 @@ class RewardInterface:
         # make sure all valves are closed before starting
 
         locks = {
-            **{f"{m} valve": self.modules[m].valve.lock for m in modules},
+            **{f"{m} valve": m.valve.lock for m in modules},
             **{f"pump {p}": p.lock for p in pumps},
             **{f"pump {p} fill valve": p.fillValve.lock for p in [i for i in pumps if i.hasFillValve]}
         }
@@ -838,35 +836,21 @@ class FillThread(threading.Thread):
         self.ev = ev
 
     def run(self):
-        acq = self.pump.lock.acquire(False)
-        if not acq:
-            self.err = ResourceLocked("failed to acquire locks")
+
+        valves = [self.parent.modules[i].valve 
+                  for i in self.parent.modules 
+                  if self.parent.modules[i].pump == self.pump]
+
+        bad_lock = acquire_many_locks({
+            f"pump {self.pump.name}": self.pump.lock,
+            f"pump {self.pump.name} fill valve": self.pump.fillValve.lock,
+            **{f"valve {i.name}": i for i in valves}
+        })
+        if not(bad_lock is None):
+            self.err = ResourceLocked(f"failed to acquire lock for {bad_lock}")
             self.ev.set()
             return
         
-        acq = self.pump.fillValve.lock.acquire(False)
-        if not acq:
-            self.pump.lock.release()
-            self.err = ResourceLocked("failed to acquire locks")
-            self.ev.set()
-            return
-            
-        mods = []
-        valves = []
-        for i in self.parent.modules:
-            if self.parent.modules[i].pump == self.pump:
-                acq = self.parent.modules[i].valve.lock.acquire(False)
-                if not acq:
-                    self.pump.lock.release()
-                    self.pump.fillValve.lock.release()
-                    for j in mods:
-                        self.parent.modules[j].valve.lock.release()
-                    self.err = ResourceLocked(f"failed to acquire lock for {i} valve")
-                    self.ev.set()
-                    return
-                mods.append(i)
-                valves.append(self.parent.modules[i].valve)
-
         self.running = True
         self.ev.set()
 
@@ -970,15 +954,13 @@ class PumpRewardThread(threading.Thread):
         self.tasks.append(task)
             
     def run(self):
-        acq = self.pump.lock.acquire(False)
-        if not acq:
-            self.err = ResourceLocked("failed to acquire pump lock")
-            self.ev.set()
-            return
-        acq = self.pump.fillValve.lock.acquire(False)
-        if not acq:
-            self.pump.lock.release()
-            self.err = ResourceLocked("failed to fill valve locks")
+
+        bad_lock = acquire_many_locks({
+            f"pump {self.pump.name}": self.pump.lock,
+            f"pump {self.pump.name} fill valve": self.pump.fillValve.lock,
+        })
+        if not(bad_lock is None):
+            self.err = ResourceLocked(f"failed to acquire lock for {bad_lock}")
             self.ev.set()
             return
         
