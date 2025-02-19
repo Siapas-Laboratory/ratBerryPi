@@ -102,7 +102,8 @@ class Server:
                 f = getattr(self.interface, command)
                 res = f(**args)
                 reply = 'SUCCESS' if not res else json.dumps(res)
-            except Exception as e:
+            except (BaseException, Exception) as e:
+                logging.info('caught error')
                 logging.exception(e)
                 reply = 'ERROR'
 

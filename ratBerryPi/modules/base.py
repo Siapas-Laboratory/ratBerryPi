@@ -1,4 +1,4 @@
-from ratBerryPi.resources import Pump, Valve, ResourceLocked
+from ratBerryPi.resources import Pump, Valve, ResourceLocked, acquire_many_locks
 from ratBerryPi.resources.pump import Direction
 import time
 from abc import ABC, abstractmethod
@@ -156,10 +156,10 @@ class BaseRewardModule(ABC):
         """
         pre-acquire locks on shared resources
         """
-        pump_reserved = self.pump.lock.acquire(False) 
-        valve_reserved = self.valve.lock.acquire(False)
-        fill_valve_reserved = self.pump.fillValve.lock.acquire(False) if self.pump.hasFillValve else True 
-        return pump_reserved and valve_reserved and fill_valve_reserved
+        locks = [self.pump.lock, self.valve.lock]
+        if self.pump.hasFillValve:
+            locks.append(self.pump.fillValve.lock)
+        return acquire_many_locks(locks) is None
     
     def release_locks(self) -> None:
         """

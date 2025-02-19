@@ -236,6 +236,8 @@ class Pump(BaseResource):
     def _monitor(self) -> None:
         os.nice(19)
         while not self.parent.on.is_set(): time.sleep(.001)
+        self.running = False
+        self.move_complete = False
         while self.parent.on.is_set():
             while self.serial.in_waiting:
                 acq = self.serial_lock.acquire(False)
@@ -249,9 +251,15 @@ class Pump(BaseResource):
                             if pos != self.position:
                                 self.position = pos
                                 self.pos_updater.pos_updated.emit(self.position)
-                            self.running = int(running) == 1
+                            r = int(running) == 1
+                            if r != self.running:
+                                self.running =r
+                                self.logger.debug(f'running is {r}')
                             self.direction = Direction.FORWARD if int(direction) == 1 else Direction.BACKWARD
-                            self.move_complete = int(move_complete) == 1
+                            mc = int(move_complete) == 1
+                            if mc != self.move_complete:
+                                self.move_complete = mc
+                                self.logger.debug(f'move_complete is {mc}')
                             self._stepType = self.step_types[int(step_lvl)]
                             self._speed = float(speed)
                         except:
@@ -376,6 +384,7 @@ class Pump(BaseResource):
         if amount >0:
             acq = self.lock.acquire(blocking = blocking, timeout = timeout)
             if self.running or not acq:
+                if acq: self.lock.release()
                 raise ResourceLocked("Pump in use")
             else:
                 if check_availability:
@@ -394,9 +403,21 @@ class Pump(BaseResource):
 
                 self.send_command("CLEAR")
                 while self.move_complete: time.sleep(0.05)
+                to = False
+                t_start = time.time()
                 self.send_command("RUN", direction = direction, distance = dist)
-                while not self.move_complete: time.sleep(0.1)
-
+                while (not self.running) and (not to):
+                    # wait until we're actually running
+                    time.sleep(0.05)
+                    to = (time.time() - t_start)>1
+                
+                if not to:          
+                    while (not self.move_complete) and self.running:
+                        # wait for either the move complete flag or for running to turn off
+                        # (i.e. force stop) 
+                        time.sleep(0.1)
+                else:
+                    self.logger.warning('missed the start of pump movement')
                 self.logger.debug(f"final position: {self.position} cm")
                 err = abs(self.position - target)
                 self.logger.debug(f"error: {err} cm")
