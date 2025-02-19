@@ -901,7 +901,7 @@ class LockHolder(threading.Thread):
         self.ev.set()
         if self.success:
             while not self.stopped:
-                time.sleep(0.1)
+                time.sleep(0.01)
             self.lock.release()
     
     def stop(self):
