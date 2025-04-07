@@ -38,7 +38,8 @@ class Syringe:
 
     # ID and volume for any syringes we might want to use
     # in cm and mL respectively 
-    syringeTypeDict = {'BD1mL':     {'ID': 0.478, 'volume': 1}, 
+    syringeTypeDict = {'BD1mL':     {'ID': 0.478, 'volume': 1},
+                       'BD3mL':     {'ID': 0.866, 'volume': 3},
                        'BD5mL':     {'ID': 1.207, 'volume': 5},
                        'BD10mL':    {'ID': 1.45,  'volume': 10},
                        'BD30mL':    {'ID': 2.17,  'volume': 30},
@@ -408,7 +409,8 @@ class Pump(BaseResource):
                 ok_error = 0.01 * self.syringe.max_pos
 
                 logger.debug(f"target position: {target} cm")
-                logger.debug(f"allowable error: {ok_error} cm")
+                logger.debug(f"allowable error [cm]: {ok_error}")
+                logger.debug(f"allowable error [mL]: {ok_error * self.syringe.mlPerCm}")
 
                 self.send_command("CLEAR")
                 while self.move_complete: time.sleep(0.05)
@@ -428,8 +430,9 @@ class Pump(BaseResource):
                 else:
                     logger.warning('missed the start of pump movement')
                 logger.debug(f"final position: {self.position} cm")
-                err = abs(self.position - target)
-                logger.debug(f"error: {err} cm")
+                err = -dir_int*(self.position - target)
+                logger.debug(f"error [cm]: {err}")
+                logger.debug(f"error [mL]: {err * self.syringe.mlPerCm}")
                 if err>ok_error:
                     self.lock.release()
                     raise IncompleteDelivery

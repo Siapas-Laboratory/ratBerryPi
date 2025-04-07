@@ -155,7 +155,7 @@ class RewardInterface:
             self.modules[i] = constructor(i, self, self.pumps[config['modules'][i]['pump']], 
                                           valvePin, dead_volume, config = config['modules'][i])
         self.auto_fill = False
-        self.auto_fill_frac_thresh = 0.95
+        self.auto_fill_frac_thresh = 0.8
         self._auto_fill_thread = threading.Thread(target = self._fill_syringes)
         self._refill_check_thread = threading.Thread(target = self._check_for_refills)
         self._pump_threads = {p: None for p in self.pumps}
@@ -176,6 +176,9 @@ class RewardInterface:
         pump interface and lickometers
         """
         if not self.on.is_set(): self.on.set()
+        logger.debug("waiting for pumps to initialize...")
+        while not all([i.reading_data for i in self.pumps.values()]):
+            time.sleep(0.05)
         self._refill_check_thread.start() 
         self._auto_fill_thread.start()
 
@@ -861,7 +864,7 @@ class FillThread(threading.Thread):
             for i in valves: i.close()
             self.pump.fillValve.open()
             self.pump.ret_to_max()
-            self.pump.move(.05 * self.pump.syringe.mlPerCm, Direction.FORWARD)
+            self.pump.move(.05 * self.pump.syringe.volume, Direction.FORWARD)
             time.sleep(0.5)
             self.pump.fillValve.close()
             self.success = True

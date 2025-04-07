@@ -76,7 +76,9 @@ class BaseRewardModule(ABC):
         if self.pump.direction == Direction.BACKWARD and self.pump.hasFillValve:
             self.valve.close()
             self.pump.fillValve.open()
-            self.pump.move(.05 * self.pump.syringe.mlPerCm, Direction.FORWARD)
+            self.pump.move(0.05 * self.pump.syringe.volume, Direction.FORWARD)
+            time.sleep(0.1)
+            self.pump.fillValve.close()
 
     def empty_line(self, amount: float = None) -> None:
         """
