@@ -73,7 +73,7 @@ class RewardInterface:
     """
 
     def __init__(self, on: threading.Event = None, 
-                 config_file: Union[str, os.PathLike] = Path(__file__).parent/"config.yaml",
+                 config_file: Union[str, os.PathLike] = None,
                  data_dir: Union[str, os.PathLike]= os.path.join(os.path.expanduser('~'), ".ratBerryPi", "data")):
         """
         Args:
@@ -88,6 +88,10 @@ class RewardInterface:
         """
 
         self.on = on if on else threading.Event()
+        if config_file is None:
+            config_file = Path('~/.ratBerryPi-config.yaml').expanduser()
+            if not config_file.exists():
+                config_file = Path(__file__).parent/"default-config.yaml"
 
         with open(config_file, 'r') as f:
             config = yaml.safe_load(f)
