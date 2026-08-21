@@ -79,8 +79,8 @@ Once the pump is fully assembled, apply white lithium grease to the threads of t
 
 ![alt text](ims/example_lickometer_print.png)
 *Additional Pieces*
-* IR Emitter (x1)
-* IR Phototransistor (x1)
+* [OP245PS - IR Emitter](https://www.digikey.com/en/products/detail/tt-electronics-optek-technology/OP245PS/374783) (x1)
+* [OP550A - IR Phototransistor](https://www.digikey.com/en/products/detail/tt-electronics-optek-technology/OP550A/498696) (x1)
 * [JST Xh 4 Pin Male Connector Pre-Assembled](https://www.amazon.com/Sets-2-5-4-Connector-200mm-Female/dp/B01DUC1S14) (x1)
 * x mm long M3 set screws
 
